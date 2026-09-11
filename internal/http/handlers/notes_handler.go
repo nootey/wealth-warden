@@ -1,9 +1,8 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
-	"strconv"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -46,7 +45,7 @@ func (h *NotesHandler) GetNotesPaginated(c *gin.Context) {
 
 	records, paginator, err := h.service.FetchNotesPaginated(ctx, userID, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -66,23 +65,15 @@ func (h *NotesHandler) GetNoteByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	record, err := h.service.FetchNoteByID(ctx, userID, id)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -96,18 +87,18 @@ func (h *NotesHandler) InsertNote(c *gin.Context) {
 	var record *models.NoteReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err := h.service.InsertNote(ctx, userID, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -118,35 +109,27 @@ func (h *NotesHandler) UpdateNote(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var record *models.NoteReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err = h.service.UpdateNote(ctx, userID, id, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -157,22 +140,14 @@ func (h *NotesHandler) ToggleResolveState(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.ToggleResolveState(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Toggle error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -183,22 +158,14 @@ func (h *NotesHandler) DeleteNote(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.DeleteNote(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

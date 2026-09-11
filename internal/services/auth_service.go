@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -14,6 +15,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AuthServiceInterface interface {
@@ -26,7 +28,6 @@ type AuthServiceInterface interface {
 	RequestPasswordReset(ctx context.Context, email, userAgent, ip string) error
 	ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error)
 	ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error
-	RegisterUser(ctx context.Context, form models.RegisterForm, userAgent, ip string) error
 	CompleteSetup(ctx context.Context, userID int64, req models.CompleteSetupReq) error
 }
 type AuthService struct {
@@ -57,6 +58,16 @@ func NewAuthService(
 }
 
 var _ AuthServiceInterface = (*AuthService)(nil)
+
+var (
+	ErrInvalidCredentials = apperr.New(apperr.Unauthorized, "Invalid email or password")
+	ErrSignupsDisabled    = apperr.New(apperr.Forbidden, "Open sign ups are not currently enabled")
+	ErrPasswordMismatch   = apperr.New(apperr.Validation, "Password and password confirmation do not match")
+	ErrEmailNotInvited    = apperr.New(apperr.Validation, "Email does not match the invitation")
+	ErrInvalidToken       = apperr.New(apperr.Unauthorized, "This link is no longer valid")
+	ErrSetupAlreadyDone   = apperr.New(apperr.Conflict, "Setup has already been completed")
+	ErrEmailNotFound      = apperr.New(apperr.NotFound, "No account found for that email")
+)
 
 func (s *AuthService) log(ctx context.Context, event, email, userAgent, ip, status string, description *string, userID *int64) error {
 
@@ -160,7 +171,7 @@ func (s *AuthService) ValidateLogin(ctx context.Context, email, password, userAg
 		if logErr != nil {
 			return nil, logErr
 		}
-		return nil, errors.New("invalid credentials")
+		return nil, ErrInvalidCredentials
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(password))
@@ -170,12 +181,12 @@ func (s *AuthService) ValidateLogin(ctx context.Context, email, password, userAg
 		if logErr != nil {
 			return nil, logErr
 		}
-		return nil, errors.New("invalid credentials")
+		return nil, ErrInvalidCredentials
 	}
 
 	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if err != nil || user == nil {
-		return nil, errors.New("user data unavailable")
+		return nil, apperr.Wrap(apperr.Internal, apperr.GenericMessage, err)
 	}
 
 	logErr := s.log(ctx, "login", email, userAgent, ip, "success", nil, &user.ID)
@@ -203,7 +214,7 @@ func (s *AuthService) CompleteSetup(ctx context.Context, userID int64, req model
 	}
 
 	if user.HasCompletedSetup {
-		return fmt.Errorf("setup has already been completed")
+		return ErrSetupAlreadyDone
 	}
 
 	tx, err := s.userRepo.BeginTx(ctx)
@@ -241,13 +252,15 @@ func (s *AuthService) CompleteSetup(ctx context.Context, userID int64, req model
 
 func (s *AuthService) ValidateInvitation(ctx context.Context, hash string) error {
 	if hash == "" {
-		err := errors.New("validation token is required")
-		return err
+		return apperr.New(apperr.Invalid, "A validation token is required")
 	}
 
 	// Do additional validation if needed, for now, confirming it exists is enough
 	_, err := s.userRepo.FindUserInvitationByHash(ctx, nil, hash)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidToken
+		}
 		return err
 	}
 
@@ -263,18 +276,18 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 	}
 
 	if !settings.AllowSignups {
-		return 0, errors.New("open sign ups are not currently enabled")
+		return 0, ErrSignupsDisabled
 	}
 
 	if form.Password != form.PasswordConfirmation {
-		return 0, errors.New("password and password confirmation do not match")
+		return 0, ErrPasswordMismatch
 	}
 
 	existingUser, _ := s.userRepo.FindUserByEmail(ctx, nil, form.Email)
 
 	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
 	if passwordErr != nil {
-		return 0, passwordErr
+		return 0, apperr.Wrap(apperr.Validation, passwordErr.Error(), passwordErr)
 	}
 
 	hashedPass, err := utils.HashAndSaltPassword(password)
@@ -304,7 +317,7 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			// Validate email matches invitation
 			if invitation.Email != form.Email {
 				tx.Rollback()
-				return 0, errors.New("email does not match invitation")
+				return 0, ErrEmailNotInvited
 			}
 
 			role, err = s.roleRepo.FindRoleByID(ctx, tx, invitation.RoleID, false)
@@ -386,11 +399,10 @@ func (s *AuthService) ResendConfirmationEmail(ctx context.Context, email, userAg
 
 	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrEmailNotFound
+		}
 		return err
-	}
-
-	if user.ID == 0 {
-		return errors.New("no user found for given email")
 	}
 
 	err = s.dispatchConfirmationEmail(ctx, user)
@@ -417,12 +429,10 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, i
 	token, err := s.userRepo.FindTokenByValue(ctx, tx, "confirm-email", tokenValue)
 	if err != nil {
 		_ = tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidToken
+		}
 		return err
-	}
-
-	if token == nil {
-		_ = tx.Rollback()
-		return errors.New("no valid token found")
 	}
 
 	raw, err := utils.UnwrapToken(token, "user_id")
@@ -471,11 +481,12 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email, userAgent
 
 	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Report success for an unknown email too, so the response cannot confirm who holds an account.
+			desc := "No account for that email"
+			return s.log(ctx, "password-reset", email, userAgent, ip, "fail", &desc, nil)
+		}
 		return err
-	}
-
-	if user.ID == 0 {
-		return errors.New("no user found for given email")
 	}
 
 	err = s.dispatchPasswordResetEmail(ctx, user)
@@ -496,11 +507,10 @@ func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue stri
 
 	token, err := s.userRepo.FindTokenByValue(ctx, nil, "password-reset", tokenValue)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrInvalidToken
+		}
 		return "", err
-	}
-
-	if token == nil {
-		return "", errors.New("no valid token found")
 	}
 
 	raw, err := utils.UnwrapToken(token, "user_id")
@@ -514,13 +524,11 @@ func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue stri
 		return "", fmt.Errorf("invalid user_id in token data: %v", err)
 	}
 
-	user, err := s.userRepo.FindUserByID(ctx, nil, userID)
-	if err != nil {
+	if _, err := s.userRepo.FindUserByID(ctx, nil, userID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrInvalidToken
+		}
 		return "", err
-	}
-
-	if user == nil {
-		return "", errors.New("user not found for given token")
 	}
 
 	return token.TokenValue, nil
@@ -529,7 +537,7 @@ func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue stri
 func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error {
 
 	if form.Password != form.PasswordConfirmation {
-		return errors.New("password and password confirmation do not match")
+		return ErrPasswordMismatch
 	}
 
 	tx, err := s.userRepo.BeginTx(ctx)
@@ -540,12 +548,16 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 	user, err := s.userRepo.FindUserByEmail(ctx, tx, form.Email)
 	if err != nil {
 		_ = tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrEmailNotFound
+		}
 		return err
 	}
 
 	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
 	if passwordErr != nil {
-		return passwordErr
+		_ = tx.Rollback()
+		return apperr.Wrap(apperr.Validation, passwordErr.Error(), passwordErr)
 	}
 
 	hashedPass, err := utils.HashAndSaltPassword(password)
@@ -577,11 +589,6 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 	if logErr != nil {
 		return logErr
 	}
-
-	return nil
-}
-
-func (s *AuthService) RegisterUser(ctx context.Context, form models.RegisterForm, userAgent, ip string) error {
 
 	return nil
 }

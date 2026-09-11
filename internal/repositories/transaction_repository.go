@@ -28,7 +28,6 @@ type TransactionRepositoryInterface interface {
 	CountTransfers(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool, accountID *int64) (int64, error)
 	scopeCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) *gorm.DB
 	FindAllCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) ([]models.Category, error)
-	FindAllCustomCategories(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Category, error)
 	FindCategoryByID(ctx context.Context, tx *gorm.DB, ID int64, userID *int64, includeDeleted bool) (models.Category, error)
 	FindCategoryByClassification(ctx context.Context, tx *gorm.DB, classification string, userID *int64) (models.Category, error)
 	FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID *int64) (models.Category, error)
@@ -48,8 +47,6 @@ type TransactionRepositoryInterface interface {
 	UpdateCategory(ctx context.Context, tx *gorm.DB, record models.Category) (int64, error)
 	DeleteTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	DeleteTransfer(ctx context.Context, tx *gorm.DB, id, userID int64) error
-	BulkDeleteTransactions(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) error
-	BulkDeleteTransfers(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) error
 	ArchiveCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	DeleteCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
@@ -76,7 +73,7 @@ type TransactionRepositoryInterface interface {
 	InsertCategoryGroupMember(ctx context.Context, tx *gorm.DB, groupID, categoryID int64) error
 	UpdateCategoryGroup(ctx context.Context, tx *gorm.DB, record models.CategoryGroup) (int64, error)
 	DeleteCategoryGroupMembers(ctx context.Context, tx *gorm.DB, groupingID int64) error
-	DeleteCategoryGroup(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	DeleteCategoryGroup(ctx context.Context, tx *gorm.DB, id, userID int64) (int64, error)
 	IsCategoryInGroup(ctx context.Context, tx *gorm.DB, categoryID int64) (bool, error)
 	GetYearlyAverageForCategory(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, categoryID int64, year int) (float64, error)
 	GetYearlyAverageForCategoryGroup(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, groupID int64, year int) (float64, error)
@@ -402,21 +399,6 @@ func (r *TransactionRepository) FindAllCategories(ctx context.Context, tx *gorm.
 	return records, db.Error
 }
 
-func (r *TransactionRepository) FindAllCustomCategories(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Category, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var records []models.Category
-	q := db.Model(&models.Category{}).
-		Where("user_id = ? AND is_default = false", userID).
-		Order("classification, name").
-		Find(&records)
-	return records, q.Error
-}
-
 func (r *TransactionRepository) FindCategoryByID(ctx context.Context, tx *gorm.DB, ID int64, userID *int64, includeDeleted bool) (models.Category, error) {
 	db := tx
 	if db == nil {
@@ -720,58 +702,6 @@ func (r *TransactionRepository) DeleteTransfer(ctx context.Context, tx *gorm.DB,
 	if res.Error != nil {
 		return res.Error
 	}
-	return nil
-}
-
-func (r *TransactionRepository) BulkDeleteTransactions(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) error {
-
-	if len(ids) == 0 {
-		return nil // nothing to delete
-	}
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	res := db.Model(&models.Transaction{}).
-		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
-		Updates(map[string]any{
-			"deleted_at": time.Now().UTC(),
-			"updated_at": time.Now().UTC(),
-		})
-
-	if res.Error != nil {
-		return res.Error
-	}
-
-	return nil
-}
-
-func (r *TransactionRepository) BulkDeleteTransfers(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) error {
-
-	if len(ids) == 0 {
-		return nil
-	}
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	res := db.Model(&models.Transfer{}).
-		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
-		Updates(map[string]any{
-			"deleted_at": time.Now().UTC(),
-			"updated_at": time.Now().UTC(),
-		})
-
-	if res.Error != nil {
-		return res.Error
-	}
-
 	return nil
 }
 
@@ -1256,12 +1186,12 @@ func (r *TransactionRepository) FindAllCategoryGroups(ctx context.Context, tx *g
 	db = db.WithContext(ctx)
 
 	var records []models.CategoryGroup
-	db.Model(&models.CategoryGroup{}).
+	q := db.Model(&models.CategoryGroup{}).
 		Preload("Categories").
 		Where("user_id = ?", userID).
 		Order("classification, name").
 		Find(&records)
-	return records, db.Error
+	return records, q.Error
 }
 
 func (r *TransactionRepository) FindAllCategoriesAndGroups(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Category, []models.CategoryGroup, error) {
@@ -1301,12 +1231,12 @@ func (r *TransactionRepository) FindCategoryGroupByID(ctx context.Context, tx *g
 	db = db.WithContext(ctx)
 
 	var record models.CategoryGroup
-	db.Model(&models.CategoryGroup{}).
+	q := db.Model(&models.CategoryGroup{}).
 		Preload("Categories").
 		Where("id = ? AND user_id = ?", ID, userID).
 		Order("classification, name").
 		First(&record)
-	return record, db.Error
+	return record, q.Error
 }
 
 func (r *TransactionRepository) InsertCategoryGroup(ctx context.Context, tx *gorm.DB, newRecord *models.CategoryGroup) (int64, error) {
@@ -1339,17 +1269,18 @@ func (r *TransactionRepository) UpdateCategoryGroup(ctx context.Context, tx *gor
 	}
 	db = db.WithContext(ctx)
 
-	if err := db.Model(models.CategoryGroup{}).
+	res := db.Model(models.CategoryGroup{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
 			"name":           record.Name,
 			"classification": record.Classification,
 			"description":    record.Description,
 			"updated_at":     time.Now().UTC(),
-		}).Error; err != nil {
-		return 0, err
+		})
+	if res.Error != nil {
+		return 0, res.Error
 	}
-	return record.ID, nil
+	return res.RowsAffected, nil
 }
 
 func (r *TransactionRepository) DeleteCategoryGroupMembers(ctx context.Context, tx *gorm.DB, groupingID int64) error {
@@ -1357,18 +1288,19 @@ func (r *TransactionRepository) DeleteCategoryGroupMembers(ctx context.Context, 
 	return tx.WithContext(ctx).Exec(query, groupingID).Error
 }
 
-func (r *TransactionRepository) DeleteCategoryGroup(ctx context.Context, tx *gorm.DB, id, userID int64) error {
+func (r *TransactionRepository) DeleteCategoryGroup(ctx context.Context, tx *gorm.DB, id, userID int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	if err := db.Where("id = ? AND user_id = ?", id, userID).
-		Delete(&models.CategoryGroup{}).Error; err != nil {
-		return err
+	res := db.Where("id = ? AND user_id = ?", id, userID).
+		Delete(&models.CategoryGroup{})
+	if res.Error != nil {
+		return 0, res.Error
 	}
-	return nil
+	return res.RowsAffected, nil
 }
 
 func (r *TransactionRepository) IsCategoryInGroup(ctx context.Context, tx *gorm.DB, categoryID int64) (bool, error) {

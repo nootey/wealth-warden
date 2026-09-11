@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
 
@@ -21,7 +22,7 @@ const (
 	lastSeenInterval = time.Hour
 )
 
-var ErrNotFound = errors.New("session not found")
+var ErrNotFound = apperr.New(apperr.NotFound, "session not found")
 
 type Store struct {
 	rdb           *redis.Client

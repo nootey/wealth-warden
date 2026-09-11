@@ -1,15 +1,12 @@
 package models
 
 import (
-	"errors"
 	"time"
 
 	"github.com/shopspring/decimal"
 )
 
 var (
-	ErrTemplateAlreadyRanToday = errors.New("template already executed today")
-
 	ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment, TxnTypeOpening}
 )
 

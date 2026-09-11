@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/sessions"
@@ -31,7 +30,7 @@ func (h *SessionsHandler) ListSessions(c *gin.Context) {
 
 	resp, err := h.Service.ListSessions(ctx, userID, currentID)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -44,17 +43,12 @@ func (h *SessionsHandler) RevokeSession(c *gin.Context) {
 	currentID, _ := c.Cookie(sessions.CookieName)
 	handle := c.Param("id")
 
-	err := h.Service.RevokeSession(ctx, userID, currentID, handle)
-	switch {
-	case err == nil:
-		utils.SuccessMessage(c, "", "Session revoked", http.StatusOK)
-	case errors.Is(err, services.ErrCannotRevokeCurrentSession):
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
-	case errors.Is(err, sessions.ErrNotFound):
-		utils.ErrorMessage(c, "Not found", "session not found", http.StatusNotFound, nil)
-	default:
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+	if err := h.Service.RevokeSession(ctx, userID, currentID, handle); err != nil {
+		_ = c.Error(err)
+		return
 	}
+
+	utils.SuccessMessage(c, "", "Session revoked", http.StatusOK)
 }
 
 func (h *SessionsHandler) RevokeAllSessions(c *gin.Context) {
@@ -62,7 +56,7 @@ func (h *SessionsHandler) RevokeAllSessions(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	if err := h.Service.RevokeAllSessions(ctx, userID); err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

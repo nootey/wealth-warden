@@ -5,18 +5,37 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 )
 
-func ValidateAccount(acc *models.Account, role string) error {
-	if acc.ClosedAt != nil {
-		return fmt.Errorf("%s account (ID=%d) is closed and cannot be used", role, acc.ID)
+type AccountCheckOption int
+
+const (
+	AllowClosed AccountCheckOption = iota
+	AllowInactive
+)
+
+// ValidateAccount rejects a closed or inactive account unless the matching option is given.
+func ValidateAccount(acc *models.Account, role string, opts ...AccountCheckOption) error {
+	allow := make(map[AccountCheckOption]bool, len(opts))
+	for _, opt := range opts {
+		allow[opt] = true
 	}
-	if !acc.IsActive {
-		return fmt.Errorf("%s account (ID=%d) is inactive and cannot be used", role, acc.ID)
+
+	label := role
+	if label != "" {
+		label += " "
+	}
+
+	if acc.ClosedAt != nil && !allow[AllowClosed] {
+		return apperr.New(apperr.Conflict, fmt.Sprintf("%saccount (ID=%d) is closed and cannot be used", label, acc.ID))
+	}
+	if !acc.IsActive && !allow[AllowInactive] {
+		return apperr.New(apperr.Conflict, fmt.Sprintf("%saccount (ID=%d) is inactive and cannot be used", label, acc.ID))
 	}
 	return nil
 }
@@ -112,8 +131,9 @@ func CheckGoalAllocation(amountBeingRemoved, uncategorizedBalance decimal.Decima
 		return nil
 	}
 	if amountBeingRemoved.GreaterThan(uncategorizedBalance) {
-		return fmt.Errorf("insufficient free balance: %s available - archive goals or remove contributions to proceed",
-			uncategorizedBalance.StringFixed(2))
+		return apperr.New(apperr.Validation, fmt.Sprintf(
+			"insufficient free balance: %s available - archive goals or remove contributions to proceed",
+			uncategorizedBalance.StringFixed(2)))
 	}
 	return nil
 }
@@ -132,9 +152,9 @@ func AccountBelowLimit(balance decimal.Decimal, acc *models.Account) bool {
 func AccountLimitError(balance decimal.Decimal, acc *models.Account) error {
 	if acc.CreditLimit != nil {
 		over := balance.Neg().Sub(*acc.CreditLimit)
-		return fmt.Errorf("insufficient funds: %s over credit limit", over.StringFixed(2))
+		return apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds: %s over credit limit", over.StringFixed(2)))
 	}
-	return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative", balance.StringFixed(2))
+	return apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds: resulting balance (%s) would be negative", balance.StringFixed(2)))
 }
 
 func IsUniqueViolation(err error) bool {

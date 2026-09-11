@@ -1,23 +1,21 @@
 package handlers
 
 import (
-	"net/http"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
-	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
 	"github.com/gin-gonic/gin"
 )
 
 type BackofficeHandler struct {
-	service *services.BackofficeService
-	v       *validators.GoValidator
+	service services.BackofficeServiceInterface
+	v       validators.Validator
 }
 
 func NewBackofficeHandler(
-	service *services.BackofficeService,
-	v *validators.GoValidator,
+	service services.BackofficeServiceInterface,
+	v validators.Validator,
 ) *BackofficeHandler {
 	return &BackofficeHandler{
 		service: service,
@@ -34,7 +32,7 @@ func (h *BackofficeHandler) Routes(ap *gin.RouterGroup) {
 
 func (h *BackofficeHandler) BackfillAssetCashFlows(c *gin.Context) {
 	if err := h.service.BackfillAssetCashFlows(c.Request.Context()); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		_ = c.Error(err)
 		return
 	}
 
@@ -43,7 +41,7 @@ func (h *BackofficeHandler) BackfillAssetCashFlows(c *gin.Context) {
 
 func (h *BackofficeHandler) CorrectFeeAccounting(c *gin.Context) {
 	if err := h.service.CorrectFeeAccounting(c.Request.Context()); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		_ = c.Error(err)
 		return
 	}
 
@@ -52,7 +50,7 @@ func (h *BackofficeHandler) CorrectFeeAccounting(c *gin.Context) {
 
 func (h *BackofficeHandler) BackfillIncomeExchangeRates(c *gin.Context) {
 	if err := h.service.BackfillIncomeExchangeRates(c.Request.Context()); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		_ = c.Error(err)
 		return
 	}
 
@@ -61,7 +59,7 @@ func (h *BackofficeHandler) BackfillIncomeExchangeRates(c *gin.Context) {
 
 func (h *BackofficeHandler) MigrateZeroCostTrades(c *gin.Context) {
 	if err := h.service.MigrateZeroCostTrades(c.Request.Context()); err != nil {
-		utils.ErrorMessage(c, "Migration failed", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

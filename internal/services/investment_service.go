@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -95,6 +96,13 @@ func NewInvestmentService(
 		priceFetchClient: priceFetchClient,
 	}
 }
+
+var (
+	ErrAssetNotFound      = apperr.New(apperr.NotFound, "Asset not found")
+	ErrTradeNotFound      = apperr.New(apperr.NotFound, "Trade not found")
+	ErrIncomeNotFound     = apperr.New(apperr.NotFound, "Income record not found")
+	ErrTaxBracketNotFound = apperr.New(apperr.NotFound, "Tax bracket not found")
+)
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
 
@@ -247,7 +255,14 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find account with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidAccountID
+		}
+		return 0, err
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return 0, err
 	}
 
 	// Validate ticker and fetch price
@@ -364,21 +379,25 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, req.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find asset with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAssetNotFound
+		}
+		return 0, err
 	}
 
 	exchangeRate, err := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
 	if err != nil {
+		tx.Rollback()
 		return 0, err
 	}
 
 	// Validate sell quantity
 	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
 		tx.Rollback()
-		return 0, fmt.Errorf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
 			asset.Ticker,
 			asset.Quantity.String(),
-			req.Quantity.String())
+			req.Quantity.String()))
 	}
 
 	// Validate buy affordability — balance already reflects cash only
@@ -407,16 +426,17 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		// Skip check for zero-cost trades (staking rewards, dividends recorded at price 0).
 		if purchaseCostInAccountCurrency.IsPositive() && purchaseCostInAccountCurrency.GreaterThan(availableBalance) {
 			tx.Rollback()
-			return 0, fmt.Errorf("insufficient funds: need %s %s but only %s %s available",
+			return 0, apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds: need %s %s but only %s %s available",
 				purchaseCostInAccountCurrency.StringFixed(2),
 				asset.Account.Currency,
 				availableBalance.StringFixed(2),
-				asset.Account.Currency)
+				asset.Account.Currency))
 		}
 	}
 
 	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
 	if err != nil {
+		tx.Rollback()
 		return 0, err
 	}
 
@@ -970,7 +990,10 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 	exHold, err := s.repo.FindInvestmentAssetByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find asset: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAssetNotFound
+		}
+		return 0, err
 	}
 
 	hold := models.InvestmentAsset{
@@ -1027,13 +1050,21 @@ func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID in
 	// Load existing record
 	exTxn, err := s.repo.FindInvestmentTradeByID(ctx, tx, id, userID)
 	if err != nil {
-		return 0, fmt.Errorf("can't find investment trade with given id %w", err)
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrTradeNotFound
+		}
+		return 0, err
 	}
 
 	// Load existing relations
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, exTxn.AssetID, userID)
 	if err != nil {
-		return 0, fmt.Errorf("can't find existing asset: %w", err)
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAssetNotFound
+		}
+		return 0, err
 	}
 
 	txn := models.InvestmentTrade{
@@ -1100,7 +1131,10 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find asset: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAssetNotFound
+		}
+		return err
 	}
 
 	earliestTxnDate, err := s.repo.GetEarliestTradeDate(ctx, tx, id, userID)
@@ -1182,13 +1216,19 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	exTxn, err := s.repo.FindInvestmentTradeByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find investment trade: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTradeNotFound
+		}
+		return err
 	}
 
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, exTxn.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find asset: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAssetNotFound
+		}
+		return err
 	}
 
 	// Validate deletion: check if removing this buy would cause negative quantity
@@ -1196,9 +1236,9 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		newQuantity := asset.Quantity.Sub(exTxn.Quantity)
 		if newQuantity.LessThan(decimal.Zero) {
 			tx.Rollback()
-			return fmt.Errorf("cannot delete buy trade: would result in negative quantity (current: %s, removing: %s)",
+			return apperr.New(apperr.Conflict, fmt.Sprintf("cannot delete buy trade: would result in negative quantity (current: %s, removing: %s)",
 				asset.Quantity.String(),
-				exTxn.Quantity.String())
+				exTxn.Quantity.String()))
 		}
 	}
 
@@ -1424,18 +1464,21 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, req.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find asset: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAssetNotFound
+		}
+		return 0, err
 	}
 
 	if req.IncomeType == models.IncomeTypeStaking {
 		if req.Quantity == nil || !req.Quantity.IsPositive() {
 			tx.Rollback()
-			return 0, fmt.Errorf("quantity is required and must be positive for staking rewards")
+			return 0, apperr.New(apperr.Validation, "quantity is required and must be positive for staking rewards")
 		}
 	} else {
 		if req.Amount == nil || !req.Amount.IsPositive() {
 			tx.Rollback()
-			return 0, fmt.Errorf("amount is required and must be positive for dividend income")
+			return 0, apperr.New(apperr.Validation, "amount is required and must be positive for dividend income")
 		}
 	}
 
@@ -1449,8 +1492,8 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 				zap.String("ticker", asset.Ticker),
 				zap.Time("txn_date", req.TxnDate),
 				zap.Error(err))
-			return 0, fmt.Errorf("could not fetch a price for %s on %s, try again later",
-				asset.Ticker, req.TxnDate.Format("2006-01-02"))
+			return 0, apperr.Wrap(apperr.Validation, fmt.Sprintf("could not fetch a price for %s on %s, try again later",
+				asset.Ticker, req.TxnDate.Format("2006-01-02")), err)
 		}
 		incomeAmount = req.Quantity.Mul(decimal.NewFromFloat(priceData.Price))
 	} else {
@@ -1571,13 +1614,19 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 	income, err := s.repo.FindInvestmentIncomeByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find investment income record: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrIncomeNotFound
+		}
+		return err
 	}
 
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, income.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find asset: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAssetNotFound
+		}
+		return err
 	}
 
 	if income.LinkedTransactionID != nil {
@@ -1703,7 +1752,7 @@ func (s *InvestmentService) InsertTaxBracket(ctx context.Context, userID int64, 
 			if b.ToDays != nil {
 				toDays = strconv.Itoa(*b.ToDays)
 			}
-			return 0, fmt.Errorf("bracket overlaps with existing bracket (days %d–%s)", b.MinDaysHeld, toDays)
+			return 0, apperr.New(apperr.Validation, fmt.Sprintf("bracket overlaps with existing bracket (days %d–%s)", b.MinDaysHeld, toDays))
 		}
 	}
 	record := models.InvestmentTaxBracket{
@@ -1718,17 +1767,31 @@ func (s *InvestmentService) InsertTaxBracket(ctx context.Context, userID int64, 
 }
 
 func (s *InvestmentService) UpdateTaxBracket(ctx context.Context, userID int64, id int64, req *models.InvestmentTaxBracketReq) error {
-	return s.repo.UpdateTaxBracket(ctx, nil, models.InvestmentTaxBracket{
+	rows, err := s.repo.UpdateTaxBracket(ctx, nil, models.InvestmentTaxBracket{
 		ID:             id,
 		UserID:         userID,
 		TaxablePercent: req.TaxablePercent,
 		ToDays:         req.ToDays,
 		Label:          req.Label,
 	})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrTaxBracketNotFound
+	}
+	return nil
 }
 
 func (s *InvestmentService) DeleteTaxBracket(ctx context.Context, userID int64, id int64) error {
-	return s.repo.DeleteTaxBracket(ctx, nil, id, userID)
+	rows, err := s.repo.DeleteTaxBracket(ctx, nil, id, userID)
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrTaxBracketNotFound
+	}
+	return nil
 }
 
 func (s *InvestmentService) FetchTaxSettings(ctx context.Context, userID int64) (models.InvestmentTaxSettings, error) {
@@ -1748,7 +1811,7 @@ func (s *InvestmentService) CopyTaxBrackets(ctx context.Context, userID int64, f
 		return err
 	}
 	if len(target) > 0 {
-		return fmt.Errorf("%s already has brackets configured", toType)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("%s already has brackets configured", toType))
 	}
 
 	source, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, fromType)
@@ -1756,7 +1819,7 @@ func (s *InvestmentService) CopyTaxBrackets(ctx context.Context, userID int64, f
 		return err
 	}
 	if len(source) == 0 {
-		return fmt.Errorf("%s has no brackets to copy", fromType)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("%s has no brackets to copy", fromType))
 	}
 
 	tx, err := s.repo.BeginTx(ctx)

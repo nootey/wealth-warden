@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -16,6 +17,16 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+)
+
+var (
+	ErrTransactionNotFound     = apperr.New(apperr.NotFound, "Transaction not found")
+	ErrTransferNotFound        = apperr.New(apperr.NotFound, "Transfer not found")
+	ErrCategoryNotFound        = apperr.New(apperr.NotFound, "Category not found")
+	ErrCategoryGroupNotFound   = apperr.New(apperr.NotFound, "Category group not found")
+	ErrTemplateNotFound        = apperr.New(apperr.NotFound, "Transaction template not found")
+	ErrInvalidCategoryID       = apperr.New(apperr.Validation, "The selected category does not exist")
+	ErrTemplateAlreadyRanToday = apperr.New(apperr.Conflict, "template already executed today")
 )
 
 type TransactionServiceInterface interface {
@@ -230,31 +241,50 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, fmt.Errorf("can't find account with given id %w", err)
+		if ownsTx {
+			tx.Rollback()
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.InsertResult{}, ErrInvalidAccountID
+		}
+		return models.InsertResult{}, err
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		if ownsTx {
+			tx.Rollback()
+		}
+		return models.InsertResult{}, err
 	}
 
 	if req.Direction == "expense" {
 		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
 		if err != nil {
-			tx.Rollback()
+			if ownsTx {
+				tx.Rollback()
+			}
 			return models.InsertResult{}, err
 		}
 
 		resultingBalance := latestBalance.Sub(req.Amount)
 		if utils.AccountBelowLimit(resultingBalance, account) {
-			tx.Rollback()
+			if ownsTx {
+				tx.Rollback()
+			}
 			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, account)
 		}
 
 		if !resultingBalance.IsNegative() {
 			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
 			if err != nil {
-				tx.Rollback()
+				if ownsTx {
+					tx.Rollback()
+				}
 				return models.InsertResult{}, err
 			}
 			if err := utils.CheckGoalAllocation(req.Amount, uncategorized, account.AccountType.Classification); err != nil {
-				tx.Rollback()
+				if ownsTx {
+					tx.Rollback()
+				}
 				return models.InsertResult{}, err
 			}
 		}
@@ -262,7 +292,9 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
-		tx.Rollback()
+		if ownsTx {
+			tx.Rollback()
+		}
 		return models.InsertResult{}, fmt.Errorf("can't fetch user settings %w", err)
 	}
 
@@ -275,9 +307,11 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	// block transactions before opening date
 	openAsOf, err := s.accRepo.GetAccountOpeningAsOf(ctx, tx, account.ID)
 	if err != nil {
-		tx.Rollback()
+		if ownsTx {
+			tx.Rollback()
+		}
 		if errors.Is(err, sql.ErrNoRows) {
-			return models.InsertResult{}, fmt.Errorf("account has no opening balance; set an opening balance first")
+			return models.InsertResult{}, apperr.New(apperr.Conflict, "account has no opening balance; set an opening balance first")
 		}
 		return models.InsertResult{}, err
 	}
@@ -287,31 +321,42 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	todayDay := utils.LocalMidnightUTC(time.Now(), loc)
 
 	if txDay.Before(openDay) {
-		tx.Rollback()
-		return models.InsertResult{}, fmt.Errorf(
+		if ownsTx {
+			tx.Rollback()
+		}
+		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf(
 			"transaction date (%s) cannot be before account opening date (%s)",
 			txDay.Format("2006-01-02"), openDay.Format("2006-01-02"),
-		)
+		))
 	}
 	if txDay.After(todayDay) {
-		tx.Rollback()
-		return models.InsertResult{}, fmt.Errorf(
+		if ownsTx {
+			tx.Rollback()
+		}
+		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf(
 			"transaction date (%s) cannot be in the future (>%s)",
 			txDay.Format("2006-01-02"), todayDay.Format("2006-01-02"),
-		)
+		))
 	}
 
 	var category models.Category
 	if req.CategoryID != nil {
 		category, err = s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
 		if err != nil {
-			tx.Rollback()
+			if ownsTx {
+				tx.Rollback()
+			}
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return models.InsertResult{}, ErrInvalidCategoryID
+			}
 			return models.InsertResult{}, fmt.Errorf("can't find category with given id %w", err)
 		}
 	} else {
 		category, err = s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 		if err != nil {
-			tx.Rollback()
+			if ownsTx {
+				tx.Rollback()
+			}
 			return models.InsertResult{}, fmt.Errorf("can't find default category %w", err)
 		}
 	}
@@ -330,7 +375,9 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	txnID, err := s.repo.InsertTransaction(ctx, tx, &tr)
 	if err != nil {
-		tx.Rollback()
+		if ownsTx {
+			tx.Rollback()
+		}
 		if req.IdempotencyKey != nil && *req.IdempotencyKey != "" && utils.IsUniqueViolation(err) {
 			if existing, lookupErr := s.repo.FindTransactionByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); lookupErr == nil {
 				return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
@@ -341,7 +388,9 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
 	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
-		tx.Rollback()
+		if ownsTx {
+			tx.Rollback()
+		}
 		return models.InsertResult{}, err
 	}
 
@@ -402,7 +451,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.SourceID, userID, true)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.InsertResult{}, ErrInvalidAccountID
+		}
 		return models.InsertResult{}, fmt.Errorf("can't find source account %w", err)
+	}
+	if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
 	}
 
 	if fromAcc.AccountType.Classification == "asset" {
@@ -428,7 +484,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.DestinationID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.InsertResult{}, ErrInvalidAccountID
+		}
 		return models.InsertResult{}, fmt.Errorf("can't find destination account %w", err)
+	}
+	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -559,6 +622,9 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 	cat, err := s.repo.FindCategoryByName(ctx, tx, req.Classification, &userID)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, apperr.New(apperr.Validation, "invalid classification")
+		}
 		return 0, err
 	}
 
@@ -616,21 +682,32 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// Load existing transaction
 	exTr, err := s.repo.FindTransactionByID(ctx, tx, id, userID, false)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrTransactionNotFound
+		}
 		return 0, fmt.Errorf("can't find transaction with given id %w", err)
 	}
 	if !exTr.TransactionType.IsUserEditable() {
-		return 0, fmt.Errorf("can't edit a %s transaction", exTr.TransactionType)
+		tx.Rollback()
+		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("can't edit a %s transaction", exTr.TransactionType))
 	}
 
 	// Load old account & category (for logs)
 	oldAccount, err := s.accRepo.FindAccountByID(ctx, tx, exTr.AccountID, userID, false)
 	if err != nil {
+		tx.Rollback()
 		return 0, fmt.Errorf("can't find existing account: %w", err)
+	}
+	if err := utils.ValidateAccount(oldAccount, "existing"); err != nil {
+		tx.Rollback()
+		return 0, err
 	}
 	var oldCategory models.Category
 	if exTr.CategoryID != nil {
 		oldCategory, err = s.repo.FindCategoryByID(ctx, tx, *exTr.CategoryID, &userID, true)
 		if err != nil {
+			tx.Rollback()
 			return 0, fmt.Errorf("can't find existing category with given id %w", err)
 		}
 	}
@@ -638,17 +715,30 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// Resolve new account & category
 	newAccount, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidAccountID
+		}
 		return 0, fmt.Errorf("can't find account with given id %w", err)
+	}
+	if err := utils.ValidateAccount(newAccount, "new"); err != nil {
+		tx.Rollback()
+		return 0, err
 	}
 	var newCategory models.Category
 	if req.CategoryID != nil {
 		newCategory, err = s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
 		if err != nil {
+			tx.Rollback()
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, ErrInvalidCategoryID
+			}
 			return 0, fmt.Errorf("can't find new category with given id %w", err)
 		}
 	} else {
 		newCategory, err = s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 		if err != nil {
+			tx.Rollback()
 			return 0, fmt.Errorf("can't find default category %w", err)
 		}
 	}
@@ -698,6 +788,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
+		tx.Rollback()
 		return 0, fmt.Errorf("can't fetch user settings %w", err)
 	}
 
@@ -711,7 +802,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, fmt.Errorf("account has no opening balance; set an opening balance first")
+			return 0, apperr.New(apperr.Conflict, "account has no opening balance; set an opening balance first")
 		}
 		return 0, err
 	}
@@ -723,18 +814,18 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	if newDay.Before(openDay) {
 		tx.Rollback()
-		return 0, fmt.Errorf(
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf(
 			"transaction date (%s) cannot be before account opening date (%s)",
 			newDay.Format("2006-01-02"), openDay.Format("2006-01-02"),
-		)
+		))
 	}
 
 	if newDay.After(todayDay) {
 		tx.Rollback()
-		return 0, fmt.Errorf(
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf(
 			"transaction date (%s) cannot be in the future (>%s)",
 			newDay.Format("2006-01-02"), todayDay.Format("2006-01-02"),
-		)
+		))
 	}
 
 	// Update the transaction
@@ -830,11 +921,16 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 
 	exCat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, false)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrCategoryNotFound
+		}
 		return 0, fmt.Errorf("can't find category with given id %w", err)
 	}
 
 	if exCat.IsDefault && (exCat.Classification != req.Classification) {
-		return 0, errors.New("can't edit some parts of a default category")
+		tx.Rollback()
+		return 0, apperr.New(apperr.Conflict, "can't edit some parts of a default category")
 	}
 
 	cat := models.Category{
@@ -895,17 +991,24 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	tr, err := s.repo.FindTransactionByID(ctx, tx, id, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTransactionNotFound
+		}
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
 	if !tr.TransactionType.IsUserDeletable() {
 		tx.Rollback()
-		return fmt.Errorf("can't delete a %s transaction", tr.TransactionType)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("can't delete a %s transaction", tr.TransactionType))
 	}
 
 	account, err := s.accRepo.FindAccountByID(ctx, tx, tr.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account with given id %w", err)
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	// If deleting an income, balance will go down
@@ -1007,6 +1110,9 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	transfer, err := s.repo.FindTransferByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTransferNotFound
+		}
 		return fmt.Errorf("can't find transfer: %w", err)
 	}
 
@@ -1167,17 +1273,22 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	transfer, err := s.repo.FindTransferByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTransferNotFound
+		}
 		return fmt.Errorf("can't find transfer with given id %w", err)
 	}
 
 	// Load associated transactions
 	inflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionInflowID, userID, false)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find inflow transaction with given id %w", err)
 	}
 
 	outflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionOutflowID, userID, false)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find outflow transaction with given id %w", err)
 	}
 
@@ -1194,9 +1305,11 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	}
 
 	if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
+		tx.Rollback()
 		return err
 	}
 	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1288,6 +1401,9 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 	cat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, true)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrCategoryNotFound
+		}
 		return fmt.Errorf("can't find category with given id: %w", err)
 	}
 
@@ -1299,7 +1415,7 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 	}
 	if inGroup {
 		tx.Rollback()
-		return fmt.Errorf("cannot delete category: it is part of one or more category groups")
+		return apperr.New(apperr.Conflict, "cannot delete category: it is part of one or more category groups")
 	}
 
 	alreadySoftDeleted := cat.DeletedAt != nil
@@ -1323,7 +1439,7 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 		}
 		if cnt > 0 {
 			tx.Rollback()
-			return fmt.Errorf("cannot permanently delete category: %d active transactions still reference it", cnt)
+			return apperr.New(apperr.Conflict, fmt.Sprintf("cannot permanently delete category: %d active transactions still reference it", cnt))
 		}
 		if err := s.repo.DeleteCategory(ctx, tx, cat.ID, userID); err != nil {
 			tx.Rollback()
@@ -1376,15 +1492,18 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	tr, err := s.repo.FindTransactionByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTransactionNotFound
+		}
 		return fmt.Errorf("can't find inflow transaction with given id %w", err)
 	}
 	if tr.DeletedAt == nil {
 		tx.Rollback()
-		return fmt.Errorf("transaction is not deleted")
+		return apperr.New(apperr.Conflict, "transaction is not deleted")
 	}
 	if !tr.TransactionType.IsUserDeletable() {
 		tx.Rollback()
-		return fmt.Errorf("can't restore a %s transaction", tr.TransactionType)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("can't restore a %s transaction", tr.TransactionType))
 	}
 
 	// Load account
@@ -1392,6 +1511,10 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account for transaction %w", err)
+	}
+	if err := utils.ValidateAccount(acc, ""); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	// If restoring an expense, balance will go down
@@ -1522,25 +1645,31 @@ func (s *TransactionService) MergeCategories(ctx context.Context, userID, source
 
 func (s *TransactionService) resolveCategoryMerge(ctx context.Context, tx *gorm.DB, userID, sourceID, destinationID int64) (models.Category, models.Category, error) {
 	if sourceID == destinationID {
-		return models.Category{}, models.Category{}, errors.New("source and destination categories must be different")
+		return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "source and destination categories must be different")
 	}
 
 	src, err := s.repo.FindCategoryByID(ctx, tx, sourceID, &userID, false)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "source category not found")
+		}
 		return models.Category{}, models.Category{}, fmt.Errorf("source category not found: %w", err)
 	}
 
 	dst, err := s.repo.FindCategoryByID(ctx, tx, destinationID, &userID, false)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "destination category not found")
+		}
 		return models.Category{}, models.Category{}, fmt.Errorf("destination category not found: %w", err)
 	}
 
 	if src.Classification != dst.Classification {
-		return models.Category{}, models.Category{}, fmt.Errorf("categories must share a classification: %s cannot merge into %s", src.Classification, dst.Classification)
+		return models.Category{}, models.Category{}, apperr.New(apperr.Validation, fmt.Sprintf("categories must share a classification: %s cannot merge into %s", src.Classification, dst.Classification))
 	}
 
 	if src.IsDefault {
-		return models.Category{}, models.Category{}, errors.New("cannot merge a default category")
+		return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "cannot merge a default category")
 	}
 
 	inGroup, err := s.repo.IsCategoryInGroup(ctx, tx, sourceID)
@@ -1548,7 +1677,7 @@ func (s *TransactionService) resolveCategoryMerge(ctx context.Context, tx *gorm.
 		return models.Category{}, models.Category{}, err
 	}
 	if inGroup {
-		return models.Category{}, models.Category{}, errors.New("cannot merge category: it is part of one or more category groups")
+		return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "cannot merge category: it is part of one or more category groups")
 	}
 
 	return src, dst, nil
@@ -1572,11 +1701,14 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 	cat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, true)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrCategoryNotFound
+		}
 		return fmt.Errorf("can't find existing category with given id %w", err)
 	}
 	if cat.DeletedAt == nil {
 		tx.Rollback()
-		return fmt.Errorf("category is not deleted")
+		return apperr.New(apperr.Conflict, "category is not deleted")
 	}
 
 	// Unmark as soft deleted
@@ -1626,6 +1758,9 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 	cat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, true)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrCategoryNotFound
+		}
 		return fmt.Errorf("can't find existing category with given id %w", err)
 	}
 
@@ -1694,6 +1829,9 @@ func (s *TransactionService) FetchTransactionTemplateByID(ctx context.Context, u
 
 	record, err := s.repo.FindTransactionTemplateByID(ctx, nil, id, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTemplateNotFound
+		}
 		return nil, err
 	}
 
@@ -1716,13 +1854,20 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidAccountID
+		}
 		return 0, fmt.Errorf("can't find account with given id %w", err)
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return 0, err
 	}
 
 	templateType := strings.ToLower(req.TemplateType)
 	if templateType != "transaction" && templateType != "transfer" {
 		tx.Rollback()
-		return 0, fmt.Errorf("invalid template type: %s", templateType)
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf("invalid template type: %s", templateType))
 	}
 
 	var categoryID *int64
@@ -1731,13 +1876,16 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 			cat, err := s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
 			if err != nil {
 				tx.Rollback()
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return 0, ErrInvalidCategoryID
+				}
 				return 0, fmt.Errorf("can't find category with given id %w", err)
 			}
 			categoryID = &cat.ID
 		}
 		if req.Direction == nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("direction is required for transaction templates")
+			return 0, apperr.New(apperr.Validation, "direction is required for transaction templates")
 		}
 	}
 
@@ -1745,16 +1893,23 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	if templateType == "transfer" {
 		if account.AccountType.Subtype != "checking" {
 			tx.Rollback()
-			return 0, fmt.Errorf("transfer templates can only originate from a checking account")
+			return 0, apperr.New(apperr.Validation, "transfer templates can only originate from a checking account")
 		}
 		if req.ToAccountID == nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("to_account_id is required for transfer templates")
+			return 0, apperr.New(apperr.Validation, "to_account_id is required for transfer templates")
 		}
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *req.ToAccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, ErrInvalidAccountID
+			}
 			return 0, fmt.Errorf("can't find destination account with given id %w", err)
+		}
+		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+			tx.Rollback()
+			return 0, err
 		}
 		toAccountID = &toAcc.ID
 	}
@@ -1776,16 +1931,16 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 
 	if firstRun.Before(firstValidDay) {
 		tx.Rollback()
-		return 0, fmt.Errorf(
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf(
 			"first iteration of template cannot be executed in the same day (%s)",
 			firstValidDay.Format("2006-01-02"),
-		)
+		))
 	}
 
 	if req.MaxRuns != nil {
 		if *req.MaxRuns < 0 || *req.MaxRuns > 99999 {
 			tx.Rollback()
-			return 0, fmt.Errorf("max runs out of bounds %w", err)
+			return 0, apperr.New(apperr.Validation, "max runs out of bounds")
 		}
 	}
 
@@ -1897,18 +2052,22 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	// Load existing transaction template
 	exTp, err := s.repo.FindTransactionTemplateByID(ctx, tx, id, userID)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrTemplateNotFound
+		}
 		return 0, fmt.Errorf("can't find transaction template with given id %w", err)
 	}
 
 	// Prevent updates if template has completed its runs
 	if exTp.MaxRuns != nil && exTp.RunCount >= *exTp.MaxRuns {
 		tx.Rollback()
-		return 0, fmt.Errorf("cannot update completed template (max runs reached)")
+		return 0, apperr.New(apperr.Conflict, "cannot update completed template (max runs reached)")
 	}
 
 	if exTp.EndDate != nil && time.Now().UTC().After(*exTp.EndDate) {
 		tx.Rollback()
-		return 0, fmt.Errorf("cannot update expired template (end date passed)")
+		return 0, apperr.New(apperr.Conflict, "cannot update expired template (end date passed)")
 	}
 
 	// pick the user's timezone from settings; fall back to UTC
@@ -1928,13 +2087,13 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
 	if exTp.IsActive && nextRun.Before(firstValidDay) {
 		tx.Rollback()
-		return 0, fmt.Errorf("next run cannot be today or earlier (%s)", firstValidDay.Format("2006-01-02"))
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf("next run cannot be today or earlier (%s)", firstValidDay.Format("2006-01-02")))
 	}
 
 	if req.MaxRuns != nil {
 		if *req.MaxRuns < 0 || *req.MaxRuns > 99999 {
 			tx.Rollback()
-			return 0, fmt.Errorf("max runs out of bounds %w", err)
+			return 0, apperr.New(apperr.Validation, "max runs out of bounds")
 		}
 	}
 
@@ -2039,6 +2198,10 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	// Load record to confirm it exists
 	exTp, err := s.repo.FindTransactionTemplateByID(ctx, tx, id, userID)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTemplateNotFound
+		}
 		return fmt.Errorf("can't find transaction template with given id %w", err)
 	}
 
@@ -2046,12 +2209,12 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	if !exTp.IsActive {
 		if exTp.MaxRuns != nil && exTp.RunCount >= *exTp.MaxRuns {
 			tx.Rollback()
-			return fmt.Errorf("cannot enable completed template (max runs reached)")
+			return apperr.New(apperr.Conflict, "cannot enable completed template (max runs reached)")
 		}
 
 		if exTp.EndDate != nil && time.Now().UTC().After(*exTp.EndDate) {
 			tx.Rollback()
-			return fmt.Errorf("cannot enable expired template (end date passed)")
+			return apperr.New(apperr.Conflict, "cannot enable expired template (end date passed)")
 		}
 	}
 
@@ -2093,7 +2256,7 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 
 func (s *TransactionService) RenameTransactionTemplate(ctx context.Context, userID, id int64, name string) error {
 	if strings.TrimSpace(name) == "" {
-		return fmt.Errorf("name cannot be empty")
+		return apperr.New(apperr.Validation, "name cannot be empty")
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -2111,6 +2274,9 @@ func (s *TransactionService) RenameTransactionTemplate(ctx context.Context, user
 	exTp, err := s.repo.FindTransactionTemplateByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTemplateNotFound
+		}
 		return fmt.Errorf("can't find transaction template with given id %w", err)
 	}
 
@@ -2158,6 +2324,10 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 	// Confirm existence
 	tp, err := s.repo.FindTransactionTemplateByID(ctx, tx, id, userID)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTemplateNotFound
+		}
 		return fmt.Errorf("can't find transaction template with given id %w", err)
 	}
 
@@ -2344,11 +2514,14 @@ func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID in
 
 	template, err := s.repo.FindTransactionTemplateByID(ctx, nil, id, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTemplateNotFound
+		}
 		return fmt.Errorf("can't find transaction template with given id %w", err)
 	}
 
 	if !template.IsActive {
-		return fmt.Errorf("template is not active")
+		return apperr.New(apperr.Conflict, "template is not active")
 	}
 
 	oldRunCount := template.RunCount
@@ -2395,7 +2568,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 
 	if !currentTemplate.IsActive {
 		tx.Rollback()
-		return 0, time.Time{}, fmt.Errorf("template is not active")
+		return 0, time.Time{}, apperr.New(apperr.Conflict, "template is not active")
 	}
 
 	// Verify account still exists and is active
@@ -2403,6 +2576,10 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 	if err != nil {
 		tx.Rollback()
 		return 0, time.Time{}, fmt.Errorf("account not found: %w", err)
+	}
+	if err := utils.ValidateAccount(acc, ""); err != nil {
+		tx.Rollback()
+		return 0, time.Time{}, err
 	}
 
 	loc := time.UTC
@@ -2417,7 +2594,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		now := time.Now().In(loc)
 		if lastRun.Year() == now.Year() && lastRun.YearDay() == now.YearDay() {
 			tx.Rollback()
-			return 0, time.Time{}, models.ErrTemplateAlreadyRanToday
+			return 0, time.Time{}, ErrTemplateAlreadyRanToday
 		}
 	}
 
@@ -2438,16 +2615,24 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			tx.Rollback()
 			return 0, time.Time{}, fmt.Errorf("source account not found: %w", err)
 		}
+		if err := utils.ValidateAccount(srcAcc, "source"); err != nil {
+			tx.Rollback()
+			return 0, time.Time{}, err
+		}
 		if srcAcc.Balance.Balance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
 			tx.Rollback()
-			return 0, time.Time{}, fmt.Errorf("insufficient funds in source account %s (balance: %s, requested: %s)",
-				srcAcc.Name, srcAcc.Balance.Balance.StringFixed(2), currentTemplate.Amount.StringFixed(2))
+			return 0, time.Time{}, apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds in source account %s (balance: %s, requested: %s)",
+				srcAcc.Name, srcAcc.Balance.Balance.StringFixed(2), currentTemplate.Amount.StringFixed(2)))
 		}
 
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *currentTemplate.ToAccountID, currentTemplate.UserID, false)
 		if err != nil {
 			tx.Rollback()
 			return 0, time.Time{}, fmt.Errorf("destination account not found: %w", err)
+		}
+		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+			tx.Rollback()
+			return 0, time.Time{}, err
 		}
 
 		outflow := models.Transaction{
@@ -2651,6 +2836,9 @@ func (s *TransactionService) FetchCategoryGroupByID(ctx context.Context, userID 
 
 	record, err := s.repo.FindCategoryGroupByID(ctx, nil, id, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCategoryGroupNotFound
+		}
 		return nil, err
 	}
 
@@ -2687,7 +2875,7 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 	categoryIDs, ok := req.SelectedCategories.([]interface{})
 	if !ok || len(categoryIDs) == 0 {
 		tx.Rollback()
-		return 0, fmt.Errorf("invalid or empty selected_categories")
+		return 0, apperr.New(apperr.Validation, "invalid or empty selected_categories")
 	}
 
 	for _, idVal := range categoryIDs {
@@ -2697,6 +2885,9 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 		_, err := s.repo.FindCategoryByID(ctx, tx, categoryID, &userID, false)
 		if err != nil {
 			tx.Rollback()
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, ErrInvalidCategoryID
+			}
 			return 0, fmt.Errorf("failed to validate category %d: %w", categoryID, err)
 		}
 
@@ -2749,6 +2940,9 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 	exGroup, err := s.repo.FindCategoryGroupByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrCategoryGroupNotFound
+		}
 		return 0, fmt.Errorf("can't find category group with given id: %w", err)
 	}
 
@@ -2760,8 +2954,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 		Description:    req.Description,
 	}
 
-	groupID, err := s.repo.UpdateCategoryGroup(ctx, tx, rec)
-	if err != nil {
+	if _, err := s.repo.UpdateCategoryGroup(ctx, tx, rec); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -2776,7 +2969,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 	categoryIDs, ok := req.SelectedCategories.([]interface{})
 	if !ok || len(categoryIDs) == 0 {
 		tx.Rollback()
-		return 0, fmt.Errorf("invalid or empty selected_categories")
+		return 0, apperr.New(apperr.Validation, "invalid or empty selected_categories")
 	}
 
 	for _, idVal := range categoryIDs {
@@ -2786,6 +2979,9 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 		_, err := s.repo.FindCategoryByID(ctx, tx, categoryID, &userID, false)
 		if err != nil {
 			tx.Rollback()
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, ErrInvalidCategoryID
+			}
 			return 0, fmt.Errorf("failed to validate category %d: %w", categoryID, err)
 		}
 
@@ -2805,7 +3001,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 	utils.CompareChanges(exGroup.Classification, rec.Classification, changes, "classification")
 
 	if changes.HasChanges() {
-		changes.Stamp("id", strconv.FormatInt(groupID, 10))
+		changes.Stamp("id", strconv.FormatInt(id, 10))
 		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "category_group",
@@ -2818,7 +3014,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 		}
 	}
 
-	return groupID, nil
+	return id, nil
 }
 
 func (s *TransactionService) DeleteCategoryGroup(ctx context.Context, userID int64, id int64) error {
@@ -2838,6 +3034,9 @@ func (s *TransactionService) DeleteCategoryGroup(ctx context.Context, userID int
 	group, err := s.repo.FindCategoryGroupByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrCategoryGroupNotFound
+		}
 		return fmt.Errorf("can't find category group with given id: %w", err)
 	}
 
@@ -2848,9 +3047,14 @@ func (s *TransactionService) DeleteCategoryGroup(ctx context.Context, userID int
 	}
 
 	// Delete the group itself
-	if err := s.repo.DeleteCategoryGroup(ctx, tx, id, userID); err != nil {
+	rowsAffected, err := s.repo.DeleteCategoryGroup(ctx, tx, id, userID)
+	if err != nil {
 		tx.Rollback()
 		return err
+	}
+	if rowsAffected == 0 {
+		tx.Rollback()
+		return ErrCategoryGroupNotFound
 	}
 
 	if err := tx.Commit().Error; err != nil {

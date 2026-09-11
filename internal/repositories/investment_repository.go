@@ -66,8 +66,8 @@ type InvestmentRepositoryInterface interface {
 	FindTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) ([]models.InvestmentTaxBracket, error)
 	CountTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) (int64, error)
 	InsertTaxBracket(ctx context.Context, tx *gorm.DB, record *models.InvestmentTaxBracket) (int64, error)
-	UpdateTaxBracket(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxBracket) error
-	DeleteTaxBracket(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	UpdateTaxBracket(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxBracket) (int64, error)
+	DeleteTaxBracket(ctx context.Context, tx *gorm.DB, id, userID int64) (int64, error)
 	FindTaxSettings(ctx context.Context, tx *gorm.DB, userID int64) (models.InvestmentTaxSettings, error)
 	UpsertTaxSettings(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxSettings) error
 	FetchPortfolioAllocation(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.AllocationAssetRow, error)
@@ -1050,29 +1050,31 @@ func (r *InvestmentRepository) InsertTaxBracket(ctx context.Context, tx *gorm.DB
 	return record.ID, nil
 }
 
-func (r *InvestmentRepository) UpdateTaxBracket(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxBracket) error {
+func (r *InvestmentRepository) UpdateTaxBracket(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxBracket) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
-	return db.WithContext(ctx).
+	res := db.WithContext(ctx).
 		Model(&models.InvestmentTaxBracket{}).
 		Where("id = ? AND user_id = ?", record.ID, record.UserID).
 		Updates(map[string]interface{}{
 			"to_days":         record.ToDays,
 			"taxable_percent": record.TaxablePercent,
 			"label":           record.Label,
-		}).Error
+		})
+	return res.RowsAffected, res.Error
 }
 
-func (r *InvestmentRepository) DeleteTaxBracket(ctx context.Context, tx *gorm.DB, id, userID int64) error {
+func (r *InvestmentRepository) DeleteTaxBracket(ctx context.Context, tx *gorm.DB, id, userID int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
-	return db.WithContext(ctx).
+	res := db.WithContext(ctx).
 		Where("id = ? AND user_id = ?", id, userID).
-		Delete(&models.InvestmentTaxBracket{}).Error
+		Delete(&models.InvestmentTaxBracket{})
+	return res.RowsAffected, res.Error
 }
 
 func (r *InvestmentRepository) FindTaxSettings(ctx context.Context, tx *gorm.DB, userID int64) (models.InvestmentTaxSettings, error) {

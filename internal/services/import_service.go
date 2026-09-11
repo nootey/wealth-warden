@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
@@ -34,10 +35,6 @@ type ImportServiceInterface interface {
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
 	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
-	deleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
-	deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
-	deleteCatImport(ctx context.Context, userID int64, imp *models.Import) error
-	deleteTradesImport(ctx context.Context, userID int64, imp *models.Import) error
 }
 
 type ImportService struct {
@@ -71,6 +68,13 @@ func NewImportService(
 }
 
 var _ ImportServiceInterface = (*ImportService)(nil)
+
+var (
+	ErrImportFileExists       = apperr.New(apperr.Conflict, "An import with that name already exists")
+	ErrInvestmentsTransferred = apperr.New(apperr.Conflict, "Investments have already been transferred for this import")
+	ErrSavingsTransferred     = apperr.New(apperr.Conflict, "Savings have already been transferred for this import")
+	ErrRepaymentsTransferred  = apperr.New(apperr.Conflict, "Debt repayments have already been transferred for this import")
+)
 
 func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal, snapshot bool) error {
 	amt = amt.Round(4)
@@ -126,7 +130,7 @@ func (s *ImportService) markImportFailed(ctx context.Context, importID int64, ca
 
 func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error) {
 	if payload.GeneratedAt.IsZero() {
-		return nil, 0, errors.New("missing or invalid 'generated_at' field")
+		return nil, 0, apperr.New(apperr.Validation, "The file is missing a valid generated_at field")
 	}
 
 	step = strings.ToLower(strings.TrimSpace(step))
@@ -173,17 +177,17 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 
 	for _, t := range set {
 		if strings.TrimSpace(t.TransactionType) == "" {
-			return nil, 0, errors.New("missing transaction_type")
+			return nil, 0, apperr.New(apperr.Validation, "A row is missing its transaction_type")
 		}
 		tt := strings.ToLower(strings.TrimSpace(t.TransactionType))
 		if !allowed[tt] {
-			return nil, 0, errors.New("invalid transaction_type for selected step")
+			return nil, 0, apperr.New(apperr.Validation, "A row has a transaction_type that does not belong to this step")
 		}
 		if strings.TrimSpace(t.Amount) == "" {
-			return nil, 0, errors.New("missing amount")
+			return nil, 0, apperr.New(apperr.Validation, "A row is missing its amount")
 		}
 		if t.TxnDate.IsZero() {
-			return nil, 0, errors.New("missing or invalid txn_date")
+			return nil, 0, apperr.New(apperr.Validation, "A row is missing a valid txn_date")
 		}
 	}
 
@@ -217,6 +221,9 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	if err != nil {
 		return err
 	}
+	if err := utils.ValidateAccount(sourceAcc, ""); err != nil {
+		return err
+	}
 
 	openedYear := sourceAcc.OpenedAt.Year()
 
@@ -236,12 +243,12 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		}
 	}
 	if first.IsZero() {
-		return fmt.Errorf("cannot infer import year: no valid txn_date in transactions or transfers")
+		return apperr.New(apperr.Validation, "No row carries a valid txn_date, so the import year cannot be read")
 	}
 	importYear := first.Year()
 
 	if openedYear >= importYear {
-		return fmt.Errorf("account opened in %d cannot import data for year %d or earlier", openedYear, importYear)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("The account opened in %d, so it cannot take data for %d or earlier", openedYear, importYear))
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
@@ -257,7 +264,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 
 	// Hard duplicate check
 	if _, err := os.Stat(finalPath); err == nil {
-		return errors.New("import file already exists")
+		return ErrImportFileExists
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -266,7 +273,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return errors.New("import file already exists")
+			return ErrImportFileExists
 		}
 		return err
 	}
@@ -326,7 +333,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		if err != nil {
 			tx.Rollback()
 			s.markImportFailed(ctx, importID, err)
-			return fmt.Errorf("invalid amount %q: %w", txn.Amount, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
 		}
 
 		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
@@ -480,7 +487,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	}
 
 	if accCount >= maxAcc {
-		return fmt.Errorf("you can only have %d active accounts", maxAcc)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("You can only have %d active accounts", maxAcc))
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
@@ -496,7 +503,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 
 	// Hard duplicate check
 	if _, err := os.Stat(finalPath); err == nil {
-		return errors.New("import file already exists")
+		return ErrImportFileExists
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -505,7 +512,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return errors.New("import file already exists")
+			return ErrImportFileExists
 		}
 		return err
 	}
@@ -702,7 +709,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 
 	// Hard duplicate check
 	if _, err := os.Stat(finalPath); err == nil {
-		return errors.New("import file already exists")
+		return ErrImportFileExists
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -711,7 +718,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return errors.New("import file already exists")
+			return ErrImportFileExists
 		}
 		return err
 	}
@@ -888,7 +895,11 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find source account %w", err)
+		return apperr.Wrap(apperr.Validation, "The source account does not exist", err)
+	}
+	if err := utils.ValidateAccount(checkingAcc, "source"); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
@@ -897,7 +908,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 	}
 
 	if imp.InvestmentsTransferred {
-		return errors.New("investments have already been transferred for this import")
+		return ErrInvestmentsTransferred
 	}
 
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
@@ -949,7 +960,12 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 		if err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
-			return fmt.Errorf("destination account %d not found: %w", id, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -982,7 +998,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 		amt, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
 		}
 
 		if amt.IsNegative() {
@@ -1139,7 +1155,11 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find source account %w", err)
+		return apperr.Wrap(apperr.Validation, "The source account does not exist", err)
+	}
+	if err := utils.ValidateAccount(checkingAcc, "source"); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
@@ -1148,7 +1168,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	}
 
 	if imp.SavingsTransferred {
-		return errors.New("savings have already been transferred for this import")
+		return ErrSavingsTransferred
 	}
 
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
@@ -1200,7 +1220,12 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 		if err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
-			return fmt.Errorf("destination account %d not found: %w", id, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -1233,7 +1258,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 		amt, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
 		}
 
 		// normalize date
@@ -1403,7 +1428,11 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find source account %w", err)
+		return apperr.Wrap(apperr.Validation, "The source account does not exist", err)
+	}
+	if err := utils.ValidateAccount(checkingAcc, "source"); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
@@ -1412,7 +1441,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	}
 
 	if imp.RepaymentsTransferred {
-		return errors.New("debt repayments have already been transferred for this import")
+		return ErrRepaymentsTransferred
 	}
 
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
@@ -1464,7 +1493,12 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 		if err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
-			return fmt.Errorf("destination account %d not found: %w", id, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -1497,7 +1531,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 		amt, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
 		}
 
 		// normalize date
@@ -1668,7 +1702,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	}
 
 	if _, err := os.Stat(finalPath); err == nil {
-		return errors.New("import file already exists")
+		return ErrImportFileExists
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -1677,7 +1711,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return errors.New("import file already exists")
+			return ErrImportFileExists
 		}
 		return err
 	}
@@ -1744,7 +1778,12 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		if err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
-			return fmt.Errorf("destination account %d not found: %w", id, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -1790,14 +1829,14 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		if err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
-			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
 		}
 
 		fee, err := decimal.NewFromString(*txn.Fee)
 		if err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
-			return fmt.Errorf("invalid fee '%s': %w", txn.Amount, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid fee: %q", txn.Amount), err)
 		}
 
 		// Dates in the import JSON are UTC - extract the date component directly
@@ -1825,7 +1864,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		if err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
-			return fmt.Errorf("invalid ticker %q: %w", txn.Category, err)
+			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid ticker: %q", txn.Category), err)
 		}
 
 		// Check if asset exists by ticker and account
@@ -1870,7 +1909,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			if err != nil {
 				s.markImportFailed(ctx, importID, err)
 				_ = tx.Rollback()
-				return fmt.Errorf("invalid trade_price '%s': %w", *txn.TradePrice, err)
+				return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid trade_price: %q", *txn.TradePrice), err)
 			}
 			pricePerUnit = p
 		} else {
@@ -2191,10 +2230,18 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 			tx.Rollback()
 			return fmt.Errorf("can't find source account %w", err)
 		}
+		if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
+			tx.Rollback()
+			return err
+		}
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, inflow.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find destination account %w", err)
+		}
+		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+			tx.Rollback()
+			return err
 		}
 
 		touch(fromAcc, outflow.TxnDate)
@@ -2224,6 +2271,10 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find account %w", err)
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
+			return err
 		}
 
 		touch(acc, t.TxnDate)

@@ -1,10 +1,9 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
-	"strconv"
 	"strings"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -69,7 +68,7 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 
 	records, paginator, err := h.service.FetchAccountsPaginated(ctx, userID, p, includeInactive, classification)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -96,7 +95,7 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 
 	records, err := h.service.FetchAllAccounts(ctx, userID, includeInactive, includeTypes)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -108,16 +107,9 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -125,7 +117,7 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 	if strings.EqualFold(qp.Get("initial_balance"), "true") {
 		record, err := h.service.FetchAccountWithOpening(ctx, userID, id)
 		if err != nil {
-			utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+			_ = c.Error(err)
 			return
 		}
 		c.JSON(http.StatusOK, record)
@@ -134,7 +126,7 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 
 	records, err := h.service.FetchAccountByID(ctx, userID, id)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -147,15 +139,10 @@ func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	name := c.Param("name")
-	if name == "" {
-		err := errors.New("invalid name provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
 
 	records, err := h.service.FetchAccountByName(ctx, userID, name)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -168,7 +155,7 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 	records, err := h.service.FetchAllAccountTypes(ctx)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -181,15 +168,10 @@ func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	sub := c.Param("sub")
-	if sub == "" {
-		err := errors.New("invalid subtype provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
 
 	records, err := h.service.FetchAccountsBySubtype(ctx, userID, sub)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -202,15 +184,10 @@ func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	t := c.Param("type")
-	if t == "" {
-		err := errors.New("invalid type provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
 
 	records, err := h.service.FetchAccountsByType(ctx, userID, t)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -224,18 +201,18 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
 	var record *models.AccountReq
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err := h.service.InsertAccount(ctx, userID, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -248,34 +225,27 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var req *models.AccountReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err = h.service.UpdateAccount(ctx, userID, id, req)
 	if err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -288,21 +258,14 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.ToggleAccountActiveState(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Toggle error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -315,25 +278,14 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.CloseAccount(ctx, userID, id); err != nil {
-		if errors.Is(err, services.ErrAccountNotEmpty) {
-			utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
-			return
-		}
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -344,15 +296,15 @@ func (h *AccountHandler) GetAccountsForUser(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	userID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	userID, err := utils.ParseID(c, "userID")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	records, err := h.service.FetchAccountsForUser(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -364,14 +316,14 @@ func (h *AccountHandler) PurgeAccount(c *gin.Context) {
 	ctx := c.Request.Context()
 	actorID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.PurgeAccount(ctx, actorID, id); err != nil {
-		utils.ErrorMessage(c, "Purge error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -387,7 +339,7 @@ func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 	to := c.Query("to")
 
 	if err := h.service.BackfillBalancesForUser(ctx, userID, from, to); err != nil {
-		utils.ErrorMessage(c, "Backfill error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -399,33 +351,26 @@ func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var req *models.AccountProjectionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	err = h.service.SaveAccountProjection(ctx, id, userID, req)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -437,22 +382,15 @@ func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	err = h.service.RevertAccountProjection(ctx, id, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -464,22 +402,15 @@ func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	rec, err := h.service.FetchLatestBalance(ctx, id, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -492,7 +423,7 @@ func (h *AccountHandler) GetAccountsWithDefaults(c *gin.Context) {
 
 	records, err := h.service.FetchAccountsWithDefaults(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -504,7 +435,7 @@ func (h *AccountHandler) GetAccountTypesWithoutDefaults(c *gin.Context) {
 
 	records, err := h.service.FetchAccountTypesWithoutDefaults(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -514,14 +445,14 @@ func (h *AccountHandler) SetDefaultAccount(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	accountID, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid account ID", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.SetDefaultAccount(ctx, userID, accountID); err != nil {
-		utils.ErrorMessage(c, "Failed to set default", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -532,14 +463,14 @@ func (h *AccountHandler) UnsetDefaultAccount(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	accountID, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid account ID", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.UnsetDefaultAccount(ctx, userID, accountID); err != nil {
-		utils.ErrorMessage(c, "Failed to set default", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -550,14 +481,14 @@ func (h *AccountHandler) SyncAssetPnL(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.SyncAssetPnL(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -569,7 +500,7 @@ func (h *AccountHandler) SyncBalancesForUser(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	if err := h.service.SyncForUser(ctx, userID); err != nil {
-		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -586,17 +517,17 @@ func (h *AccountHandler) MergeAccounts(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.service.QueueAccountMerge(ctx, userID, req.SourceID, req.DestinationID); err != nil {
-		utils.ErrorMessage(c, "Merge error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -607,14 +538,14 @@ func (h *AccountHandler) SyncAccountPnL(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	accID, err := strconv.ParseInt(c.Param("acc_id"), 10, 64)
+	accID, err := utils.ParseID(c, "acc_id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.SyncAccountPnL(ctx, userID, accID); err != nil {
-		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

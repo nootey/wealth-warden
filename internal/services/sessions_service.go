@@ -4,15 +4,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"sort"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/sessions"
 	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/utils"
 )
 
-var ErrCannotRevokeCurrentSession = errors.New("log out to end the current session")
+var ErrCannotRevokeCurrentSession = apperr.New(apperr.Invalid, "log out to end the current session")
 
 type SessionsServiceInterface interface {
 	ListSessions(ctx context.Context, userID int64, currentSessionID string) ([]models.SessionInfo, error)

@@ -93,11 +93,12 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, health
 	// Observability
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	r.Use(otelgin.Middleware("wealth-warden"))
+	r.Use(middleware.PropagateRequestID())
 
 	// Logging & recovery
 	wm := middleware.NewWebClientMiddleware(container.Config, logger, container.SessionStore)
 
-	r.Use(wm.ErrorLogger())
+	r.Use(middleware.ErrorHandler(logger))
 	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	// Timeout

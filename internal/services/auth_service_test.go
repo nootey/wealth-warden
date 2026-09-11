@@ -2,10 +2,12 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 
 	"github.com/stretchr/testify/suite"
@@ -57,7 +59,7 @@ func (s *AuthServiceTestSuite) TestValidateLogin_WrongPassword() {
 
 	s.Error(err)
 	s.Nil(user)
-	s.Equal("invalid credentials", err.Error())
+	s.True(errors.Is(err, services.ErrInvalidCredentials))
 }
 
 func (s *AuthServiceTestSuite) TestGetCurrentUser() {
@@ -147,7 +149,7 @@ func (s *AuthServiceTestSuite) TestSignUp_PasswordMismatch() {
 
 	s.Error(err)
 	s.Zero(userID)
-	s.Equal("password and password confirmation do not match", err.Error())
+	s.True(errors.Is(err, services.ErrPasswordMismatch))
 }
 
 func (s *AuthServiceTestSuite) TestSignUp_WeakPassword() {

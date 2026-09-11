@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -14,13 +14,13 @@ import (
 )
 
 type InvestmentHandler struct {
-	Service *services.InvestmentService
-	v       *validators.GoValidator
+	Service services.InvestmentServiceInterface
+	v       validators.Validator
 }
 
 func NewInvestmentHandler(
-	service *services.InvestmentService,
-	v *validators.GoValidator,
+	service services.InvestmentServiceInterface,
+	v validators.Validator,
 ) *InvestmentHandler {
 	return &InvestmentHandler{
 		Service: service,
@@ -67,7 +67,7 @@ func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
 	if accountIDStr != "" {
 		id, err := strconv.ParseInt(accountIDStr, 10, 64)
 		if err != nil {
-			utils.ErrorMessage(c, "Error occurred", "account id must be a valid integer", http.StatusBadRequest, err)
+			_ = c.Error(apperr.Wrap(apperr.Invalid, "account id must be a valid integer", err))
 			return
 		}
 		accountID = &id
@@ -75,7 +75,7 @@ func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
 
 	records, paginator, err := h.Service.FetchInvestmentAssetsPaginated(ctx, userID, p, accountID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *InvestmentHandler) GetAllInvestmentAssets(c *gin.Context) {
 
 	records, err := h.Service.FetchAllInvestmentAssets(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -110,23 +110,15 @@ func (h *InvestmentHandler) GetInvestmentAssetByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	record, err := h.Service.FetchInvestmentAssetByID(ctx, userID, id)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -146,7 +138,7 @@ func (h *InvestmentHandler) GetInvestmentTradesPaginated(c *gin.Context) {
 	if assetIDStr != "" {
 		id, err := strconv.ParseInt(assetIDStr, 10, 64)
 		if err != nil {
-			utils.ErrorMessage(c, "Error occurred", "asset id must be a valid integer", http.StatusBadRequest, err)
+			_ = c.Error(apperr.Wrap(apperr.Invalid, "asset id must be a valid integer", err))
 			return
 		}
 		assetID = &id
@@ -154,7 +146,7 @@ func (h *InvestmentHandler) GetInvestmentTradesPaginated(c *gin.Context) {
 
 	records, paginator, err := h.Service.FetchInvestmentTradesPaginated(ctx, userID, p, assetID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -175,23 +167,15 @@ func (h *InvestmentHandler) GetInvestmentTradeByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	record, err := h.Service.FetchInvestmentTradeByID(ctx, userID, id)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -206,18 +190,18 @@ func (h *InvestmentHandler) InsertInvestmentAsset(c *gin.Context) {
 	var record *models.InvestmentAssetReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err := h.Service.InsertAsset(ctx, userID, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -232,18 +216,18 @@ func (h *InvestmentHandler) InsertInvestmentTrade(c *gin.Context) {
 	var record *models.InvestmentTradeReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err := h.Service.InsertInvestmentTrade(ctx, userID, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -255,35 +239,27 @@ func (h *InvestmentHandler) UpdateInvestmentAsset(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var record *models.InvestmentAssetReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err = h.Service.UpdateInvestmentAsset(ctx, userID, id, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -295,35 +271,27 @@ func (h *InvestmentHandler) UpdateInvestmentTrade(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var record *models.InvestmentTradeReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err = h.Service.UpdateInvestmentTrade(ctx, userID, id, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -335,22 +303,14 @@ func (h *InvestmentHandler) DeleteInvestmentAsset(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.Service.DeleteInvestmentAsset(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -362,22 +322,14 @@ func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.Service.DeleteInvestmentTrade(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -388,9 +340,9 @@ func (h *InvestmentHandler) GetInvestmentIncomeByAsset(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -398,7 +350,7 @@ func (h *InvestmentHandler) GetInvestmentIncomeByAsset(c *gin.Context) {
 
 	records, paginator, err := h.Service.FetchInvestmentIncomeByAsset(ctx, userID, id, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -418,18 +370,18 @@ func (h *InvestmentHandler) CreateInvestmentIncome(c *gin.Context) {
 
 	var req models.InvestmentIncomeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err := h.Service.CreateInvestmentIncome(ctx, userID, &req)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -440,14 +392,14 @@ func (h *InvestmentHandler) DeleteInvestmentIncome(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.Service.DeleteInvestmentIncome(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -460,17 +412,17 @@ func (h *InvestmentHandler) CopyTaxBrackets(c *gin.Context) {
 
 	var req models.InvestmentTaxBracketsCopyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.CopyTaxBrackets(ctx, userID, req.FromType, req.ToType); err != nil {
-		utils.ErrorMessage(c, "Copy error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -483,7 +435,7 @@ func (h *InvestmentHandler) GetTaxBrackets(c *gin.Context) {
 
 	records, err := h.Service.FetchTaxBrackets(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -496,18 +448,18 @@ func (h *InvestmentHandler) InsertTaxBracket(c *gin.Context) {
 
 	var req models.InvestmentTaxBracketReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err := h.Service.InsertTaxBracket(ctx, userID, &req)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -518,25 +470,25 @@ func (h *InvestmentHandler) UpdateTaxBracket(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var req models.InvestmentTaxBracketReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.UpdateTaxBracket(ctx, userID, id, &req); err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -547,14 +499,14 @@ func (h *InvestmentHandler) DeleteTaxBracket(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.Service.DeleteTaxBracket(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -567,7 +519,7 @@ func (h *InvestmentHandler) GetTaxSettings(c *gin.Context) {
 
 	record, err := h.Service.FetchTaxSettings(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -580,12 +532,12 @@ func (h *InvestmentHandler) SaveTaxSettings(c *gin.Context) {
 
 	var req models.InvestmentTaxSettingsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.Service.SaveTaxSettings(ctx, userID, &req); err != nil {
-		utils.ErrorMessage(c, "Save error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -598,7 +550,7 @@ func (h *InvestmentHandler) GetPortfolioAllocation(c *gin.Context) {
 
 	record, err := h.Service.FetchPortfolioAllocation(ctx, userID, c.Query("currency"))
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -611,7 +563,7 @@ func (h *InvestmentHandler) GetPortfolioReturns(c *gin.Context) {
 
 	record, err := h.Service.FetchPortfolioReturns(ctx, userID, c.Query("currency"))
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
