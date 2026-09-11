@@ -2,16 +2,25 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+)
+
+var (
+	ErrGoalNotFound         = apperr.New(apperr.NotFound, "Goal not found")
+	ErrContributionNotFound = apperr.New(apperr.NotFound, "Contribution not found")
+	ErrInvalidAccountID     = apperr.New(apperr.Validation, "The selected account does not exist")
 )
 
 type SavingsServiceInterface interface {
@@ -21,7 +30,6 @@ type SavingsServiceInterface interface {
 	UpdateGoal(ctx context.Context, userID, id int64, req *models.SavingGoalUpdateReq) (int64, error)
 	DeleteGoal(ctx context.Context, userID, id int64) error
 
-	FetchContributions(ctx context.Context, userID, goalID int64) ([]models.SavingContribution, error)
 	FetchContributionsPaginated(ctx context.Context, userID, goalID int64, p utils.PaginationParams) ([]models.SavingContribution, *utils.Paginator, error)
 	InsertContribution(ctx context.Context, userID, goalID int64, req *models.SavingContributionReq) (int64, error)
 	DeleteContribution(ctx context.Context, userID, goalID, id int64) error
@@ -68,6 +76,9 @@ func (s *SavingsService) FetchGoals(ctx context.Context, userID int64) ([]models
 func (s *SavingsService) FetchGoalByID(ctx context.Context, userID, id int64) (*models.SavingGoalWithProgress, error) {
 	goal, err := s.repo.FindGoalByID(ctx, nil, id, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrGoalNotFound
+		}
 		return nil, err
 	}
 
@@ -91,11 +102,14 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 	accType, err := s.accountRepo.FindAccountTypeByAccID(ctx, tx, req.AccountID, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("account not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidAccountID
+		}
+		return 0, err
 	}
 	if accType.Type != "cash" {
 		tx.Rollback()
-		return 0, fmt.Errorf("goals can be linked only to cash accounts")
+		return 0, apperr.New(apperr.Validation, "goals can be linked only to cash accounts")
 	}
 
 	if req.InitialAmount != nil && req.InitialAmount.IsPositive() {
@@ -106,7 +120,7 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 		}
 		if req.InitialAmount.GreaterThan(uncategorized) {
 			tx.Rollback()
-			return 0, fmt.Errorf("initial allocation of %s exceeds uncategorized balance of %s", req.InitialAmount.StringFixed(2), uncategorized.StringFixed(2))
+			return 0, apperr.New(apperr.Validation, fmt.Sprintf("initial allocation of %s exceeds uncategorized balance of %s", req.InitialAmount.StringFixed(2), uncategorized.StringFixed(2)))
 		}
 	}
 
@@ -115,7 +129,7 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 		parsed, parseErr := time.Parse("2006-01-02", *req.TargetDate)
 		if parseErr != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("invalid target_date: %w", parseErr)
+			return 0, apperr.Wrap(apperr.Validation, "invalid target_date", parseErr)
 		}
 		targetDate = &parsed
 	}
@@ -197,7 +211,10 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 	existing, err := s.repo.FindGoalByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("goal not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrGoalNotFound
+		}
+		return 0, err
 	}
 
 	var targetDate *time.Time
@@ -205,7 +222,7 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 		parsed, parseErr := time.Parse("2006-01-02", *req.TargetDate)
 		if parseErr != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("invalid target_date: %w", parseErr)
+			return 0, apperr.Wrap(apperr.Validation, "invalid target_date", parseErr)
 		}
 		targetDate = &parsed
 	}
@@ -267,7 +284,10 @@ func (s *SavingsService) DeleteGoal(ctx context.Context, userID, id int64) error
 	goal, err := s.repo.FindGoalByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("goal not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrGoalNotFound
+		}
+		return err
 	}
 
 	if err := s.repo.DeleteGoal(ctx, tx, id); err != nil {
@@ -298,19 +318,13 @@ func (s *SavingsService) DeleteGoal(ctx context.Context, userID, id int64) error
 	return nil
 }
 
-func (s *SavingsService) FetchContributions(ctx context.Context, userID, goalID int64) ([]models.SavingContribution, error) {
-	_, err := s.repo.FindGoalByID(ctx, nil, goalID, userID)
-	if err != nil {
-		return nil, fmt.Errorf("goal not found: %w", err)
-	}
-
-	return s.repo.FindContributions(ctx, nil, goalID)
-}
-
 func (s *SavingsService) FetchContributionsPaginated(ctx context.Context, userID, goalID int64, p utils.PaginationParams) ([]models.SavingContribution, *utils.Paginator, error) {
 	_, err := s.repo.FindGoalByID(ctx, nil, goalID, userID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("goal not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, ErrGoalNotFound
+		}
+		return nil, nil, err
 	}
 
 	total, err := s.repo.CountContributions(ctx, nil, goalID)
@@ -348,7 +362,7 @@ func (s *SavingsService) FetchContributionsPaginated(ctx context.Context, userID
 
 func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID int64, req *models.SavingContributionReq) (int64, error) {
 	if req.Amount.IsZero() {
-		return 0, fmt.Errorf("contribution amount cannot be zero")
+		return 0, apperr.New(apperr.Validation, "contribution amount cannot be zero")
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -366,18 +380,21 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 	goal, err := s.repo.FindGoalByID(ctx, tx, goalID, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("goal not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrGoalNotFound
+		}
+		return 0, err
 	}
 
 	if goal.Status != models.SavingGoalStatusActive {
 		tx.Rollback()
-		return 0, fmt.Errorf("cannot add contributions to a %s goal", goal.Status)
+		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("cannot add contributions to a %s goal", goal.Status))
 	}
 
 	if req.Amount.IsNegative() {
 		if req.Amount.Abs().GreaterThan(goal.CurrentAmount) {
 			tx.Rollback()
-			return 0, fmt.Errorf("withdrawal of %s exceeds allocated amount of %s", req.Amount.Abs().StringFixed(2), goal.CurrentAmount.StringFixed(2))
+			return 0, apperr.New(apperr.Validation, fmt.Sprintf("withdrawal of %s exceeds allocated amount of %s", req.Amount.Abs().StringFixed(2), goal.CurrentAmount.StringFixed(2)))
 		}
 	} else {
 		uncategorized, err := s.repo.GetUncategorizedBalance(ctx, tx, goal.AccountID, userID)
@@ -387,14 +404,14 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 		}
 		if req.Amount.GreaterThan(uncategorized) {
 			tx.Rollback()
-			return 0, fmt.Errorf("contribution of %s exceeds uncategorized balance of %s", req.Amount.StringFixed(2), uncategorized.StringFixed(2))
+			return 0, apperr.New(apperr.Validation, fmt.Sprintf("contribution of %s exceeds uncategorized balance of %s", req.Amount.StringFixed(2), uncategorized.StringFixed(2)))
 		}
 	}
 
 	month, err := time.Parse("2006-01-02", req.Month)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("invalid month: %w", err)
+		return 0, apperr.Wrap(apperr.Validation, "invalid month", err)
 	}
 
 	record := models.SavingContribution{
@@ -456,13 +473,19 @@ func (s *SavingsService) DeleteContribution(ctx context.Context, userID, goalID,
 	goal, err := s.repo.FindGoalByID(ctx, tx, goalID, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("goal not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrGoalNotFound
+		}
+		return err
 	}
 
 	contrib, err := s.repo.FindContributionByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("contribution not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrContributionNotFound
+		}
+		return err
 	}
 
 	if err := s.repo.DeleteContribution(ctx, tx, id); err != nil {
@@ -525,7 +548,10 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 	goal, err = s.repo.FindGoalByIDForUpdate(ctx, tx, goal.ID, goal.UserID)
 	if err != nil {
 		tx.Rollback()
-		return false, "", fmt.Errorf("goal not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, "", ErrGoalNotFound
+		}
+		return false, "", err
 	}
 	if goal.Status != models.SavingGoalStatusActive || goal.MonthlyAllocation == nil {
 		tx.Rollback()
@@ -595,15 +621,18 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 func (s *SavingsService) FundGoalNow(ctx context.Context, userID, goalID int64) error {
 	goal, err := s.repo.FindGoalByID(ctx, nil, goalID, userID)
 	if err != nil {
-		return fmt.Errorf("goal not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrGoalNotFound
+		}
+		return err
 	}
 
 	if goal.Status != models.SavingGoalStatusActive {
-		return fmt.Errorf("cannot fund a %s goal", goal.Status)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("cannot fund a %s goal", goal.Status))
 	}
 
 	if goal.MonthlyAllocation == nil || goal.MonthlyAllocation.IsZero() {
-		return fmt.Errorf("goal has no monthly allocation set")
+		return apperr.New(apperr.Conflict, "goal has no monthly allocation set")
 	}
 
 	funded, skipReason, err := s.AutoFundGoal(ctx, goal, time.Now())
@@ -613,10 +642,11 @@ func (s *SavingsService) FundGoalNow(ctx context.Context, userID, goalID int64) 
 	if !funded {
 		switch skipReason {
 		case "already_funded":
-			return fmt.Errorf("goal already funded this month")
+			return apperr.New(apperr.Conflict, "goal already funded this month")
 		case "insufficient_balance":
-			return fmt.Errorf("insufficient uncategorized balance to fund this goal")
+			return apperr.New(apperr.Conflict, "insufficient uncategorized balance to fund this goal")
 		default:
+			// the goal stopped being fundable between the check above and the locked read
 			return fmt.Errorf("goal was not funded")
 		}
 	}

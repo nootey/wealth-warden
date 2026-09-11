@@ -17,6 +17,8 @@ packages:
       BackofficeServiceInterface:
       ExportServiceInterface:
       ImportServiceInterface:
+      SavingsServiceInterface:
+      InvestmentServiceInterface:
   wealth-warden/pkg/validators:
     interfaces:
       Validator:
