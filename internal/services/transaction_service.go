@@ -231,7 +231,10 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
-		return models.InsertResult{}, fmt.Errorf("can't find account with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.InsertResult{}, ErrAccountNotFound
+		}
+		return models.InsertResult{}, err
 	}
 
 	if req.Direction == "expense" {

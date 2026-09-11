@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -102,4 +103,40 @@ func TestValidationFailed(t *testing.T) {
         "code": 422
     }`, w.Body.String())
 	assert.Len(t, c.Errors, 1)
+}
+
+func TestParseID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name  string
+		value string
+		want  int64
+		ok    bool
+	}{
+		{"valid", "42", 42, true},
+		{"negative", "-1", -1, true},
+		{"not a number", "abc", 0, false},
+		{"empty", "", 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Params = gin.Params{{Key: "id", Value: tt.value}}
+
+			id, err := utils.ParseID(c, "id")
+
+			if !tt.ok {
+				status, message := apperr.Resolve(err)
+				assert.Equal(t, http.StatusBadRequest, status)
+				assert.Equal(t, "id must be a valid integer", message)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, id)
+		})
+	}
 }

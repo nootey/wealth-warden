@@ -110,7 +110,7 @@ func (h *InvestmentHandler) GetInvestmentAssetByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -167,7 +167,7 @@ func (h *InvestmentHandler) GetInvestmentTradeByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -239,7 +239,7 @@ func (h *InvestmentHandler) UpdateInvestmentAsset(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -271,7 +271,7 @@ func (h *InvestmentHandler) UpdateInvestmentTrade(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -303,7 +303,7 @@ func (h *InvestmentHandler) DeleteInvestmentAsset(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -322,7 +322,7 @@ func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -340,7 +340,7 @@ func (h *InvestmentHandler) GetInvestmentIncomeByAsset(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -392,7 +392,7 @@ func (h *InvestmentHandler) DeleteInvestmentIncome(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -470,7 +470,7 @@ func (h *InvestmentHandler) UpdateTaxBracket(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -499,7 +499,7 @@ func (h *InvestmentHandler) DeleteTaxBracket(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return

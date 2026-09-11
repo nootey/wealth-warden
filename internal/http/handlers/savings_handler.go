@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -58,7 +57,7 @@ func (h *SavingsHandler) GetGoalByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -101,7 +100,7 @@ func (h *SavingsHandler) UpdateGoal(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -131,7 +130,7 @@ func (h *SavingsHandler) DeleteGoal(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -149,7 +148,7 @@ func (h *SavingsHandler) FundGoalNow(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -167,7 +166,7 @@ func (h *SavingsHandler) GetContributions(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	goalID, err := parseID(c, "id")
+	goalID, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -195,7 +194,7 @@ func (h *SavingsHandler) InsertContribution(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	goalID, err := parseID(c, "id")
+	goalID, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -225,13 +224,13 @@ func (h *SavingsHandler) DeleteContribution(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	goalID, err := parseID(c, "id")
+	goalID, err := utils.ParseID(c, "id")
 	if err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	contribID, err := parseID(c, "contrib_id")
+	contribID, err := utils.ParseID(c, "contrib_id")
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -243,12 +242,4 @@ func (h *SavingsHandler) DeleteContribution(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Contribution deleted", "Success", http.StatusOK)
-}
-
-func parseID(c *gin.Context, param string) (int64, error) {
-	id, err := strconv.ParseInt(c.Param(param), 10, 64)
-	if err != nil {
-		return 0, apperr.Wrap(apperr.Invalid, "id must be a valid integer", err)
-	}
-	return id, nil
 }

@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"strconv"
+	"wealth-warden/internal/apperr"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -45,4 +48,12 @@ func ErrorMessage(c *gin.Context, title, message string, code int, err error) {
 
 func ValidationFailed(c *gin.Context, message string, err error) {
 	ErrorMessage(c, "Validation Failed", message, 422, err)
+}
+
+func ParseID(c *gin.Context, param string) (int64, error) {
+	id, err := strconv.ParseInt(c.Param(param), 10, 64)
+	if err != nil {
+		return 0, apperr.Wrap(apperr.Invalid, "id must be a valid integer", err)
+	}
+	return id, nil
 }

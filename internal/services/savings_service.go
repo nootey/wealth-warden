@@ -20,7 +20,6 @@ import (
 var (
 	ErrGoalNotFound         = apperr.New(apperr.NotFound, "Goal not found")
 	ErrContributionNotFound = apperr.New(apperr.NotFound, "Contribution not found")
-	ErrInvalidAccountID     = apperr.New(apperr.Validation, "The selected account does not exist")
 )
 
 type SavingsServiceInterface interface {
