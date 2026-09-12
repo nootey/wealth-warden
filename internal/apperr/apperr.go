@@ -6,11 +6,11 @@ import (
 	"net/http"
 )
 
-const GenericMessage = "Something went wrong"
-
 type Kind int
 
 const (
+	GenericMessage = "Something went wrong"
+
 	Internal Kind = iota
 	Invalid
 	Validation

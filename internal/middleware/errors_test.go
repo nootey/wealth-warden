@@ -105,7 +105,8 @@ func TestErrorHandlerHidesUnknownError(t *testing.T) {
 
 func TestErrorHandlerKeepsExistingResponse(t *testing.T) {
 	w := runErrorHandler(t, func(c *gin.Context) {
-		utils.ErrorMessage(c, "Invalid request", "already written", http.StatusBadRequest, errors.New("boom"))
+		_ = c.Error(errors.New("boom"))
+		c.JSON(http.StatusBadRequest, utils.APIResponse{Title: "Invalid request", Message: "already written", Code: http.StatusBadRequest})
 	})
 
 	var body utils.APIResponse
