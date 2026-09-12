@@ -210,7 +210,8 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 			NewTimezone: req.Timezone,
 		})
 		if err != nil {
-			s.logger.Warn("Failed to dispatch template timezone recalculation job", zap.Error(err))
+			s.logger.Warn("Failed to dispatch template timezone recalculation job",
+				zap.Error(err), zap.Int64("user_id", userID))
 		}
 	}
 

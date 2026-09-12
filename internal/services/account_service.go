@@ -405,7 +405,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	exAccType, err := s.repo.FindAccountTypeByID(ctx, tx, exAcc.AccountTypeID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find account type with given id %w", err)
+		return 0, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find account type %d for existing account", exAcc.AccountTypeID), err)
 	}
 
 	// Resolve new relations from req
@@ -630,7 +630,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		accForLog := &models.Account{ID: exAcc.ID, Name: acc.Name, Currency: exAcc.Currency}
 		if err := s.LogBalanceChange(ctx, accForLog, userID, delta); err != nil {
 			s.logger.Error("balance change logging failed",
-				zap.Error(err), zap.Int64("account_id", exAcc.ID))
+				zap.Error(err), zap.Int64("user_id", userID), zap.Int64("account_id", exAcc.ID))
 		}
 	}
 
@@ -1342,7 +1342,7 @@ func (s *AccountService) resolveAccountMerge(ctx context.Context, tx *gorm.DB, u
 	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil, ErrInvalidAccountID
+			return nil, nil, ErrInvalidSourceAccountID
 		}
 		return nil, nil, err
 	}
@@ -1352,7 +1352,7 @@ func (s *AccountService) resolveAccountMerge(ctx context.Context, tx *gorm.DB, u
 	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil, ErrInvalidAccountID
+			return nil, nil, ErrInvalidDestinationAccountID
 		}
 		return nil, nil, err
 	}
@@ -1531,7 +1531,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		Causer:      &userID,
 	}); err != nil {
 		s.logger.Error("account merge activity log failed",
-			zap.Error(err), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
+			zap.Error(err), zap.Int64("user_id", userID), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
 	}
 
 	return nil

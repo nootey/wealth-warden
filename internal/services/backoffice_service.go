@@ -105,6 +105,7 @@ func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*mod
 
 		if err := s.investmentService.MigrateZeroCostTradesForAsset(ctx, userID, assetID, group); err != nil {
 			s.logger.Error("failed to migrate trades for asset",
+				zap.Int64("user_id", userID),
 				zap.Int64("asset_id", assetID),
 				zap.String("ticker", assetTicker[assetID]),
 				zap.Error(err),

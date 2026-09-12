@@ -20,13 +20,19 @@ import (
 )
 
 var (
-	ErrTransactionNotFound     = apperr.New(apperr.NotFound, "Transaction not found")
-	ErrTransferNotFound        = apperr.New(apperr.NotFound, "Transfer not found")
-	ErrCategoryNotFound        = apperr.New(apperr.NotFound, "Category not found")
-	ErrCategoryGroupNotFound   = apperr.New(apperr.NotFound, "Category group not found")
-	ErrTemplateNotFound        = apperr.New(apperr.NotFound, "Transaction template not found")
-	ErrInvalidCategoryID       = apperr.New(apperr.Validation, "The selected category does not exist")
-	ErrTemplateAlreadyRanToday = apperr.New(apperr.Conflict, "template already executed today")
+	ErrTransactionNotFound         = apperr.New(apperr.NotFound, "Transaction not found")
+	ErrTransferNotFound            = apperr.New(apperr.NotFound, "Transfer not found")
+	ErrCategoryNotFound            = apperr.New(apperr.NotFound, "Category not found")
+	ErrCategoryGroupNotFound       = apperr.New(apperr.NotFound, "Category group not found")
+	ErrTemplateNotFound            = apperr.New(apperr.NotFound, "Transaction template not found")
+	ErrInvalidCategoryID           = apperr.New(apperr.Validation, "The selected category does not exist")
+	ErrTemplateAlreadyRanToday     = apperr.New(apperr.Conflict, "template already executed today")
+	ErrInvalidSourceAccountID      = apperr.New(apperr.Validation, "The selected source account does not exist")
+	ErrInvalidDestinationAccountID = apperr.New(apperr.Validation, "The selected destination account does not exist")
+	ErrInflowTransactionNotFound   = apperr.New(apperr.NotFound, "Inflow transaction not found")
+	ErrOutflowTransactionNotFound  = apperr.New(apperr.NotFound, "Outflow transaction not found")
+	ErrExistingAccountNotFound     = apperr.New(apperr.Internal, "The transaction's existing account no longer exists")
+	ErrExistingCategoryNotFound    = apperr.New(apperr.Internal, "The transaction's existing category no longer exists")
 )
 
 type TransactionServiceInterface interface {
@@ -452,7 +458,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.InsertResult{}, ErrInvalidAccountID
+			return models.InsertResult{}, ErrInvalidSourceAccountID
 		}
 		return models.InsertResult{}, fmt.Errorf("can't find source account %w", err)
 	}
@@ -485,7 +491,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.InsertResult{}, ErrInvalidAccountID
+			return models.InsertResult{}, ErrInvalidDestinationAccountID
 		}
 		return models.InsertResult{}, fmt.Errorf("can't find destination account %w", err)
 	}
@@ -697,6 +703,9 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	oldAccount, err := s.accRepo.FindAccountByID(ctx, tx, exTr.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrExistingAccountNotFound
+		}
 		return 0, fmt.Errorf("can't find existing account: %w", err)
 	}
 	if err := utils.ValidateAccount(oldAccount, "existing"); err != nil {
@@ -708,6 +717,9 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		oldCategory, err = s.repo.FindCategoryByID(ctx, tx, *exTr.CategoryID, &userID, true)
 		if err != nil {
 			tx.Rollback()
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, ErrExistingCategoryNotFound
+			}
 			return 0, fmt.Errorf("can't find existing category with given id %w", err)
 		}
 	}
@@ -739,7 +751,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		newCategory, err = s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("can't find default category %w", err)
+			return 0, apperr.Wrap(apperr.Internal, "failed to find uncategorized category", err)
 		}
 	}
 
@@ -1119,24 +1131,36 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	inflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionInflowID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInflowTransactionNotFound
+		}
 		return fmt.Errorf("can't find inflow transaction: %w", err)
 	}
 
 	outflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionOutflowID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOutflowTransactionNotFound
+		}
 		return fmt.Errorf("can't find outflow transaction: %w", err)
 	}
 
 	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, outflow.AccountID, userID, true)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidSourceAccountID
+		}
 		return fmt.Errorf("can't find source account: %w", err)
 	}
 
 	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, inflow.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidDestinationAccountID
+		}
 		return fmt.Errorf("can't find destination account: %w", err)
 	}
 
@@ -1283,12 +1307,18 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	inflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionInflowID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInflowTransactionNotFound
+		}
 		return fmt.Errorf("can't find inflow transaction with given id %w", err)
 	}
 
 	outflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionOutflowID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOutflowTransactionNotFound
+		}
 		return fmt.Errorf("can't find outflow transaction with given id %w", err)
 	}
 
@@ -1296,11 +1326,17 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, outflow.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidSourceAccountID
+		}
 		return fmt.Errorf("can't find source account %w", err)
 	}
 	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, inflow.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidDestinationAccountID
+		}
 		return fmt.Errorf("can't find destination account %w", err)
 	}
 
@@ -1510,6 +1546,9 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	acc, err := s.accRepo.FindAccountByID(ctx, tx, tr.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidAccountID
+		}
 		return fmt.Errorf("can't find account for transaction %w", err)
 	}
 	if err := utils.ValidateAccount(acc, ""); err != nil {
@@ -1637,7 +1676,7 @@ func (s *TransactionService) MergeCategories(ctx context.Context, userID, source
 		Causer:      &userID,
 	}); err != nil {
 		s.logger.Error("category merge activity log failed",
-			zap.Error(err), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
+			zap.Error(err), zap.Int64("user_id", userID), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
 	}
 
 	return moved, nil
@@ -1903,7 +1942,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return 0, ErrInvalidAccountID
+				return 0, ErrInvalidDestinationAccountID
 			}
 			return 0, fmt.Errorf("can't find destination account with given id %w", err)
 		}
@@ -2563,6 +2602,9 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 	currentTemplate, err := s.repo.FindTransactionTemplateByIDForUpdate(ctx, tx, template.ID, template.UserID)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, time.Time{}, ErrTemplateNotFound
+		}
 		return 0, time.Time{}, fmt.Errorf("template not found: %w", err)
 	}
 
@@ -2575,6 +2617,9 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 	acc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, time.Time{}, ErrInvalidAccountID
+		}
 		return 0, time.Time{}, fmt.Errorf("account not found: %w", err)
 	}
 	if err := utils.ValidateAccount(acc, ""); err != nil {
@@ -2613,7 +2658,10 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		srcAcc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, true)
 		if err != nil {
 			tx.Rollback()
-			return 0, time.Time{}, fmt.Errorf("source account not found: %w", err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, time.Time{}, ErrInvalidSourceAccountID
+			}
+			return 0, time.Time{}, fmt.Errorf("failed to find source account: %w", err)
 		}
 		if err := utils.ValidateAccount(srcAcc, "source"); err != nil {
 			tx.Rollback()
@@ -2628,7 +2676,10 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *currentTemplate.ToAccountID, currentTemplate.UserID, false)
 		if err != nil {
 			tx.Rollback()
-			return 0, time.Time{}, fmt.Errorf("destination account not found: %w", err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, time.Time{}, ErrInvalidDestinationAccountID
+			}
+			return 0, time.Time{}, fmt.Errorf("failed to find destination account: %w", err)
 		}
 		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
 			tx.Rollback()

@@ -405,10 +405,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		availableBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
 		if err != nil {
 			tx.Rollback()
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return 0, fmt.Errorf("no balance record found for account")
-			}
-			return 0, fmt.Errorf("failed to get account balance: %w", err)
+			return 0, apperr.Wrap(apperr.Internal, "failed to get account balance", err)
 		}
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
@@ -569,7 +566,8 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		InvestmentType: asset.InvestmentType,
 		TradeDate:      txnDate,
 	}); err != nil {
-		s.logger.Warn("Failed to dispatch post-trade sync job", zap.Error(err))
+		s.logger.Warn("Failed to dispatch post-trade sync job",
+			zap.Error(err), zap.Int64("user_id", userID), zap.Int64("asset_id", asset.ID))
 	}
 
 	return txnID, nil
@@ -824,7 +822,7 @@ func (s *InvestmentService) linkTrades(
 		if trade.Currency != accCurrency {
 			rate, ok := rates[utils.NewTradeExchangeRateKey(trade)]
 			if !ok {
-				return fmt.Errorf("no exchange rate resolved for trade %d (%s to %s)", trade.ID, trade.Currency, accCurrency)
+				return apperr.New(apperr.Internal, fmt.Sprintf("no exchange rate resolved for trade %d (%s to %s)", trade.ID, trade.Currency, accCurrency))
 			}
 			amount = amount.Mul(rate)
 		}
@@ -1489,6 +1487,8 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		if err != nil || priceData == nil || priceData.Price <= 0 {
 			tx.Rollback()
 			s.logger.Warn("Failed to price staking reward",
+				zap.Int64("user_id", userID),
+				zap.Int64("asset_id", asset.ID),
 				zap.String("ticker", asset.Ticker),
 				zap.Time("txn_date", req.TxnDate),
 				zap.Error(err))
@@ -1592,7 +1592,8 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 			InvestmentType: asset.InvestmentType,
 			TradeDate:      txnDate,
 		}); err != nil {
-			s.logger.Warn("Failed to dispatch post-income sync job", zap.Error(err))
+			s.logger.Warn("Failed to dispatch post-income sync job",
+				zap.Error(err), zap.Int64("user_id", userID), zap.Int64("asset_id", asset.ID))
 		}
 	}
 
@@ -1874,7 +1875,7 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, assetID, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("asset %d not found: %w", assetID, err)
+		return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find asset %d", assetID), err)
 	}
 
 	incomeType := models.IncomeTypeStaking
@@ -1991,6 +1992,7 @@ func (s *InvestmentService) BackfillIncomeExchangeRates(ctx context.Context, use
 		rate, err := s.GetExchangeRate(ctx, record.Currency, "USD", &record.TxnDate)
 		if err != nil {
 			s.logger.Warn("Failed to fetch income exchange rate",
+				zap.Int64("user_id", userID),
 				zap.Int64("incomeID", record.ID),
 				zap.String("currency", record.Currency),
 				zap.Time("txn_date", record.TxnDate),

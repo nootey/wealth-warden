@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
@@ -205,7 +204,7 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID int64) (*models
 
 	user, repoError := s.userRepo.FindUserByID(ctx, nil, userID)
 	if repoError != nil {
-		return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
+		return nil, apperr.Wrap(apperr.Internal, "failed to find current session user", repoError)
 	}
 
 	return user, nil
@@ -445,14 +444,16 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, i
 	raw, err := utils.UnwrapToken(token, "user_id")
 	if err != nil {
 		_ = tx.Rollback()
-		return fmt.Errorf("no user_id in token data")
+		s.logger.Warn("confirm email rejected: malformed token payload", zap.Error(err))
+		return ErrInvalidToken
 	}
 
 	num := raw.(json.Number)
 	userID, err := num.Int64()
 	if err != nil {
 		_ = tx.Rollback()
-		return fmt.Errorf("invalid user_id in token data: %v", err)
+		s.logger.Warn("confirm email rejected: malformed token payload", zap.Error(err))
+		return ErrInvalidToken
 	}
 
 	user, err := s.userRepo.FindUserByID(ctx, tx, userID)
@@ -522,13 +523,13 @@ func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue stri
 
 	raw, err := utils.UnwrapToken(token, "user_id")
 	if err != nil {
-		return "", fmt.Errorf("no user_id in token data")
+		return "", ErrInvalidToken
 	}
 
 	num := raw.(json.Number)
 	userID, err := num.Int64()
 	if err != nil {
-		return "", fmt.Errorf("invalid user_id in token data: %v", err)
+		return "", ErrInvalidToken
 	}
 
 	if _, err := s.userRepo.FindUserByID(ctx, nil, userID); err != nil {
