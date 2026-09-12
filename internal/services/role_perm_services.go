@@ -10,6 +10,8 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -29,15 +31,18 @@ type RolePermissionServiceInterface interface {
 	DeleteRole(ctx context.Context, userID, id int64) error
 }
 type RolePermissionService struct {
+	logger        *zap.Logger
 	repo          repositories.RolePermissionRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 }
 
 func NewRolePermissionService(
+	logger *zap.Logger,
 	repo *repositories.RolePermissionRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *RolePermissionService {
 	return &RolePermissionService{
+		logger:        logger,
 		repo:          repo,
 		jobDispatcher: jobDispatcher,
 	}
@@ -113,6 +118,10 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 	if err != nil {
 		tx.Rollback()
 		if utils.IsUniqueViolation(err) {
+			s.logger.Warn("role insert rejected: name already taken",
+				zap.Int64("user_id", userID),
+				zap.String("role_name", role.Name),
+			)
 			return 0, ErrRoleNameTaken
 		}
 		return 0, err
@@ -125,6 +134,12 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 	}
 	if permCount != int64(len(permIDs)) {
 		tx.Rollback()
+		s.logger.Warn("role insert rejected: unknown permission ids",
+			zap.Int64("user_id", userID),
+			zap.Int64("role_id", roleID),
+			zap.Int64s("requested_permission_ids", permIDs),
+			zap.Int64("valid_permission_count", permCount),
+		)
 		return 0, ErrUnknownPermission
 	}
 
@@ -212,6 +227,11 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	if err != nil {
 		tx.Rollback()
 		if utils.IsUniqueViolation(err) {
+			s.logger.Warn("role update rejected: name already taken",
+				zap.Int64("user_id", userID),
+				zap.Int64("role_id", id),
+				zap.String("role_name", role.Name),
+			)
 			return 0, ErrRoleNameTaken
 		}
 		return 0, err
@@ -225,6 +245,12 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 		}
 		if permCount != int64(len(permIDs)) {
 			tx.Rollback()
+			s.logger.Warn("role update rejected: unknown permission ids",
+				zap.Int64("user_id", userID),
+				zap.Int64("role_id", id),
+				zap.Int64s("requested_permission_ids", permIDs),
+				zap.Int64("valid_permission_count", permCount),
+			)
 			return 0, ErrUnknownPermission
 		}
 		if err := s.repo.ReplaceRolePermissions(ctx, tx, role.ID, permIDs); err != nil {
@@ -298,6 +324,11 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 
 	if role.IsDefault {
 		tx.Rollback()
+		s.logger.Warn("role delete rejected: default role",
+			zap.Int64("user_id", userID),
+			zap.Int64("role_id", role.ID),
+			zap.String("role_name", role.Name),
+		)
 		return ErrDefaultRoleDelete
 	}
 
@@ -308,6 +339,11 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	}
 	if cnt > 0 {
 		tx.Rollback()
+		s.logger.Warn("role delete rejected: still assigned to active users",
+			zap.Int64("user_id", userID),
+			zap.Int64("role_id", role.ID),
+			zap.Int64("active_user_count", cnt),
+		)
 		return apperr.New(apperr.Conflict, fmt.Sprintf("cannot delete role: %d users still have it", cnt))
 	}
 

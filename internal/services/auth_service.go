@@ -14,6 +14,7 @@ import (
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -31,6 +32,7 @@ type AuthServiceInterface interface {
 	CompleteSetup(ctx context.Context, userID int64, req models.CompleteSetupReq) error
 }
 type AuthService struct {
+	logger        *zap.Logger
 	userRepo      repositories.UserRepositoryInterface
 	roleRepo      repositories.RolePermissionRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
@@ -40,6 +42,7 @@ type AuthService struct {
 }
 
 func NewAuthService(
+	logger *zap.Logger,
 	userRepo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -48,6 +51,7 @@ func NewAuthService(
 	sessionStore *sessions.Store,
 ) *AuthService {
 	return &AuthService{
+		logger:        logger,
 		userRepo:      userRepo,
 		roleRepo:      roleRepo,
 		settingsRepo:  settingsRepo,
@@ -317,6 +321,8 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			// Validate email matches invitation
 			if invitation.Email != form.Email {
 				tx.Rollback()
+				s.logger.Warn("signup rejected: email does not match invitation",
+					zap.String("email", form.Email), zap.Int64("invitation_id", invitation.ID))
 				return 0, ErrEmailNotInvited
 			}
 
@@ -430,6 +436,7 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, i
 	if err != nil {
 		_ = tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Warn("confirm email rejected: invalid or expired token")
 			return ErrInvalidToken
 		}
 		return err
