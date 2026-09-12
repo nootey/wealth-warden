@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
@@ -328,6 +329,9 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			role, err = s.roleRepo.FindRoleByID(ctx, tx, invitation.RoleID, false)
 			if err != nil {
 				tx.Rollback()
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return 0, ErrInvalidRoleID
+				}
 				return 0, err
 			}
 		} else {
@@ -511,35 +515,48 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email, userAgent
 	return nil
 }
 
-func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error) {
+func (s *AuthService) resolvePasswordResetToken(ctx context.Context, tx *gorm.DB, tokenValue string) (*models.User, error) {
 
-	token, err := s.userRepo.FindTokenByValue(ctx, nil, "password-reset", tokenValue)
+	token, err := s.userRepo.FindTokenByValue(ctx, tx, "password-reset", tokenValue)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", ErrInvalidToken
+			return nil, ErrInvalidToken
 		}
-		return "", err
+		return nil, err
 	}
 
 	raw, err := utils.UnwrapToken(token, "user_id")
 	if err != nil {
-		return "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 
-	num := raw.(json.Number)
+	num, ok := raw.(json.Number)
+	if !ok {
+		return nil, ErrInvalidToken
+	}
 	userID, err := num.Int64()
 	if err != nil {
-		return "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 
-	if _, err := s.userRepo.FindUserByID(ctx, nil, userID); err != nil {
+	user, err := s.userRepo.FindUserByID(ctx, tx, userID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", ErrInvalidToken
+			return nil, ErrInvalidToken
 		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error) {
+
+	if _, err := s.resolvePasswordResetToken(ctx, nil, tokenValue); err != nil {
 		return "", err
 	}
 
-	return token.TokenValue, nil
+	return tokenValue, nil
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error {
@@ -553,13 +570,18 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 		return err
 	}
 
-	user, err := s.userRepo.FindUserByEmail(ctx, tx, form.Email)
+	// The token, not the submitted email, decides whose password changes.
+	user, err := s.resolvePasswordResetToken(ctx, tx, form.Token)
 	if err != nil {
 		_ = tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrEmailNotFound
-		}
 		return err
+	}
+
+	if !strings.EqualFold(user.Email, form.Email) {
+		_ = tx.Rollback()
+		s.logger.Warn("password reset rejected: email does not match token",
+			zap.Int64("user_id", user.ID), zap.String("email", form.Email))
+		return ErrInvalidToken
 	}
 
 	password, passwordErr := utils.ValidatePasswordStrength(form.Password)

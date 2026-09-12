@@ -238,11 +238,10 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, invitation.RoleID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidRoleID
+		}
 		return 0, err
-	}
-	if role.ID == 0 {
-		tx.Rollback()
-		return 0, ErrInvalidRoleID
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(invID, 10), changes, "id")
@@ -310,11 +309,10 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	newRole, err := s.roleRepo.FindRoleByID(ctx, tx, req.RoleID, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidRoleID
+		}
 		return 0, err
-	}
-	if newRole.ID == 0 {
-		tx.Rollback()
-		return 0, ErrInvalidRoleID
 	}
 
 	usr := models.User{

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"wealth-warden/internal/apperr"
@@ -12,6 +13,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 var (
@@ -80,10 +82,10 @@ func (s *RolePermissionService) FetchAllPermissions(ctx context.Context) ([]mode
 func (s *RolePermissionService) FetchRoleByID(ctx context.Context, ID int64, withPermissions bool) (*models.Role, error) {
 	record, err := s.repo.FindRoleByID(ctx, nil, ID, withPermissions)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRoleNotFound
+		}
 		return nil, err
-	}
-	if record.ID == 0 {
-		return nil, ErrRoleNotFound
 	}
 
 	return record, nil
@@ -210,11 +212,10 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	exRole, err := s.repo.FindRoleByID(ctx, tx, id, true)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrRoleNotFound
+		}
 		return 0, err
-	}
-	if exRole.ID == 0 {
-		tx.Rollback()
-		return 0, ErrRoleNotFound
 	}
 
 	role := models.Role{
@@ -315,11 +316,10 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	role, err := s.repo.FindRoleByID(ctx, tx, id, false)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrRoleNotFound
+		}
 		return err
-	}
-	if role.ID == 0 {
-		tx.Rollback()
-		return ErrRoleNotFound
 	}
 
 	if role.IsDefault {

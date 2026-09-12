@@ -39,6 +39,7 @@ type RegisterForm struct {
 type ResetPasswordForm struct {
 	AuthForm
 	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
+	Token                string `json:"token" binding:"required"`
 }
 
 type ReqID struct {

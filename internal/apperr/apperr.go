@@ -8,9 +8,9 @@ import (
 
 type Kind int
 
-const (
-	GenericMessage = "Something went wrong"
+const GenericMessage = "Something went wrong"
 
+const (
 	Internal Kind = iota
 	Invalid
 	Validation

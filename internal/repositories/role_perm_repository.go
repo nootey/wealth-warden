@@ -105,8 +105,8 @@ func (r *RolePermissionRepository) FindRoleByID(ctx context.Context, tx *gorm.DB
 		q.Preload("Permissions")
 	}
 
-	q.Find(&record)
-	return &record, q.Error
+	err := q.First(&record).Error
+	return &record, err
 }
 
 func (r *RolePermissionRepository) FindRoleByName(ctx context.Context, tx *gorm.DB, roleName string) (*models.Role, error) {

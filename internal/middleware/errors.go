@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net/http"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/pkg/utils"
 
@@ -41,8 +42,13 @@ func ErrorHandler(logger *zap.Logger) gin.HandlerFunc {
 			c.JSON(status, utils.APIResponse{Message: message, Code: status})
 		}
 
+		log := logger.Warn
+		if c.Writer.Status() >= http.StatusInternalServerError {
+			log = logger.Error
+		}
+
 		for _, err := range c.Errors {
-			logger.Info("HTTP error",
+			log("HTTP error",
 				zap.String("method", c.Request.Method),
 				zap.String("path", c.Request.URL.Path),
 				zap.String("client_ip", c.ClientIP()),
