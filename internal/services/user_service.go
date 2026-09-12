@@ -316,9 +316,10 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	}
 
 	usr := models.User{
-		ID:          exUsr.ID,
-		DisplayName: req.DisplayName,
-		RoleID:      newRole.ID,
+		ID:             exUsr.ID,
+		DisplayName:    req.DisplayName,
+		RoleID:         newRole.ID,
+		EmailConfirmed: req.EmailConfirmed,
 	}
 
 	uID, err := s.repo.UpdateUser(ctx, tx, usr)
@@ -353,6 +354,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	changes := utils.InitChanges()
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
+	utils.CompareDateChange(exUsr.EmailConfirmed, usr.EmailConfirmed, changes, "email_confirmed")
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(uID, 10))

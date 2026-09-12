@@ -48,9 +48,10 @@ const page = ref(1);
 const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed((): Column[] => [
+  { field: "id", header: "ID", type: "int" },
   { field: "email", header: "Email", type: "text" },
   { field: "role", header: "Role", type: "enum" },
-  { field: "created_at", header: "Created", type: "date" },
+  { field: "created_at", header: "Created", type: "date", hideOnMobile: true },
 ]);
 
 async function getData(new_page = null) {
@@ -139,72 +140,75 @@ defineExpose({ refresh });
 
 <template>
   <div
-    class="flex flex-col justify-center w-full gap-4"
-    style="background: var(--background-secondary); max-width: 1000px"
+    class="flex flex-col w-full rounded-2xl"
+    style="
+      padding: 0.25rem 0.25rem 0 0.25rem;
+      border: 1px solid var(--border-color);
+    "
   >
-    <div class="flex flex-row gap-2 w-full">
-      <DataTable
-        class="w-full enhanced-table"
-        data-key="id"
-        :loading="loading"
-        :value="records"
-        scrollable
-        scroll-height="50vh"
+    <DataTable
+      class="w-full enhanced-table"
+      data-key="id"
+      :loading="loading"
+      :value="records"
+      scrollable
+      scroll-height="50vh"
+    >
+      <template #empty>
+        <div style="padding: 10px">No records found.</div>
+      </template>
+      <template #loading>
+        <LoadingSpinner />
+      </template>
+      <template #footer>
+        <CustomPaginator
+          :paginator="paginator"
+          :rows="rows"
+          @on-page="onPage"
+        />
+      </template>
+
+      <Column
+        v-for="col of activeColumns"
+        :key="col.field"
+        :header="col.header"
+        :field="col.field"
+        :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        style="width: 30%"
       >
-        <template #empty>
-          <div style="padding: 10px">No records found.</div>
-        </template>
-        <template #loading>
-          <LoadingSpinner />
-        </template>
-        <template #footer>
-          <CustomPaginator
-            :paginator="paginator"
-            :rows="rows"
-            @on-page="onPage"
-          />
-        </template>
-
-        <Column
-          v-for="col of activeColumns"
-          :key="col.field"
-          :header="col.header"
-          :field="col.field"
-          style="width: 30%"
-        >
-          <template #body="{ data }">
-            <template v-if="col.field === 'created_at'">
-              {{ dateHelper.formatDate(data?.created_at, true) }}
-            </template>
-            <template v-else-if="col.field === 'role'">
-              {{ data[col.field]["name"] }}
-            </template>
-            <template v-else>
-              {{ data[col.field] }}
-            </template>
+        <template #body="{ data }">
+          <template v-if="col.field === 'created_at'">
+            {{ dateHelper.formatDate(data?.created_at, true) }}
           </template>
-        </Column>
-
-        <Column header="Actions">
-          <template #body="{ data }">
-            <div class="flex flex-row gap-2 items-center">
-              <i
-                v-tooltip="'Resend email'"
-                class="pi pi-refresh hover-icon text-sm"
-                @click="resendConfirmation(data?.id)"
-              />
-              <i
-                v-if="hasPermission('delete_users')"
-                v-tooltip="'Delete invitation'"
-                class="pi pi-trash hover-icon text-sm"
-                style="color: var(--p-red-300)"
-                @click="deleteConfirmation(data?.id)"
-              />
-            </div>
+          <template v-else-if="col.field === 'role'">
+            {{ data[col.field]["name"] }}
           </template>
-        </Column>
-      </DataTable>
-    </div>
+          <template v-else>
+            {{ data[col.field] }}
+          </template>
+        </template>
+      </Column>
+
+      <Column header="Actions">
+        <template #body="{ data }">
+          <div class="flex flex-row gap-2 items-center">
+            <i
+              v-tooltip="'Resend email'"
+              class="pi pi-refresh hover-icon text-sm"
+              @click="resendConfirmation(data?.id)"
+            />
+            <i
+              v-if="hasPermission('delete_users')"
+              v-tooltip="'Delete invitation'"
+              class="pi pi-trash hover-icon text-sm"
+              style="color: var(--p-red-300)"
+              @click="deleteConfirmation(data?.id)"
+            />
+          </div>
+        </template>
+      </Column>
+    </DataTable>
   </div>
 </template>
 

@@ -243,9 +243,10 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 	}
 
 	u := models.User{
-		ID:          existingUser.ID,
-		DisplayName: req.DisplayName,
-		RoleID:      existingUser.RoleID,
+		ID:             existingUser.ID,
+		DisplayName:    req.DisplayName,
+		RoleID:         existingUser.RoleID,
+		EmailConfirmed: existingUser.EmailConfirmed,
 	}
 
 	if req.EmailUpdated {
