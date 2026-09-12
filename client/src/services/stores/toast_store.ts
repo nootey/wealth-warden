@@ -18,7 +18,8 @@ export const useToastStore = defineStore("toast", () => {
         { title?: string; message?: string } | undefined;
 
       if (data?.title || data?.message) {
-        summary = data.title ?? "Error";
+        summary =
+          data.title && data.title !== "" ? data.title : "Error occurred";
         detail = data.message ?? "Something went wrong.";
       }
 
