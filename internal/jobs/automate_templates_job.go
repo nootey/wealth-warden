@@ -74,7 +74,6 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 
 	successCount, alreadyRan, failed := 0, 0, 0
 	userResults := make(map[int64]*userTemplateSummary)
-	var firstErr error
 
 	for r := range results {
 		if errors.Is(r.err, services.ErrTemplateAlreadyRanToday) {
@@ -89,9 +88,10 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 		if r.err != nil {
 			s.failed = append(s.failed, r.template.Name)
 			failed++
-			if firstErr == nil {
-				firstErr = fmt.Errorf("template %q: %w", r.template.Name, r.err)
-			}
+			j.logger.Error("Template processing failed",
+				zap.Int64("user_id", r.template.UserID),
+				zap.Int64("template_id", r.template.ID),
+				zap.Error(r.err))
 		} else {
 			s.succeeded = append(s.succeeded, r.template.Name)
 			successCount++
@@ -104,12 +104,6 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 		zap.Int("failed", failed),
 		zap.Int("cancelled", cancelled),
 		zap.Int("templates_total", len(templates)))
-
-	if firstErr != nil {
-		j.logger.Error("Template processing had failures",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
 
 	j.notifyUsers(ctx, userResults)
 

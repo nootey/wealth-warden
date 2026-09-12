@@ -37,8 +37,8 @@ func (w *BalanceReconcileBatchWorker) Run(ctx context.Context, accountIDs []int6
 
 	for _, d := range drifted {
 		w.logger.Warn("Balance drifted from its transactions; repaired",
-			zap.Int64("userID", d.UserID),
-			zap.Int64("accountID", d.AccountID),
+			zap.Int64("user_id", d.UserID),
+			zap.Int64("account_id", d.AccountID),
 			zap.String("actual", d.Actual.String()),
 			zap.String("expected", d.Expected.String()),
 			zap.String("difference", d.Difference().String()))

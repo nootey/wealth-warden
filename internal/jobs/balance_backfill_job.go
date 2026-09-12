@@ -92,8 +92,8 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 	}
 
 	j.logger.Info("Balance fan-out enqueued",
-		zap.Int("reconcileBatches", reconcileBatches),
-		zap.Int("backfillBatches", backfillBatches))
+		zap.Int("reconcile_batches", reconcileBatches),
+		zap.Int("backfill_batches", backfillBatches))
 
 	return nil
 }

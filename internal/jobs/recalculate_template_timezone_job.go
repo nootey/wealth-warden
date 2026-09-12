@@ -31,20 +31,20 @@ func (w *RecalculateTemplateTimezoneWorker) Work(ctx context.Context, job *river
 	newLoc, err := time.LoadLocation(args.NewTimezone)
 	if err != nil {
 		w.logger.Error("Invalid new timezone, skipping template recalculation",
-			zap.Int64("userID", args.UserID), zap.String("timezone", args.NewTimezone), zap.Error(err))
+			zap.Int64("user_id", args.UserID), zap.String("timezone", args.NewTimezone), zap.Error(err))
 		return nil
 	}
 
 	count, err := w.transaction.RecalculateTemplateTimezones(ctx, args.UserID, newLoc)
 	if err != nil {
-		w.logger.Error("Failed to recalculate template timezones", zap.Int64("userID", args.UserID), zap.Error(err))
+		w.logger.Error("Failed to recalculate template timezones", zap.Int64("user_id", args.UserID), zap.Error(err))
 		return err
 	}
 
 	w.logger.Info("Recalculated template timezones",
-		zap.Int64("userID", args.UserID),
-		zap.String("oldTZ", args.OldTimezone),
-		zap.String("newTZ", args.NewTimezone),
+		zap.Int64("user_id", args.UserID),
+		zap.String("old_timezone", args.OldTimezone),
+		zap.String("new_timezone", args.NewTimezone),
 		zap.Int("count", count),
 	)
 	return nil

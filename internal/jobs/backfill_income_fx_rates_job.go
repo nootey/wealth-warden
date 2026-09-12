@@ -64,6 +64,11 @@ func (w *BackfillIncomeFXRatesWorker) Work(ctx context.Context, _ *river.Job[job
 				return nil
 			}
 			updated, skipped, err := w.investmentService.BackfillIncomeExchangeRates(ctx, userID)
+			if err != nil {
+				w.logger.Error("Income exchange rate backfill failed for user",
+					zap.Int64("user_id", userID),
+					zap.Error(err))
+			}
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -85,12 +90,6 @@ func (w *BackfillIncomeFXRatesWorker) Work(ctx context.Context, _ *river.Job[job
 		zap.Int("users_total", len(userIDs)),
 		zap.Int("rows_updated", rowsUpdated),
 		zap.Int("rows_skipped", rowsSkipped))
-
-	if firstErr != nil {
-		w.logger.Error("Failed to backfill income exchange rates",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("backfill stopped after %d of %d users: %w", backfilled+failed, len(userIDs), err)

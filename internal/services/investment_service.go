@@ -1993,7 +1993,7 @@ func (s *InvestmentService) BackfillIncomeExchangeRates(ctx context.Context, use
 		if err != nil {
 			s.logger.Warn("Failed to fetch income exchange rate",
 				zap.Int64("user_id", userID),
-				zap.Int64("incomeID", record.ID),
+				zap.Int64("income_id", record.ID),
 				zap.String("currency", record.Currency),
 				zap.Time("txn_date", record.TxnDate),
 				zap.Error(err))

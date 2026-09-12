@@ -62,6 +62,11 @@ func (w *BackfillAssetCashFlowsWorker) Work(ctx context.Context, _ *river.Job[jo
 				return nil
 			}
 			err := w.investmentService.RebuildInvestmentDerivedData(ctx, userID)
+			if err != nil {
+				w.logger.Error("Investment rebuild failed for user",
+					zap.Int64("user_id", userID),
+					zap.Error(err))
+			}
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -79,12 +84,6 @@ func (w *BackfillAssetCashFlowsWorker) Work(ctx context.Context, _ *river.Job[jo
 		zap.Int("rebuilt", rebuilt),
 		zap.Int("failed", failed),
 		zap.Int("users_total", len(userIDs)))
-
-	if firstErr != nil {
-		w.logger.Error("Failed to rebuild investment derived data",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("rebuild stopped after %d of %d users: %w", rebuilt+failed, len(userIDs), err)
