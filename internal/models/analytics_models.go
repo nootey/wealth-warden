@@ -231,6 +231,64 @@ type YearStatsWithAllocations struct {
 	DebtPct       float64 `json:"debt_pct"`
 }
 
+type NetWorthQuery struct {
+	Currency string `form:"currency"`
+	Range    string `form:"range"`
+	From     string `form:"from"`
+	To       string `form:"to"`
+	Account  *int64 `form:"account"`
+}
+
+type YearAccountQuery struct {
+	Year    int    `form:"year" validate:"required,min=1900,max=3000"`
+	Account *int64 `form:"account"`
+}
+
+type CategoryBreakdownQuery struct {
+	Year     int    `form:"year" validate:"required_without=Years,omitempty,min=1900,max=3000"`
+	Years    []int  `form:"years" collection_format:"csv" validate:"max=5"`
+	Account  *int64 `form:"account"`
+	Category *int64 `form:"category"`
+	Class    string `form:"class,default=expense"`
+	Percent  bool   `form:"percent"`
+}
+
+type AccountStatsQuery struct {
+	Year  int    `form:"year" validate:"required,min=1900,max=3000"`
+	AccID *int64 `form:"acc_id"`
+}
+
+type YearlyBreakdownQuery struct {
+	Year           int    `form:"year" validate:"required,min=1900,max=3000"`
+	AccID          *int64 `form:"acc_id"`
+	ComparisonYear *int   `form:"comparison_year" validate:"omitempty,min=1900,max=3000"`
+}
+
+type StatsYearsQuery struct {
+	AccID         *int64 `form:"acc_id"`
+	IncludeMonths bool   `form:"include_months"`
+}
+
+type MonthlyStatsQuery struct {
+	Year  int `form:"year" validate:"omitempty,min=1900,max=3000"`
+	Month int `form:"month" validate:"omitempty,min=1,max=12"`
+}
+
+type CategoryAverageQuery struct {
+	AccountID int64 `form:"account_id" validate:"required"`
+	IsGroup   bool  `form:"is_group"`
+}
+
+type CategoryReportReq struct {
+	InflowCategoryIDs  []int64 `json:"inflow_category_ids"`
+	OutflowCategoryIDs []int64 `json:"outflow_category_ids"`
+	Years              []int   `json:"years" validate:"max=10"`
+	Description        string  `json:"description"`
+	AllTime            bool    `json:"all_time"`
+	AccountID          *int64  `json:"account_id" validate:"required_if=AccountTypeOnly true"`
+	AccountTypeOnly    bool    `json:"account_type_only"`
+}
+
 type CategoryReportParams struct {
 	InflowCategoryIDs  []int64
 	OutflowCategoryIDs []int64

@@ -2,13 +2,16 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 
 	"github.com/stretchr/testify/suite"
+	"gorm.io/datatypes"
 )
 
 type AuthServiceTestSuite struct {
@@ -57,7 +60,7 @@ func (s *AuthServiceTestSuite) TestValidateLogin_WrongPassword() {
 
 	s.Error(err)
 	s.Nil(user)
-	s.Equal("invalid credentials", err.Error())
+	s.True(errors.Is(err, services.ErrInvalidCredentials))
 }
 
 func (s *AuthServiceTestSuite) TestGetCurrentUser() {
@@ -147,7 +150,7 @@ func (s *AuthServiceTestSuite) TestSignUp_PasswordMismatch() {
 
 	s.Error(err)
 	s.Zero(userID)
-	s.Equal("password and password confirmation do not match", err.Error())
+	s.True(errors.Is(err, services.ErrPasswordMismatch))
 }
 
 func (s *AuthServiceTestSuite) TestSignUp_WeakPassword() {
@@ -171,4 +174,55 @@ func (s *AuthServiceTestSuite) TestSignUp_WeakPassword() {
 
 	s.Error(err)
 	s.Zero(userID)
+}
+
+// a reset must be tied to a token; email alone must never change a password
+func (s *AuthServiceTestSuite) TestResetPassword_UnknownToken() {
+	svc := s.TC.App.AuthService
+	cfg, err := config.LoadConfig(nil)
+	s.Require().NoError(err)
+
+	err = svc.ResetPassword(s.Ctx, models.ResetPasswordForm{
+		AuthForm:             models.AuthForm{Email: cfg.Seed.SuperAdminEmail, Password: "NewSecurePassword123!"},
+		PasswordConfirmation: "NewSecurePassword123!",
+		Token:                "not-a-real-token",
+	}, "test-agent", "127.0.0.1")
+
+	s.True(errors.Is(err, services.ErrInvalidToken))
+
+	// the old password still works
+	_, err = svc.ValidateLogin(s.Ctx, cfg.Seed.SuperAdminEmail, cfg.Seed.SuperAdminPassword, "test-agent", "127.0.0.1")
+	s.NoError(err)
+}
+
+func (s *AuthServiceTestSuite) TestResetPassword_Success() {
+	svc := s.TC.App.AuthService
+
+	userID, err := svc.SignUp(s.Ctx, models.RegisterForm{
+		AuthForm:             models.AuthForm{Email: "reset@example.com", Password: "OldPassword123!"},
+		DisplayName:          "Reset User",
+		PasswordConfirmation: "OldPassword123!",
+	}, "test-agent", "127.0.0.1")
+	s.Require().NoError(err)
+
+	token := models.Token{
+		TokenType:  "password-reset",
+		TokenValue: "valid-reset-token",
+		Data:       datatypes.JSONMap{"user_id": userID},
+	}
+	s.Require().NoError(s.TC.DB.Create(&token).Error)
+
+	err = svc.ResetPassword(s.Ctx, models.ResetPasswordForm{
+		AuthForm:             models.AuthForm{Email: "reset@example.com", Password: "NewPassword123!"},
+		PasswordConfirmation: "NewPassword123!",
+		Token:                token.TokenValue,
+	}, "test-agent", "127.0.0.1")
+	s.NoError(err)
+
+	_, err = svc.ValidateLogin(s.Ctx, "reset@example.com", "NewPassword123!", "test-agent", "127.0.0.1")
+	s.NoError(err)
+
+	// the token is single use
+	_, err = svc.ValidatePasswordReset(s.Ctx, token.TokenValue)
+	s.True(errors.Is(err, services.ErrInvalidToken))
 }

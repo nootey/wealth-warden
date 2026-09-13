@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -21,8 +22,8 @@ var (
 		{ID: jobqueue.TypeRecurringTransactions, Kind: jobqueue.TypeRecurringTransactions, Schedule: "Daily at 00:20 UTC", Queue: jobqueue.QueueScheduler},
 		{ID: jobqueue.TypeAssetPriceSync, Kind: jobqueue.TypeAssetPriceSync, Schedule: "Every 8 hours", Queue: jobqueue.QueueScheduler},
 	}
-	ErrInvalidJobState   = errors.New("invalid job state")
-	ErrJobKindNotAllowed = errors.New("job kind is not user-triggerable")
+	ErrInvalidJobState   = apperr.New(apperr.Invalid, "invalid job state")
+	ErrJobKindNotAllowed = apperr.New(apperr.Invalid, "job kind is not user-triggerable")
 )
 
 type JobQueryParams struct {
@@ -65,6 +66,18 @@ func NewJobService(
 }
 
 var _ JobServiceInterface = (*JobService)(nil)
+
+// River reports a missing or a running job through its own sentinels, and both are the caller's problem rather than ours.
+func (s *JobService) classifyJobError(err error) error {
+	switch {
+	case errors.Is(err, rivertype.ErrNotFound):
+		return apperr.Wrap(apperr.NotFound, "job not found", err)
+	case errors.Is(err, rivertype.ErrJobRunning):
+		return apperr.Wrap(apperr.Conflict, "job is running and cannot be changed", err)
+	default:
+		return err
+	}
+}
 
 func (s *JobService) FetchJobs(ctx context.Context, p JobQueryParams) ([]models.RiverJobRow, *utils.Paginator, error) {
 	for _, st := range p.States {
@@ -158,10 +171,10 @@ func (s *JobService) FetchJobCounts(ctx context.Context) (map[string]int64, erro
 func (s *JobService) FetchJob(ctx context.Context, id int64) (*models.RiverJobDetail, error) {
 	row, err := s.jobs.JobGet(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, s.classifyJobError(err)
 	}
 	if row == nil {
-		return nil, rivertype.ErrNotFound
+		return nil, apperr.Wrap(apperr.NotFound, "job not found", rivertype.ErrNotFound)
 	}
 
 	detail := &models.RiverJobDetail{
@@ -215,7 +228,7 @@ func (s *JobService) DeleteJobs(ctx context.Context, ids []int64) error {
 
 func (s *JobService) applyToJobs(ctx context.Context, action string, ids []int64, fn func(int64) error) error {
 	if len(ids) == 0 {
-		return errors.New("no job ids provided")
+		return apperr.New(apperr.Invalid, "no job ids provided")
 	}
 
 	var firstErr error
@@ -224,7 +237,7 @@ func (s *JobService) applyToJobs(ctx context.Context, action string, ids []int64
 			s.logger.Warn("job action failed",
 				zap.String("action", action), zap.Int64("job_id", id), zap.Error(err))
 			if firstErr == nil {
-				firstErr = fmt.Errorf("%s job %d: %w", action, id, err)
+				firstErr = fmt.Errorf("%s job %d: %w", action, id, s.classifyJobError(err))
 			}
 		}
 	}
@@ -350,7 +363,7 @@ func (s *JobService) applyToUserJob(ctx context.Context, userID, id int64, fn fu
 	}
 	row, err := fn()
 	if err != nil {
-		return err
+		return s.classifyJobError(err)
 	}
 
 	state := job.State
@@ -373,7 +386,7 @@ func (s *JobService) findUserJob(ctx context.Context, userID, id int64) (*models
 		return nil, err
 	}
 	if len(jobs) == 0 {
-		return nil, rivertype.ErrNotFound
+		return nil, apperr.Wrap(apperr.NotFound, "job not found", rivertype.ErrNotFound)
 	}
 	return &jobs[0], nil
 }

@@ -43,7 +43,7 @@ func (w *RecalculateAssetPnLWorker) Work(ctx context.Context, job *river.Job[job
 		}
 		if err := w.investmentService.RecalculateAssetPnL(ctx, args.UserID, id); err != nil {
 			if failed == 0 {
-				w.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", id), zap.Error(err))
+				w.logger.Error("Failed to recalculate asset PnL", zap.Int64("asset_id", id), zap.Error(err))
 			}
 			failed++
 		}
@@ -62,14 +62,14 @@ func (w *RecalculateAssetPnLWorker) Work(ctx context.Context, job *river.Job[job
 func (w *RecalculateAssetPnLWorker) resolveScope(ctx context.Context, args jobqueue.RecalculateAssetPnLArgs) ([]int64, ws.AssetPnLPayload, error) {
 	switch {
 	case args.AssetID != nil:
-		w.logger.Info("Recalculating asset PnL", zap.Int64("assetID", *args.AssetID))
+		w.logger.Info("Recalculating asset PnL", zap.Int64("asset_id", *args.AssetID))
 		return []int64{*args.AssetID}, ws.AssetPnLPayload{AssetID: args.AssetID}, nil
 
 	case args.AccountID != nil:
-		w.logger.Info("Recalculating PnL for all assets in account", zap.Int64("accountID", *args.AccountID))
+		w.logger.Info("Recalculating PnL for all assets in account", zap.Int64("account_id", *args.AccountID))
 		assetIDs, err := w.investmentService.GetAssetIDsForAccount(ctx, args.UserID, *args.AccountID)
 		if err != nil {
-			w.logger.Error("Failed to fetch assets for account", zap.Int64("accountID", *args.AccountID), zap.Error(err))
+			w.logger.Error("Failed to fetch assets for account", zap.Int64("account_id", *args.AccountID), zap.Error(err))
 			return nil, ws.AssetPnLPayload{}, fmt.Errorf("failed to get assets for account %d: %w", *args.AccountID, err)
 		}
 		return assetIDs, ws.AssetPnLPayload{AccountID: args.AccountID}, nil
@@ -83,6 +83,6 @@ func (w *RecalculateAssetPnLWorker) refreshSnapshots(ctx context.Context, userID
 	// A PnL recalc can restate held quantity on any historical day (back-dated
 	// trade edits), so the whole snapshot series is recomputed here.
 	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, userID, time.Time{}); err != nil {
-		w.logger.Warn("Failed to refresh snapshot market values", zap.Int64("userID", userID), zap.Error(err))
+		w.logger.Warn("Failed to refresh snapshot market values", zap.Int64("user_id", userID), zap.Error(err))
 	}
 }

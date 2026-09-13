@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/http/handlers"
+	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 
 	"wealth-warden/mocks"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/zap"
 )
 
 type AccountHandlerTestSuite struct {
@@ -39,6 +43,7 @@ func (suite *AccountHandlerTestSuite) SetupTest() {
 	)
 
 	suite.router = gin.New()
+	suite.router.Use(middleware.ErrorHandler(zap.NewNop()))
 
 	// Middleware to inject user_id
 	suite.router.Use(func(c *gin.Context) {
@@ -50,6 +55,7 @@ func (suite *AccountHandlerTestSuite) SetupTest() {
 	suite.router.GET("/accounts/:id", suite.handler.GetAccountByID)
 	suite.router.PUT("/accounts/:id", suite.handler.UpdateAccount)
 	suite.router.DELETE("/accounts/:id", suite.handler.CloseAccount)
+	suite.router.PATCH("/accounts/defaults/set/:id", suite.handler.SetDefaultAccount)
 }
 
 func (suite *AccountHandlerTestSuite) TearDownTest() {
@@ -223,11 +229,11 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_Success() {
 	suite.Equal(int64(123), response.UserID)
 }
 
-// verifies that a non-existent account returns appropriate error
+// a missing account used to answer 500 with the raw GORM text
 func (suite *AccountHandlerTestSuite) TestGetAccountByID_NotFound() {
 	suite.mockService.EXPECT().
 		FetchAccountByID(mock.Anything, int64(123), int64(999)).
-		Return(nil, errors.New("account not found")).
+		Return(nil, services.ErrAccountNotFound).
 		Once()
 
 	req := httptest.NewRequest(http.MethodGet, "/accounts/999", nil)
@@ -235,7 +241,64 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_NotFound() {
 
 	suite.router.ServeHTTP(w, req)
 
+	suite.Equal(http.StatusNotFound, w.Code)
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal("Account not found", response["message"])
+}
+
+// an unclassified error must not reach the client
+func (suite *AccountHandlerTestSuite) TestGetAccountByID_InternalDoesNotLeak() {
+	suite.mockService.EXPECT().
+		FetchAccountByID(mock.Anything, int64(123), int64(1)).
+		Return(nil, errors.New(`pq: relation "accounts" does not exist`)).
+		Once()
+
+	req := httptest.NewRequest(http.MethodGet, "/accounts/1", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
 	suite.Equal(http.StatusInternalServerError, w.Code)
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal(apperr.GenericMessage, response["message"])
+}
+
+// a handler-born error never reaches the service
+func (suite *AccountHandlerTestSuite) TestGetAccountByID_BadID() {
+	req := httptest.NewRequest(http.MethodGet, "/accounts/abc", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusBadRequest, w.Code)
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal("id must be a valid integer", response["message"])
+	suite.mockService.AssertNotCalled(suite.T(), "FetchAccountByID")
+}
+
+// the account's own state refuses the change, so it is a conflict and not a 500
+func (suite *AccountHandlerTestSuite) TestSetDefaultAccount_AlreadyHasDefault() {
+	suite.mockService.EXPECT().
+		SetDefaultAccount(mock.Anything, int64(123), int64(4)).
+		Return(apperr.New(apperr.Conflict, "a default account already exists for this account type")).
+		Once()
+
+	req := httptest.NewRequest(http.MethodPatch, "/accounts/defaults/set/4", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusConflict, w.Code)
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal("a default account already exists for this account type", response["message"])
 }
 
 // verifies updating an account with valid data succeeds
@@ -293,11 +356,11 @@ func (suite *AccountHandlerTestSuite) TestCloseAccount_Success() {
 	suite.Equal("Success", response["title"])
 }
 
-// verifies closing a non-existent account returns error
+// verifies closing a non-existent account returns 404
 func (suite *AccountHandlerTestSuite) TestCloseAccount_NotFound() {
 	suite.mockService.EXPECT().
 		CloseAccount(mock.Anything, int64(123), int64(999)).
-		Return(errors.New("account not found")).
+		Return(services.ErrAccountNotFound).
 		Once()
 
 	req := httptest.NewRequest(http.MethodDelete, "/accounts/999", nil)
@@ -305,7 +368,26 @@ func (suite *AccountHandlerTestSuite) TestCloseAccount_NotFound() {
 
 	suite.router.ServeHTTP(w, req)
 
-	suite.Equal(http.StatusInternalServerError, w.Code)
+	suite.Equal(http.StatusNotFound, w.Code)
+}
+
+// the balance guard is the message a user acts on, so it must survive the middleware
+func (suite *AccountHandlerTestSuite) TestCloseAccount_NotEmpty() {
+	suite.mockService.EXPECT().
+		CloseAccount(mock.Anything, int64(123), int64(1)).
+		Return(services.ErrAccountNotEmpty).
+		Once()
+
+	req := httptest.NewRequest(http.MethodDelete, "/accounts/1", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusConflict, w.Code)
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal("account must have a zero balance before it can be closed", response["message"])
 }
 
 func TestAccountHandlerTestSuite(t *testing.T) {
@@ -391,7 +473,7 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_ServiceError() {
 
 	suite.mockService.EXPECT().
 		QueueAccountMerge(mock.Anything, int64(123), int64(1), int64(2)).
-		Return(errors.New("liability accounts can only be merged into other liability accounts")).
+		Return(apperr.New(apperr.Validation, "liability accounts can only be merged into other liability accounts")).
 		Once()
 
 	body, _ := json.Marshal(payload)
@@ -401,5 +483,9 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_ServiceError() {
 
 	suite.router.ServeHTTP(w, req)
 
-	suite.Equal(http.StatusBadRequest, w.Code)
+	suite.Equal(http.StatusUnprocessableEntity, w.Code)
+
+	var resp map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Equal("liability accounts can only be merged into other liability accounts", resp["message"])
 }

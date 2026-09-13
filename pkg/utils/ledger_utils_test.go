@@ -1,8 +1,10 @@
 package utils_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
@@ -35,6 +37,42 @@ func TestValidateAccount(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "inactive")
+	})
+
+	t.Run("closed account allowed with AllowClosed", func(t *testing.T) {
+		now := time.Now()
+		acc := &models.Account{ID: 1, IsActive: true, ClosedAt: &now}
+
+		err := utils.ValidateAccount(acc, "source", utils.AllowClosed)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("inactive account allowed with AllowInactive", func(t *testing.T) {
+		acc := &models.Account{ID: 1, IsActive: false, ClosedAt: nil}
+
+		err := utils.ValidateAccount(acc, "destination", utils.AllowInactive)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("closed and inactive account still rejected when only AllowInactive is set", func(t *testing.T) {
+		now := time.Now()
+		acc := &models.Account{ID: 1, IsActive: false, ClosedAt: &now}
+
+		err := utils.ValidateAccount(acc, "source", utils.AllowInactive)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "closed")
+	})
+
+	t.Run("error is a Conflict apperr", func(t *testing.T) {
+		acc := &models.Account{ID: 1, IsActive: false, ClosedAt: nil}
+
+		err := utils.ValidateAccount(acc, "")
+
+		status, _ := apperr.Resolve(err)
+		assert.Equal(t, http.StatusConflict, status)
 	})
 }
 

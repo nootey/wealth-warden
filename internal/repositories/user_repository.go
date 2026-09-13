@@ -417,9 +417,10 @@ func (r *UserRepository) UpdateUser(ctx context.Context, tx *gorm.DB, record mod
 	db = db.WithContext(ctx)
 
 	updates := map[string]interface{}{
-		"display_name": record.DisplayName,
-		"role_id":      record.RoleID,
-		"updated_at":   time.Now().UTC(),
+		"display_name":    record.DisplayName,
+		"role_id":         record.RoleID,
+		"email_confirmed": record.EmailConfirmed,
+		"updated_at":      time.Now().UTC(),
 	}
 
 	if record.Email != "" {

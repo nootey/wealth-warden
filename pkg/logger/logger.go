@@ -11,12 +11,11 @@ import (
 
 func InitLogger(release bool) *zap.Logger {
 
-	var cfg zap.Config
+	cfg := zap.NewProductionConfig()
 
-	if release {
-		cfg = zap.NewProductionConfig()
-	} else {
-		cfg = zap.NewDevelopmentConfig()
+	if !release {
+		cfg.Sampling = nil
+		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	}
 
 	// Build log file path

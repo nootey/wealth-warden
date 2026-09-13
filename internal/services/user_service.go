@@ -4,14 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
+
+	"gorm.io/gorm"
+)
+
+var (
+	ErrUserNotFound       = apperr.New(apperr.NotFound, "User not found")
+	ErrInvitationNotFound = apperr.New(apperr.NotFound, "Invitation not found")
+	ErrInvalidRoleID      = apperr.New(apperr.Validation, "The selected role does not exist")
+	ErrInvalidLink        = apperr.New(apperr.Unauthorized, "This link is no longer valid")
 )
 
 type UserServiceInterface interface {
@@ -60,7 +69,7 @@ func (s *UserService) SearchUsersByEmail(ctx context.Context, q string) ([]model
 
 	q = strings.TrimSpace(q)
 	if len(q) < 2 {
-		return nil, fmt.Errorf("search needs at least 2 characters")
+		return nil, apperr.New(apperr.Invalid, "Search needs at least 2 characters")
 	}
 
 	return s.repo.SearchUsersByEmail(ctx, nil, q, 20)
@@ -139,6 +148,9 @@ func (s *UserService) FetchInvitationsPaginated(ctx context.Context, p utils.Pag
 func (s *UserService) FetchUserByID(ctx context.Context, ID int64) (*models.User, error) {
 	record, err := s.repo.FindUserByID(ctx, nil, ID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
 		return nil, err
 	}
 
@@ -149,26 +161,28 @@ func (s *UserService) FetchUserByToken(ctx context.Context, tokenType, tokenValu
 
 	token, err := s.repo.FindTokenByValue(ctx, nil, tokenType, tokenValue)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrInvalidLink
+		}
 		return nil, err
-	}
-
-	if token == nil {
-		return nil, errors.New("no valid token found")
 	}
 
 	raw, err := utils.UnwrapToken(token, "user_id")
 	if err != nil {
-		return nil, fmt.Errorf("no user_id in token data")
+		return nil, apperr.Wrap(apperr.Unauthorized, ErrInvalidLink.Message, err)
 	}
 
 	num := raw.(json.Number)
 	userID, err := num.Int64()
 	if err != nil {
-		return nil, fmt.Errorf("invalid user_id in token data: %v", err)
+		return nil, apperr.Wrap(apperr.Unauthorized, ErrInvalidLink.Message, err)
 	}
 
 	user, err := s.repo.FindUserByID(ctx, nil, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrInvalidLink
+		}
 		return nil, err
 	}
 
@@ -178,6 +192,9 @@ func (s *UserService) FetchUserByToken(ctx context.Context, tokenType, tokenValu
 func (s *UserService) FetchInvitationByHash(ctx context.Context, hash string) (*models.Invitation, error) {
 	record, err := s.repo.FindUserInvitationByHash(ctx, nil, hash)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrInvitationNotFound
+		}
 		return nil, err
 	}
 
@@ -200,6 +217,7 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 
 	hash, err := utils.GenerateSecureToken(64)
 	if err != nil {
+		tx.Rollback()
 		return 0, err
 	}
 
@@ -211,6 +229,7 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 
 	invID, err := s.repo.InsertInvitation(ctx, tx, invitation)
 	if err != nil {
+		tx.Rollback()
 		return 0, err
 	}
 
@@ -219,7 +238,10 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, invitation.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find role wit given id: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidRoleID
+		}
+		return 0, err
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(invID, 10), changes, "id")
@@ -267,31 +289,37 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 		}
 	}()
 
-	// Load existing user
 	exUsr, err := s.repo.FindUserByID(ctx, tx, id)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find user with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrUserNotFound
+		}
+		return 0, err
 	}
 
-	// Load old relations
+	// The role already on the user. A missing one is broken data, so it stays a generic 500.
 	oldRole, err := s.roleRepo.FindRoleByID(ctx, tx, exUsr.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find existing role: %w", err)
+		return 0, err
 	}
 
-	// Resolve new relations
+	// The role the client picked. A missing one is a bad field.
 	newRole, err := s.roleRepo.FindRoleByID(ctx, tx, req.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find role wit given id: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvalidRoleID
+		}
+		return 0, err
 	}
 
 	usr := models.User{
-		ID:          exUsr.ID,
-		DisplayName: req.DisplayName,
-		RoleID:      newRole.ID,
+		ID:             exUsr.ID,
+		DisplayName:    req.DisplayName,
+		RoleID:         newRole.ID,
+		EmailConfirmed: req.EmailConfirmed,
 	}
 
 	uID, err := s.repo.UpdateUser(ctx, tx, usr)
@@ -303,13 +331,13 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	if req.Password != nil {
 		if req.Password != req.PasswordConfirmation {
 			tx.Rollback()
-			return 0, errors.New("password confirmation must match provided password")
+			return 0, apperr.New(apperr.Validation, "password confirmation must match provided password")
 		}
 
 		hashedPassword, err := utils.HashAndSaltPassword(*req.Password)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("failed to hash password: %w", err)
+			return 0, err
 		}
 
 		err = s.repo.UpdateUserPassword(ctx, tx, exUsr.ID, hashedPassword)
@@ -326,6 +354,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	changes := utils.InitChanges()
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
+	utils.CompareDateChange(exUsr.EmailConfirmed, usr.EmailConfirmed, changes, "email_confirmed")
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(uID, 10))
@@ -360,13 +389,16 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	usr, err := s.repo.FindUserByID(ctx, tx, id)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find user with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, usr.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find role wit given id: %w", err)
+		return err
 	}
 
 	newEmail := usr.Email + "_" + strconv.FormatInt(usr.ID, 10)
@@ -411,15 +443,15 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 	invitation, err := s.repo.FindInvitationByID(ctx, tx, id)
 	if err != nil {
 		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrInvitationNotFound
+		}
 		return 0, err
-	}
-	if invitation == nil {
-		tx.Rollback()
-		return 0, errors.New("invitation with the given ID does not exist")
 	}
 
 	hash, err := utils.GenerateSecureToken(64)
 	if err != nil {
+		tx.Rollback()
 		return 0, err
 	}
 
@@ -439,6 +471,7 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 	// Insert new invitation
 	invID, err := s.repo.InsertInvitation(ctx, tx, newInv)
 	if err != nil {
+		tx.Rollback()
 		return 0, err
 	}
 
@@ -447,7 +480,7 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, newInv.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find role wit given id: %w", err)
+		return 0, err
 	}
 
 	utils.CompareChanges("", role.Name, changes, "role")
@@ -497,13 +530,16 @@ func (s *UserService) DeleteInvitation(ctx context.Context, userID, id int64) er
 	inv, err := s.repo.FindInvitationByID(ctx, tx, id)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find invitation with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvitationNotFound
+		}
+		return err
 	}
 
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, inv.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find role wit given id: %w", err)
+		return err
 	}
 
 	if err := s.repo.DeleteInvitation(ctx, tx, inv.ID); err != nil {

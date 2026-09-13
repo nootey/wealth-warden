@@ -16,6 +16,7 @@ import (
 )
 
 type goalFundResult struct {
+	goalID     int64
 	goalName   string
 	userID     int64
 	funded     bool
@@ -83,7 +84,6 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 
 	funded, insufficient, alreadyFunded, failed, processed := 0, 0, 0, 0, 0
 	userResults := make(map[int64]*userGoalSummary)
-	var firstErr error
 
 	for r := range results {
 		processed++
@@ -96,9 +96,10 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		case r.err != nil:
 			s.failed = append(s.failed, r.goalName)
 			failed++
-			if firstErr == nil {
-				firstErr = fmt.Errorf("goal %q: %w", r.goalName, r.err)
-			}
+			j.logger.Error("Savings goal auto-fund failed for goal",
+				zap.Int64("user_id", r.userID),
+				zap.Int64("goal_id", r.goalID),
+				zap.Error(r.err))
 		case r.funded:
 			s.funded = append(s.funded, r.goalName)
 			funded++
@@ -118,12 +119,6 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		zap.Int("cancelled", int(cancelled.Load())),
 		zap.Int("goals_seen", processed),
 		zap.Int("goals_total", len(goals)))
-
-	if firstErr != nil {
-		j.logger.Error("Savings goals auto-fund had failures",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
 
 	j.notifyUsers(ctx, userResults)
 
@@ -166,6 +161,7 @@ func (j *AutoFundGoalsJob) fundAccountGroup(ctx context.Context, group []models.
 
 		funded, skipReason, err := j.savingsSvc.AutoFundGoal(ctx, goal, month)
 		results <- goalFundResult{
+			goalID:     goal.ID,
 			goalName:   goal.Name,
 			userID:     goal.UserID,
 			funded:     funded,

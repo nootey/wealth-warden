@@ -2,10 +2,12 @@ package services_test
 
 import (
 	"testing"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
 	"wealth-warden/pkg/utils"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -15,6 +17,26 @@ type AnalyticsServiceTestSuite struct {
 
 func TestAnalyticsServiceSuite(t *testing.T) {
 	suite.Run(t, new(AnalyticsServiceTestSuite))
+}
+
+// closedAccount creates and immediately closes an empty account, returning its id.
+func (s *AnalyticsServiceTestSuite) closedAccount(userID int64) int64 {
+	accSvc := s.TC.App.AccountService
+	zero := decimal.Zero
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Closed Analytics Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &zero,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+	s.Require().NoError(accSvc.CloseAccount(s.Ctx, userID, accID))
+
+	return accID
 }
 
 func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_ValidationError_RequiresPrimaryWhenSecondarySet() {
@@ -123,4 +145,73 @@ func (s *AnalyticsServiceTestSuite) TestDeleteReport_NotFound_ReturnsError() {
 	svc := s.TC.App.AnalyticsService
 	err := svc.DeleteReport(s.Ctx, 1, 99999)
 	s.Require().Error(err)
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetYearlyCashFlowBreakdown_RejectsClosedAccount() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	accID := s.closedAccount(userID)
+
+	_, err := svc.GetYearlyCashFlowBreakdown(s.Ctx, userID, time.Now().Year(), &accID)
+
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "closed")
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetYearlySankeyData_RejectsClosedAccount() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	accID := s.closedAccount(userID)
+
+	_, err := svc.GetYearlySankeyData(s.Ctx, userID, &accID, time.Now().Year())
+
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "closed")
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_RejectsClosedAccount() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	accID := s.closedAccount(userID)
+
+	_, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, time.Now().Year())
+
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "closed")
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetMonthlyStats_RejectsClosedAccount() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	accID := s.closedAccount(userID)
+
+	now := time.Now()
+	_, err := svc.GetMonthlyStats(s.Ctx, userID, &accID, now.Year(), int(now.Month()))
+
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "closed")
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetTodayStats_RejectsClosedAccount() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	accID := s.closedAccount(userID)
+
+	_, err := svc.GetTodayStats(s.Ctx, userID, &accID)
+
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "closed")
+}
+
+// Exercises getYearStatsWithAllocations, which is unexported and only reachable
+// through this wrapper.
+func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_RejectsClosedAccount() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	accID := s.closedAccount(userID)
+
+	_, err := svc.GetYearlyBreakdownStats(s.Ctx, &accID, userID, time.Now().Year(), nil)
+
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "closed")
 }

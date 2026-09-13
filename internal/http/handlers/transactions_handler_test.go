@@ -8,8 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/http/handlers"
+	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 	"wealth-warden/mocks"
 	"wealth-warden/pkg/utils"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/zap"
 )
 
 type TransactionHandlerTestSuite struct {
@@ -40,6 +44,7 @@ func (suite *TransactionHandlerTestSuite) SetupTest() {
 	)
 
 	suite.router = gin.New()
+	suite.router.Use(middleware.ErrorHandler(zap.NewNop()))
 
 	// Middleware to inject user_id
 	suite.router.Use(func(c *gin.Context) {
@@ -53,6 +58,7 @@ func (suite *TransactionHandlerTestSuite) SetupTest() {
 	suite.router.DELETE("/transactions/:id", suite.handler.DeleteTransaction)
 	suite.router.DELETE("/transfers/:id", suite.handler.DeleteTransfer)
 	suite.router.GET("/transactions", suite.handler.GetTransactionsPaginated)
+	suite.router.POST("/transactions/restore", suite.handler.RestoreTransaction)
 }
 
 func (suite *TransactionHandlerTestSuite) TearDownTest() {
@@ -252,7 +258,7 @@ func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_Success() {
 func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_ServiceError() {
 	suite.mockService.EXPECT().
 		DeleteTransaction(mock.Anything, int64(123), int64(999)).
-		Return(errors.New("transaction not found")).
+		Return(errors.New("some raw internal database error")).
 		Once()
 
 	req := httptest.NewRequest(http.MethodDelete, "/transactions/999", nil)
@@ -261,6 +267,41 @@ func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_ServiceError() {
 	suite.router.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusInternalServerError, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	suite.NoError(err)
+	suite.Equal(apperr.GenericMessage, response["message"])
+	suite.NotContains(w.Body.String(), "database error")
+}
+
+func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_ClassifiedError() {
+	suite.mockService.EXPECT().
+		DeleteTransaction(mock.Anything, int64(123), int64(999)).
+		Return(services.ErrTransactionNotFound).
+		Once()
+
+	req := httptest.NewRequest(http.MethodDelete, "/transactions/999", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusNotFound, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	suite.NoError(err)
+	suite.Equal("Transaction not found", response["message"])
+}
+
+func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_InvalidID() {
+	req := httptest.NewRequest(http.MethodDelete, "/transactions/not-a-number", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusBadRequest, w.Code)
+	suite.mockService.AssertNotCalled(suite.T(), "DeleteTransaction")
 }
 
 func (suite *TransactionHandlerTestSuite) TestDeleteTransfer_Success() {
@@ -351,6 +392,22 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_ServiceEr
 	suite.router.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusInternalServerError, w.Code)
+}
+
+// the restore body was bound but never validated, so a missing id passed as 0
+func (suite *TransactionHandlerTestSuite) TestRestoreTransaction_ValidationFails() {
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.Anything).
+		Return(errors.New("id is required")).
+		Once()
+
+	req := httptest.NewRequest(http.MethodPost, "/transactions/restore", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnprocessableEntity, w.Code)
+	suite.mockService.AssertNotCalled(suite.T(), "RestoreTransaction")
 }
 
 func TestTransactionHandlerTestSuite(t *testing.T) {

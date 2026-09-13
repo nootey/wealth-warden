@@ -52,7 +52,7 @@ func (w *BalanceBackfillBatchWorker) Run(ctx context.Context, userIDs []int64) e
 		if err := w.backfillUser(ctx, userID, fromDate, from, to); err != nil {
 			failed++
 			w.logger.Error("Balance backfill failed for user",
-				zap.Int64("userID", userID),
+				zap.Int64("user_id", userID),
 				zap.Error(err))
 		}
 	}

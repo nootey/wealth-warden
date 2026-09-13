@@ -41,7 +41,7 @@ func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[job
 
 	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, args.UserID, args.TradeDate); err != nil {
 		w.logger.Warn("Failed to update snapshot market values",
-			zap.Int64("userID", args.UserID),
+			zap.Int64("user_id", args.UserID),
 			zap.Error(err),
 		)
 		errs = append(errs, err)

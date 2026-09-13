@@ -4,6 +4,7 @@ export interface AuthForm {
   password: string;
   password_confirmation?: string;
   remember_me?: boolean;
+  token?: string;
 }
 
 export interface SessionInfo {

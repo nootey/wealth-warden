@@ -69,17 +69,3 @@ type ProfileSettingsReq struct {
 	Password             *string `json:"password"`
 	PasswordConfirmation *string `json:"password_confirmation"`
 }
-
-type BackupInfo struct {
-	Name     string         `json:"name"`
-	Metadata BackupMetadata `json:"metadata"`
-}
-
-type BackupMetadata struct {
-	AppVersion string    `json:"app_version"`
-	CommitSHA  string    `json:"commit_sha"`
-	BuildTime  string    `json:"build_time"`
-	DBVersion  int64     `json:"db_version"`
-	CreatedAt  time.Time `json:"created_at"`
-	BackupSize int64     `json:"backup_size"` // in bytes
-}

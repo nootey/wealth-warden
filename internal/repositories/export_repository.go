@@ -11,7 +11,6 @@ type ExportRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	FindExports(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Export, error)
 	FindExportByID(ctx context.Context, tx *gorm.DB, id, userID int64) (*models.Export, error)
-	FindExportsByExportType(ctx context.Context, tx *gorm.DB, userID int64, ExportType string) ([]models.Export, error)
 	InsertExport(ctx context.Context, tx *gorm.DB, record *models.Export) error
 	UpdateExport(ctx context.Context, tx *gorm.DB, id int64, fields map[string]interface{}) error
 	DeleteExport(ctx context.Context, tx *gorm.DB, id, userID int64) error
@@ -69,26 +68,6 @@ func (r *ExportRepository) FindExportByID(ctx context.Context, tx *gorm.DB, id, 
 	}
 
 	return record, nil
-}
-
-func (r *ExportRepository) FindExportsByExportType(ctx context.Context, tx *gorm.DB, userID int64, ExportType string) ([]models.Export, error) {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var records []models.Export
-	q := db.Model(&models.Export{}).
-		Where("user_id = ? AND export_type = ?", userID, ExportType)
-
-	err := q.Find(&records).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return records, nil
 }
 
 func (r *ExportRepository) InsertExport(ctx context.Context, tx *gorm.DB, record *models.Export) error {

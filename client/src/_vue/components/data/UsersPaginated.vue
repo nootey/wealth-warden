@@ -61,8 +61,9 @@ const filters = ref(
 const filterOverlayRef = ref<any>(null);
 
 const activeColumns = computed<Column[]>(() => [
-  { field: "display_name", header: "Name", type: "text" },
+  { field: "id", header: "ID", type: "int" },
   { field: "email", header: "Email", type: "text" },
+  { field: "display_name", header: "Name", type: "text", hideOnMobile: true },
   {
     field: "role",
     header: "Role",
@@ -70,7 +71,12 @@ const activeColumns = computed<Column[]>(() => [
     options: props.roles,
     optionLabel: "name",
   },
-  { field: "email_confirmed", header: "Verified", type: "date" },
+  {
+    field: "email_confirmed",
+    header: "Verified",
+    type: "date",
+    hideOnMobile: true,
+  },
 ]);
 
 onMounted(async () => {
@@ -198,32 +204,40 @@ defineExpose({ refresh });
         background: var(--background-secondary);
       "
     >
-      <ActionRow>
-        <template #activeFilters>
-          <ActiveFilters
-            :active-filters="filters"
-            :show-only-active="false"
-            active-filter=""
-          />
-        </template>
-        <template #filterButton>
-          <div
-            class="hover-icon flex flex-row items-center gap-2"
-            style="
-              padding: 0.5rem 1rem;
-              border-radius: 8px;
-              border: 1px solid var(--border-color);
-            "
-            @click="toggleFilterOverlay($event)"
-          >
-            <i class="pi pi-filter" style="font-size: 0.845rem" />
-            <div>Filter</div>
-          </div>
-        </template>
-      </ActionRow>
+      <div class="flex flex-row w-full">
+        <ActionRow>
+          <template #activeFilters>
+            <ActiveFilters
+              :active-filters="filters"
+              :show-only-active="false"
+              active-filter=""
+            />
+          </template>
+          <template #filterButton>
+            <div
+              class="hover-icon flex flex-row items-center gap-2"
+              style="
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+                border: 1px solid var(--border-color);
+              "
+              @click="toggleFilterOverlay($event)"
+            >
+              <i class="pi pi-filter" style="font-size: 0.845rem" />
+              <div>Filter</div>
+            </div>
+          </template>
+        </ActionRow>
+      </div>
     </div>
 
-    <div id="mobile-row" class="flex flex-row gap-2 w-full">
+    <div
+      class="flex flex-col w-full rounded-2xl"
+      style="
+        padding: 0.25rem 0.25rem 0 0.25rem;
+        border: 1px solid var(--border-color);
+      "
+    >
       <DataTable
         class="w-full enhanced-table"
         data-key="id"
@@ -252,6 +266,8 @@ defineExpose({ refresh });
           v-for="col of activeColumns"
           :key="col.field"
           :field="col.field"
+          :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+          :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
         >
           <template #header>
             <ColumnHeader
@@ -264,7 +280,7 @@ defineExpose({ refresh });
             <template v-if="col.field === 'email_confirmed'">
               {{ dateHelper.formatDate(data?.email_confirmed, true) }}
             </template>
-            <template v-else-if="col.field === 'display_name'">
+            <template v-else-if="col.field === 'email'">
               <span
                 class="hover-icon font-bold"
                 @click="emit('updateUser', data.id)"

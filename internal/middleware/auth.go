@@ -17,7 +17,6 @@ type WebClientMiddlewareInterface interface {
 	WebClientAuthentication() gin.HandlerFunc
 	CreateLoginSession(ctx context.Context, userID int64, rememberMe bool, userAgent, ip string) (string, int, error)
 	DestroySession(ctx context.Context, sessionID string) error
-	ErrorLogger() gin.HandlerFunc
 }
 
 var _ WebClientMiddlewareInterface = (*WebClientMiddleware)(nil)
@@ -80,23 +79,4 @@ func (m *WebClientMiddleware) CreateLoginSession(ctx context.Context, userID int
 
 func (m *WebClientMiddleware) DestroySession(ctx context.Context, sessionID string) error {
 	return m.sessions.Delete(ctx, sessionID)
-}
-
-func (m *WebClientMiddleware) ErrorLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next() // Process request
-
-		// After request
-		if len(c.Errors) > 0 {
-			for _, err := range c.Errors {
-				m.logger.Info("HTTP error",
-					zap.String("method", c.Request.Method),
-					zap.String("path", c.Request.URL.Path),
-					zap.String("client_ip", c.ClientIP()),
-					zap.Int("status_code", c.Writer.Status()),
-					zap.Error(err),
-				)
-			}
-		}
-	}
 }

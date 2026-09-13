@@ -2,13 +2,16 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strconv"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
+
+	"gorm.io/gorm"
 )
 
 type NotesServiceInterface interface {
@@ -74,6 +77,9 @@ func (s *NotesService) FetchNotesPaginated(ctx context.Context, userID int64, p 
 func (s *NotesService) FetchNoteByID(ctx context.Context, userID int64, id int64) (*models.Note, error) {
 	record, err := s.repo.FindNoteByID(ctx, nil, id, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperr.Wrap(apperr.NotFound, "Note not found", err)
+		}
 		return nil, err
 	}
 
@@ -143,7 +149,10 @@ func (s *NotesService) UpdateNote(ctx context.Context, userID, id int64, req *mo
 	exNote, err := s.repo.FindNoteByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find note with given id: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, apperr.Wrap(apperr.NotFound, "Note not found", err)
+		}
+		return 0, err
 	}
 
 	note := models.Note{
@@ -198,7 +207,10 @@ func (s *NotesService) ToggleResolveState(ctx context.Context, userID int64, id 
 	exNote, err := s.repo.FindNoteByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find note with given id: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.Wrap(apperr.NotFound, "Note not found", err)
+		}
+		return err
 	}
 
 	var resolvedAt *time.Time
@@ -273,7 +285,10 @@ func (s *NotesService) DeleteNote(ctx context.Context, userID int64, id int64) e
 	note, err := s.repo.FindNoteByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find note with given id: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.Wrap(apperr.NotFound, "Note not found", err)
+		}
+		return err
 	}
 
 	err = s.repo.DeleteNote(ctx, tx, id)

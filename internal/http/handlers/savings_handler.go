@@ -1,9 +1,8 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
-	"strconv"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -47,7 +46,7 @@ func (h *SavingsHandler) GetGoals(c *gin.Context) {
 
 	records, err := h.service.FetchGoals(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -58,15 +57,15 @@ func (h *SavingsHandler) GetGoalByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	record, err := h.service.FetchGoalByID(ctx, userID, id)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -79,18 +78,18 @@ func (h *SavingsHandler) InsertGoal(c *gin.Context) {
 
 	var req models.SavingGoalReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err := h.service.InsertGoal(ctx, userID, &req)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -101,26 +100,26 @@ func (h *SavingsHandler) UpdateGoal(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var req models.SavingGoalUpdateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err = h.service.UpdateGoal(ctx, userID, id, &req)
 	if err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -131,14 +130,14 @@ func (h *SavingsHandler) DeleteGoal(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.DeleteGoal(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -149,14 +148,14 @@ func (h *SavingsHandler) FundGoalNow(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := parseID(c, "id")
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.FundGoalNow(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Fund error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -167,9 +166,9 @@ func (h *SavingsHandler) GetContributions(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	goalID, err := parseID(c, "id")
+	goalID, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -177,7 +176,7 @@ func (h *SavingsHandler) GetContributions(c *gin.Context) {
 
 	records, paginator, err := h.service.FetchContributionsPaginated(ctx, userID, goalID, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -195,26 +194,26 @@ func (h *SavingsHandler) InsertContribution(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	goalID, err := parseID(c, "id")
+	goalID, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var req models.SavingContributionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	_, err = h.service.InsertContribution(ctx, userID, goalID, &req)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -225,30 +224,22 @@ func (h *SavingsHandler) DeleteContribution(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	goalID, err := parseID(c, "id")
+	goalID, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
-	contribID, err := parseID(c, "contrib_id")
+	contribID, err := utils.ParseID(c, "contrib_id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.service.DeleteContribution(ctx, userID, goalID, contribID); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
 	utils.SuccessMessage(c, "Contribution deleted", "Success", http.StatusOK)
-}
-
-func parseID(c *gin.Context, param string) (int64, error) {
-	s := c.Param(param)
-	if s == "" {
-		return 0, errors.New("invalid id provided")
-	}
-	return strconv.ParseInt(s, 10, 64)
 }

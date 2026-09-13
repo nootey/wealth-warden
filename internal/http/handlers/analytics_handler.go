@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -17,18 +16,12 @@ import (
 )
 
 type AnalyticsHandler struct {
-	Service *services.AnalyticsService
-	v       *validators.GoValidator
+	Service services.AnalyticsServiceInterface
+	v       validators.Validator
 }
 
-func NewAnalyticsHandler(
-	service *services.AnalyticsService,
-	v *validators.GoValidator,
-) *AnalyticsHandler {
-	return &AnalyticsHandler{
-		Service: service,
-		v:       v,
-	}
+func NewAnalyticsHandler(service services.AnalyticsServiceInterface, v validators.Validator) *AnalyticsHandler {
+	return &AnalyticsHandler{Service: service, v: v}
 }
 
 func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
@@ -49,51 +42,34 @@ func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.DELETE("/reports/:id", authz.RequireAllMW("manage_data"), h.DeleteReport)
 }
 
+func (h *AnalyticsHandler) bindQuery(c *gin.Context, q any) bool {
+	if err := c.ShouldBindQuery(q); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid query parameters", err))
+		return false
+	}
+
+	if err := h.v.ValidateStruct(q); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return false
+	}
+
+	return true
+}
+
 func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	p := c.QueryMap("params")
-
-	currency := c.Query("currency")
-	if currency == "" {
-		currency = p["currency"]
+	var q models.NetWorthQuery
+	if !h.bindQuery(c, &q) {
+		return
 	}
+	r := strings.ToLower(strings.TrimSpace(q.Range))
 
-	r := strings.ToLower(strings.TrimSpace(c.Query("range")))
-	if r == "" {
-		r = strings.ToLower(strings.TrimSpace(p["range"]))
-	}
-
-	from := c.Query("from")
-	if from == "" {
-		from = p["from"]
-	}
-
-	to := c.Query("to")
-	if to == "" {
-		to = p["to"]
-	}
-
-	accStr := c.Query("account")
-	if accStr == "" {
-		accStr = p["account"]
-	}
-
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
-	}
-
-	series, err := h.Service.GetNetWorthSeries(ctx, userID, currency, r, from, to, accID)
+	series, err := h.Service.GetNetWorthSeries(ctx, userID, q.Currency, r, q.From, q.To, q.Account)
 	if err != nil {
-		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, series)
@@ -104,29 +80,14 @@ func (h *AnalyticsHandler) GetYearlyCashFlowBreakdown(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	p := c.QueryMap("params")
-
-	yearStr := c.Query("year")
-	year, _ := strconv.Atoi(yearStr)
-
-	accStr := c.Query("account")
-	if accStr == "" {
-		accStr = p["account"]
+	var q models.YearAccountQuery
+	if !h.bindQuery(c, &q) {
+		return
 	}
 
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
-	}
-
-	series, err := h.Service.GetYearlyCashFlowBreakdown(ctx, userID, year, accID)
+	series, err := h.Service.GetYearlyCashFlowBreakdown(ctx, userID, q.Year, q.Account)
 	if err != nil {
-		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, series)
@@ -137,86 +98,24 @@ func (h *AnalyticsHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	p := c.QueryMap("params")
-
-	accStr := c.Query("account")
-	if accStr == "" {
-		accStr = p["account"]
+	var q models.CategoryBreakdownQuery
+	if !h.bindQuery(c, &q) {
+		return
 	}
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
+
+	if len(q.Years) > 0 {
+		res, err := h.Service.GetCategoryUsageForYears(ctx, userID, q.Years, q.Class, q.Account, q.Category, q.Percent)
 		if err != nil {
-			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
-	}
-
-	catStr := c.Query("category")
-	if catStr == "" {
-		catStr = p["category"]
-	}
-	var catID *int64
-	if strings.TrimSpace(catStr) != "" {
-		v, err := strconv.ParseInt(catStr, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "category must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		catID = &v
-	}
-
-	class := c.DefaultQuery("class", "expense")
-	asPercent := c.DefaultQuery("percent", "false") == "true"
-
-	// Multi-year support via ?years=
-	if ys := strings.TrimSpace(c.Query("years")); ys != "" {
-		parts := strings.Split(ys, ",")
-		if len(parts) > 5 {
-			utils.ErrorMessage(c, "param error", "a maximum of 5 years is supported!", http.StatusBadRequest, nil)
-			return
-		}
-		var years []int
-		for _, s := range parts {
-			s = strings.TrimSpace(s)
-			if s == "" {
-				continue
-			}
-			yr, err := strconv.Atoi(s)
-			if err != nil {
-				utils.ErrorMessage(c, "param error", "years must be comma-separated integers", http.StatusBadRequest, err)
-				return
-			}
-			years = append(years, yr)
-		}
-		if len(years) == 0 {
-			utils.ErrorMessage(c, "param error", "years is empty", http.StatusBadRequest, nil)
-			return
-		}
-		res, err := h.Service.GetCategoryUsageForYears(ctx, userID, years, class, accID, catID, asPercent)
-		if err != nil {
-			utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
+			_ = c.Error(err)
 			return
 		}
 		c.JSON(http.StatusOK, res)
 		return
 	}
 
-	yearStr := c.Query("year")
-	if yearStr == "" {
-		utils.ErrorMessage(c, "param error", "year is required when 'years' is not provided", http.StatusBadRequest, nil)
-		return
-	}
-	year, err := strconv.Atoi(yearStr)
+	series, err := h.Service.GetCategoryUsageForYear(ctx, userID, q.Year, q.Class, q.Account, q.Category, q.Percent)
 	if err != nil {
-		utils.ErrorMessage(c, "param error", "year must be a valid integer", http.StatusBadRequest, err)
-		return
-	}
-
-	series, err := h.Service.GetCategoryUsageForYear(ctx, userID, year, class, accID, catID, asPercent)
-	if err != nil {
-		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -227,31 +126,14 @@ func (h *AnalyticsHandler) GetYearlySankeyData(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	y := c.Query("year")
-	if y == "" {
-		utils.ErrorMessage(c, "param error", "year is required", http.StatusBadRequest, nil)
-		return
-	}
-	year, err := strconv.Atoi(y)
-	if err != nil || year < 1900 || year > 3000 {
-		utils.ErrorMessage(c, "param error", "invalid year", http.StatusBadRequest, nil)
+	var q models.YearAccountQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	accStr := c.Query("account")
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
-	}
-
-	sankeyData, err := h.Service.GetYearlySankeyData(ctx, userID, accID, year)
+	sankeyData, err := h.Service.GetYearlySankeyData(ctx, userID, q.Account, q.Year)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", "Error getting sankey data", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -263,32 +145,14 @@ func (h *AnalyticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	// year (required)
-	y := c.Query("year")
-	if y == "" {
-		utils.ErrorMessage(c, "param error", "year is required", http.StatusBadRequest, nil)
-		return
-	}
-	year, err := strconv.Atoi(y)
-	if err != nil || year < 1900 || year > 3000 {
-		utils.ErrorMessage(c, "param error", "invalid year", http.StatusBadRequest, nil)
+	var q models.AccountStatsQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	// accId (optional)
-	var accID *int64
-	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "accId must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
-	}
-
-	stats, err := h.Service.GetAccountBasicStatistics(ctx, accID, userID, year)
+	stats, err := h.Service.GetAccountBasicStatistics(ctx, q.AccID, userID, q.Year)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", "Error getting basic statistics for account", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -300,21 +164,14 @@ func (h *AnalyticsHandler) GetAvailableStatsYears(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var accID *int64
-	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "accId must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
+	var q models.StatsYearsQuery
+	if !h.bindQuery(c, &q) {
+		return
 	}
 
-	includeMonths := c.Query("include_months") == "true"
-
-	years, err := h.Service.GetAvailableStatsYears(ctx, accID, userID, includeMonths)
+	years, err := h.Service.GetAvailableStatsYears(ctx, q.AccID, userID, q.IncludeMonths)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", "Error getting available years", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -326,31 +183,22 @@ func (h *AnalyticsHandler) GetMonthlyStats(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
+	var q models.MonthlyStatsQuery
+	if !h.bindQuery(c, &q) {
+		return
+	}
+
 	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-
-	if y := c.Query("year"); y != "" {
-		v, err := strconv.Atoi(y)
-		if err != nil || v < 1900 || v > 3000 {
-			utils.ErrorMessage(c, "param error", "year must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		year = v
+	if q.Year == 0 {
+		q.Year = now.Year()
+	}
+	if q.Month == 0 {
+		q.Month = int(now.Month())
 	}
 
-	if m := c.Query("month"); m != "" {
-		v, err := strconv.Atoi(m)
-		if err != nil || v < 1 || v > 12 {
-			utils.ErrorMessage(c, "param error", "month must be between 1 and 12", http.StatusBadRequest, err)
-			return
-		}
-		month = v
-	}
-
-	records, err := h.Service.GetMonthlyStats(ctx, userID, nil, year, month)
+	records, err := h.Service.GetMonthlyStats(ctx, userID, nil, q.Year, q.Month)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", "Error getting monthly stats", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -364,7 +212,7 @@ func (h *AnalyticsHandler) GetTodayStats(c *gin.Context) {
 
 	records, err := h.Service.GetTodayStats(ctx, userID, nil)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", "Error getting todays stats", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -376,37 +224,20 @@ func (h *AnalyticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var categoryID int64
-	if s := c.Param("id"); s != "" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "id must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		categoryID = v
-	} else {
-		utils.ErrorMessage(c, "param error", "id is required", http.StatusBadRequest, nil)
-		return
-	}
-
-	var accountID int64
-	if s := c.Query("account_id"); s != "" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "account_id must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accountID = v
-	} else {
-		utils.ErrorMessage(c, "param error", "account_id is required", http.StatusBadRequest, nil)
-		return
-	}
-
-	isGroup := c.Query("is_group") == "true"
-
-	average, err := h.Service.GetYearlyAverageForCategory(ctx, userID, accountID, categoryID, isGroup)
+	categoryID, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", "Error getting yearly average", http.StatusBadRequest, err)
+		_ = c.Error(err)
+		return
+	}
+
+	var q models.CategoryAverageQuery
+	if !h.bindQuery(c, &q) {
+		return
+	}
+
+	average, err := h.Service.GetYearlyAverageForCategory(ctx, userID, q.AccountID, categoryID, q.IsGroup)
+	if err != nil {
+		_ = c.Error(err)
 		return
 	}
 
@@ -418,42 +249,14 @@ func (h *AnalyticsHandler) GetYearlyBreakdownStats(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	// year (required)
-	y := c.Query("year")
-	if y == "" {
-		utils.ErrorMessage(c, "param error", "year is required", http.StatusBadRequest, nil)
-		return
-	}
-	year, err := strconv.Atoi(y)
-	if err != nil || year < 1900 || year > 3000 {
-		utils.ErrorMessage(c, "param error", "invalid year", http.StatusBadRequest, nil)
+	var q models.YearlyBreakdownQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	// accId (optional)
-	var accID *int64
-	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "accId must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
-	}
-
-	var comparisonYear *int
-	if cy := c.Query("comparison_year"); cy != "" && cy != "null" && cy != "undefined" {
-		compYear, err := strconv.Atoi(cy)
-		if err != nil || compYear < 1900 || compYear > 3000 {
-			utils.ErrorMessage(c, "param error", "invalid comparison_year", http.StatusBadRequest, err)
-			return
-		}
-		comparisonYear = &compYear
-	}
-
-	stats, err := h.Service.GetYearlyBreakdownStats(ctx, accID, userID, year, comparisonYear)
+	stats, err := h.Service.GetYearlyBreakdownStats(ctx, q.AccID, userID, q.Year, q.ComparisonYear)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", "Error getting breakdown", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -468,7 +271,7 @@ func (h *AnalyticsHandler) ListReports(c *gin.Context) {
 
 	records, paginator, err := h.Service.ListReportsPaginated(ctx, userID, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -486,34 +289,24 @@ func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var req struct {
-		InflowCategoryIDs  []int64 `json:"inflow_category_ids"`
-		OutflowCategoryIDs []int64 `json:"outflow_category_ids"`
-		Years              []int   `json:"years"`
-		Description        string  `json:"description"`
-		AllTime            bool    `json:"all_time"`
-		AccountID          *int64  `json:"account_id"`
-		AccountTypeOnly    bool    `json:"account_type_only"`
-	}
+	var req models.CategoryReportReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
-	if !req.AllTime && len(req.Years) == 0 {
-		utils.ErrorMessage(c, "param error", "years is required", http.StatusBadRequest, nil)
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
-	if len(req.Years) > 10 {
-		utils.ErrorMessage(c, "param error", "a maximum of 10 years is supported", http.StatusBadRequest, nil)
+
+	// the validator's `required` accepts an empty slice, so non-empty checks stay here
+	if !req.AllTime && len(req.Years) == 0 {
+		_ = c.Error(apperr.New(apperr.Invalid, "years is required"))
 		return
 	}
 	if len(req.InflowCategoryIDs) == 0 && len(req.OutflowCategoryIDs) == 0 {
-		utils.ErrorMessage(c, "param error", "at least one inflow or outflow category is required", http.StatusBadRequest, nil)
-		return
-	}
-	if req.AccountTypeOnly && req.AccountID == nil {
-		utils.ErrorMessage(c, "param error", "an account is required when filtering by account type", http.StatusBadRequest, nil)
+		_ = c.Error(apperr.New(apperr.Invalid, "at least one inflow or outflow category is required"))
 		return
 	}
 
@@ -529,7 +322,7 @@ func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
 
 	report, err := h.Service.GenerateCategoryReport(ctx, userID, params)
 	if err != nil {
-		utils.ErrorMessage(c, "Failed to generate report", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -540,15 +333,15 @@ func (h *AnalyticsHandler) DownloadReport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid id", "id must be a valid integer", http.StatusBadRequest, nil)
+		_ = c.Error(err)
 		return
 	}
 
 	data, name, err := h.Service.DownloadReport(ctx, id, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Download error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -563,22 +356,14 @@ func (h *AnalyticsHandler) DeleteReport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.Service.DeleteReport(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -589,10 +374,9 @@ func (h *AnalyticsHandler) AssetChart(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	assetID, err := strconv.ParseInt(idStr, 10, 64)
+	assetID, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "param error", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -603,7 +387,7 @@ func (h *AnalyticsHandler) AssetChart(c *gin.Context) {
 
 	res, err := h.Service.FetchAssetChart(ctx, userID, assetID, rangeKey)
 	if err != nil {
-		utils.ErrorMessage(c, "Failed to load asset chart", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

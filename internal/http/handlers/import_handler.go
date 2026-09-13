@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -11,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -21,13 +21,13 @@ import (
 )
 
 type ImportHandler struct {
-	Service *services.ImportService
-	v       *validators.GoValidator
+	Service services.ImportServiceInterface
+	v       validators.Validator
 }
 
 func NewImportHandler(
-	service *services.ImportService,
-	v *validators.GoValidator,
+	service services.ImportServiceInterface,
+	v validators.Validator,
 ) *ImportHandler {
 	return &ImportHandler{
 		Service: service,
@@ -58,36 +58,7 @@ func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 
 	records, err := h.Service.FetchImportsByImportType(ctx, userID, importType)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, records)
-}
-
-func (h *ImportHandler) GetImportByID(c *gin.Context) {
-
-	ctx := c.Request.Context()
-	userID := c.GetInt64("user_id")
-
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
-		return
-	}
-
-	importType := c.Param("import_type")
-
-	records, err := h.Service.FetchImportByID(ctx, id, userID, importType)
-	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -99,9 +70,9 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Bad Request", "id must be an integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -112,30 +83,30 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 
 	imp, err := h.Service.FetchImportByID(ctx, id, userID, "custom")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	if imp == nil || imp.Type != "custom" {
-		utils.ErrorMessage(c, "Not found", "import not found", http.StatusNotFound, nil)
+		_ = c.Error(apperr.New(apperr.NotFound, "Import not found"))
 		return
 	}
 
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	b, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
 	var payload models.TxnImportPayload
 	if err := json.Unmarshal(b, &payload); err != nil {
-		utils.ErrorMessage(c, "Invalid file", "invalid JSON in stored import", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Internal, apperr.GenericMessage, err))
 		return
 	}
 
 	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(ctx, &payload, step)
 	if apiErr != nil {
-		utils.ErrorMessage(c, "Error occurred", apiErr.Error(), http.StatusInternalServerError, nil)
+		_ = c.Error(apiErr)
 		return
 	}
 
@@ -165,13 +136,13 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 
 	var payload models.TxnImportPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON format", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(ctx, &payload, step)
 	if apiErr != nil {
-		utils.ErrorMessage(c, "Error occurred", apiErr.Error(), http.StatusInternalServerError, nil)
+		_ = c.Error(apiErr)
 		return
 	}
 
@@ -210,13 +181,13 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 
 	useBalancesStr := c.Query("use_balances")
 	if useBalancesStr == "" {
-		utils.ErrorMessage(c, "param error", "missing use_balances bool", http.StatusBadRequest, nil)
+		_ = c.Error(apperr.New(apperr.Invalid, "use_balances is required"))
 		return
 	}
 
 	useBalances, err := strconv.ParseBool(useBalancesStr)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "use_balances must be a valid boolean", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "use_balances must be a valid boolean", err))
 		return
 	}
 
@@ -224,19 +195,18 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
 		return
 	}
 
 	f, err := fileHeader.Open()
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
 		return
 	}
 	defer func(f multipart.File) {
-		err := f.Close()
-		if err != nil {
-			fmt.Println(err.Error())
+		if err := f.Close(); err != nil {
+			_ = c.Error(err)
 		}
 	}(f)
 
@@ -244,23 +214,23 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 
 	dec := json.NewDecoder(f)
 	if err := dec.Decode(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The file is not valid JSON", err))
 		return
 	}
 
 	if dec.More() {
-		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
+		_ = c.Error(apperr.New(apperr.Invalid, "The file has unexpected data after the JSON object"))
 		return
 	}
 
 	// Validate
 	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.ImportAccounts(ctx, userID, payload, useBalances); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -276,19 +246,18 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
 		return
 	}
 
 	f, err := fileHeader.Open()
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
 		return
 	}
 	defer func(f multipart.File) {
-		err := f.Close()
-		if err != nil {
-			fmt.Println(err.Error())
+		if err := f.Close(); err != nil {
+			_ = c.Error(err)
 		}
 	}(f)
 
@@ -296,23 +265,23 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 
 	dec := json.NewDecoder(f)
 	if err := dec.Decode(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The file is not valid JSON", err))
 		return
 	}
 
 	if dec.More() {
-		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
+		_ = c.Error(apperr.New(apperr.Invalid, "The file has unexpected data after the JSON object"))
 		return
 	}
 
 	// Validate
 	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.ImportCategories(ctx, userID, payload); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -326,13 +295,13 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 
 	checkAccIDStr := c.Query("check_acc_id")
 	if checkAccIDStr == "" {
-		utils.ErrorMessage(c, "param error", "missing account ids", http.StatusBadRequest, nil)
+		_ = c.Error(apperr.New(apperr.Invalid, "check_acc_id is required"))
 		return
 	}
 
 	checkAccID, err := strconv.ParseInt(checkAccIDStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "check acc id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "check_acc_id must be a valid integer", err))
 		return
 	}
 
@@ -340,19 +309,18 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
 		return
 	}
 
 	f, err := fileHeader.Open()
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
 		return
 	}
 	defer func(f multipart.File) {
-		err := f.Close()
-		if err != nil {
-			fmt.Println(err.Error())
+		if err := f.Close(); err != nil {
+			_ = c.Error(err)
 		}
 	}(f)
 
@@ -360,12 +328,12 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 
 	dec := json.NewDecoder(f)
 	if err := dec.Decode(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The file is not valid JSON", err))
 		return
 	}
 
 	if dec.More() {
-		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
+		_ = c.Error(apperr.New(apperr.Invalid, "The file has unexpected data after the JSON object"))
 		return
 	}
 
@@ -373,7 +341,7 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 	if cmStr != "" {
 		var cms []models.CategoryMapping
 		if err := json.Unmarshal([]byte(cmStr), &cms); err != nil {
-			utils.ErrorMessage(c, "Invalid category_mappings", err.Error(), http.StatusBadRequest, err)
+			_ = c.Error(apperr.Wrap(apperr.Invalid, "category_mappings is not valid JSON", err))
 			return
 		}
 		payload.CategoryMappings = cms
@@ -381,12 +349,12 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 
 	// Validate
 	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.ImportTransactions(ctx, userID, checkAccID, payload); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -403,17 +371,17 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 	var payload models.InvestmentTransferPayload
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON body", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.TransferInvestmentsFromImport(ctx, userID, payload); err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -430,17 +398,17 @@ func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 	var payload models.SavingTransferPayload
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON body", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.TransferSavingsFromImport(ctx, userID, payload); err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -457,17 +425,17 @@ func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
 	var payload models.RepaymentTransferPayload
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON body", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.TransferRepaymentsFromImport(ctx, userID, payload); err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -479,22 +447,14 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	if err := h.Service.DeleteImport(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -510,37 +470,36 @@ func (h *ImportHandler) TransferInvestmentTrades(c *gin.Context) {
 
 	file, _, err := c.Request.FormFile("file")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid Request", "Missing file", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
 		return
 	}
 	defer func(file multipart.File) {
-		err := file.Close()
-		if err != nil {
-			utils.ErrorMessage(c, "Error occurred", "Failed to close file stream", http.StatusInternalServerError, err)
-			return
+		// This runs after the response is written, so it can only be logged.
+		if err := file.Close(); err != nil {
+			_ = c.Error(err)
 		}
 	}(file)
 
 	txnBytes, err := io.ReadAll(file)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "Failed to read file", http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
 	mappingsJSON := c.Request.FormValue("trade_mappings")
 	var payload models.InvestmentTradesPayload
 	if err := json.Unmarshal([]byte(mappingsJSON), &payload.TradeMappings); err != nil {
-		utils.ErrorMessage(c, "Invalid Request", "Invalid trade_mappings JSON", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "trade_mappings is not valid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.TransferInvestmentsTrades(ctx, userID, txnBytes, payload); err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

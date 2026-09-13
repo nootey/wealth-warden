@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 	"wealth-warden/pkg/utils"
 
@@ -3442,7 +3443,7 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 
 	err = svc.ProcessTemplate(s.Ctx, &staleCopy)
 	s.Require().Error(err, "the scheduled run should refuse a cycle that already ran today")
-	s.True(errors.Is(err, models.ErrTemplateAlreadyRanToday), "got: %v", err)
+	s.True(errors.Is(err, services.ErrTemplateAlreadyRanToday), "got: %v", err)
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
@@ -3688,4 +3689,80 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditab
 		First(&txn).Error
 	s.Require().NoError(err)
 	s.Assert().NotNil(txn.DeletedAt, "transaction should still be deleted")
+}
+
+// Regression test: the first early return in UpdateTransaction (rejecting a
+// non-user-editable transaction type) used to return without rolling back
+// the open transaction. A leaked transaction here would hold row locks that
+// block the write below, so this fails by hanging/erroring rather than by
+// a simple assertion if the rollback is ever dropped again.
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_RejectsNonEditableType_ReleasesTransaction() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Update Guard Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	expense, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(500),
+		TxnDate:   today,
+	})
+	s.Require().NoError(err)
+
+	err = s.TC.DB.WithContext(s.Ctx).Exec(
+		"UPDATE transactions SET transaction_type = ? WHERE id = ?",
+		models.TxnTypeTrade, expense.ID).Error
+	s.Require().NoError(err)
+
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, expense.ID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(600),
+		TxnDate:   today,
+	})
+	s.Require().Error(err, "should block editing a trade transaction")
+
+	// If the earlier call leaked its transaction, this row would still be
+	// locked and this insert would hang or fail.
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(100),
+		TxnDate:   today,
+	})
+	s.Require().NoError(err, "the account row should not still be locked by the rejected update")
+}
+
+// Regression test: FindCategoryGroupByID used to build its query without
+// reassigning the chained gorm calls, so it read .Error off a handle that
+// was never executed and could never return an error. A miss silently came
+// back as a zero-value group, which let UpdateCategoryGroup and
+// DeleteCategoryGroup act on an id that did not exist.
+func (s *TransactionServiceTestSuite) TestCategoryGroup_UpdateAndDelete_NotFoundForMissingID() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	const missingID = int64(999999)
+
+	_, err := svc.UpdateCategoryGroup(s.Ctx, userID, missingID, &models.CategoryGroupReq{
+		Name:           "Should not apply",
+		Classification: "expense",
+	})
+	s.Require().Error(err)
+	s.Require().ErrorIs(err, services.ErrCategoryGroupNotFound)
+
+	err = svc.DeleteCategoryGroup(s.Ctx, userID, missingID)
+	s.Require().Error(err)
+	s.Require().ErrorIs(err, services.ErrCategoryGroupNotFound)
 }

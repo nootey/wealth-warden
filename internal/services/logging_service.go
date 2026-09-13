@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
+
+	"gorm.io/gorm"
 )
 
 type LoggingServiceInterface interface {
@@ -120,7 +123,11 @@ func (s *LoggingService) DeleteActivityLog(ctx context.Context, id int64) error 
 	// Load the log to confirm existence
 	tr, err := s.repo.FindActivityLogByID(ctx, tx, id)
 	if err != nil {
-		return fmt.Errorf("can't find log with given id %w", err)
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.Wrap(apperr.NotFound, "Activity log not found", err)
+		}
+		return err
 	}
 
 	// Delete log

@@ -144,25 +144,21 @@ func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) err
 				return nil
 			}
 			if err := j.investmentSvc.UpdateSnapshotMarketValues(ctx, userID, today); err != nil {
+				j.logger.Error("Snapshot market value refresh failed for user",
+					zap.Int64("user_id", userID),
+					zap.Error(err))
 				mu.Lock()
 				failed++
 				mu.Unlock()
-				return fmt.Errorf("user %d: %w", userID, err)
 			}
 			return nil
 		})
 	}
-	firstErr := g.Wait()
+	_ = g.Wait()
 
 	j.logger.Info("Snapshot market values refreshed",
 		zap.Int("total", len(userIDs)),
 		zap.Int("failed", failed))
-
-	if firstErr != nil {
-		j.logger.Error("Snapshot market value refresh had failures",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
 
 	return ctx.Err()
 }

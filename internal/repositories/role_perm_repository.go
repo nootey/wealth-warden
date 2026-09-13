@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"fmt"
 	"time"
 	"wealth-warden/internal/models"
 
@@ -18,7 +17,7 @@ type RolePermissionRepositoryInterface interface {
 	FindRoleByID(ctx context.Context, tx *gorm.DB, id int64, withPermissions bool) (*models.Role, error)
 	FindRoleByName(ctx context.Context, tx *gorm.DB, roleName string) (*models.Role, error)
 	InsertRole(ctx context.Context, tx *gorm.DB, record *models.Role) (int64, error)
-	EnsurePermissionsExist(ctx context.Context, tx *gorm.DB, ids []int64) error
+	CountPermissionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64) (int64, error)
 	AttachPermissionIDs(ctx context.Context, tx *gorm.DB, roleID int64, permIDs []int64) error
 	ReplaceRolePermissions(ctx context.Context, tx *gorm.DB, roleID int64, permIDs []int64) error
 	UpdateRole(ctx context.Context, tx *gorm.DB, record models.Role) (int64, error)
@@ -106,8 +105,8 @@ func (r *RolePermissionRepository) FindRoleByID(ctx context.Context, tx *gorm.DB
 		q.Preload("Permissions")
 	}
 
-	q.Find(&record)
-	return &record, q.Error
+	err := q.First(&record).Error
+	return &record, err
 }
 
 func (r *RolePermissionRepository) FindRoleByName(ctx context.Context, tx *gorm.DB, roleName string) (*models.Role, error) {
@@ -137,7 +136,7 @@ func (r *RolePermissionRepository) InsertRole(ctx context.Context, tx *gorm.DB, 
 	return record.ID, nil
 }
 
-func (r *RolePermissionRepository) EnsurePermissionsExist(ctx context.Context, tx *gorm.DB, ids []int64) error {
+func (r *RolePermissionRepository) CountPermissionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64) (int64, error) {
 
 	db := tx
 	if db == nil {
@@ -145,26 +144,12 @@ func (r *RolePermissionRepository) EnsurePermissionsExist(ctx context.Context, t
 	}
 	db = db.WithContext(ctx)
 
-	if len(ids) == 0 {
-		return fmt.Errorf("at least one permission is required")
-	}
 	var count int64
-	if err := db.Model(&models.Permission{}).Where("id IN ?", ids).Count(&count).Error; err != nil {
-		return err
-	}
-
-	if count != int64(len(ids)) {
-		return fmt.Errorf("some permissions do not exist")
-	}
-
-	return nil
+	err := db.Model(&models.Permission{}).Where("id IN ?", ids).Count(&count).Error
+	return count, err
 }
 
 func (r *RolePermissionRepository) AttachPermissionIDs(ctx context.Context, tx *gorm.DB, roleID int64, permIDs []int64) error {
-
-	if len(permIDs) == 0 {
-		return fmt.Errorf("at least one permission is required")
-	}
 
 	db := tx
 	if db == nil {
@@ -181,10 +166,6 @@ func (r *RolePermissionRepository) AttachPermissionIDs(ctx context.Context, tx *
 }
 
 func (r *RolePermissionRepository) ReplaceRolePermissions(ctx context.Context, tx *gorm.DB, roleID int64, permIDs []int64) error {
-
-	if len(permIDs) == 0 {
-		return fmt.Errorf("at least one permission is required")
-	}
 
 	db := tx
 	if db == nil {

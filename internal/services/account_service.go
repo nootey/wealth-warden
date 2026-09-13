@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -19,7 +20,12 @@ import (
 	"gorm.io/gorm"
 )
 
-var ErrAccountNotEmpty = errors.New("account must have a zero balance before it can be closed")
+var (
+	ErrAccountNotFound     = apperr.New(apperr.NotFound, "Account not found")
+	ErrAccountNotEmpty     = apperr.New(apperr.Conflict, "account must have a zero balance before it can be closed")
+	ErrAccountTypeNotFound = apperr.New(apperr.Validation, "The selected account type does not exist")
+	ErrInvalidAccountID    = apperr.New(apperr.Validation, "The selected account does not exist")
+)
 
 type AccountServiceInterface interface {
 	FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error)
@@ -157,6 +163,9 @@ func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID i
 
 	record, err := s.balanceRepo.FindAccountBalance(ctx, nil, accID, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountNotFound
+		}
 		return nil, err
 	}
 
@@ -167,6 +176,12 @@ func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id 
 
 	record, err := s.repo.FindAccountByID(ctx, nil, id, userID, true)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountNotFound
+		}
+		return nil, err
+	}
+	if err := utils.ValidateAccount(record, ""); err != nil {
 		return nil, err
 	}
 
@@ -177,6 +192,9 @@ func (s *AccountService) FetchAccountWithOpening(ctx context.Context, userID int
 
 	record, opening, err := s.repo.FindAccountByIDWithOpening(ctx, nil, id, userID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountNotFound
+		}
 		return nil, err
 	}
 
@@ -187,6 +205,9 @@ func (s *AccountService) FetchAccountByName(ctx context.Context, userID int64, n
 
 	record, err := s.repo.FindAccountByName(ctx, nil, userID, name)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountNotFound
+		}
 		return nil, err
 	}
 
@@ -213,10 +234,6 @@ func (s *AccountService) FetchAccountsByType(ctx context.Context, userID int64, 
 	return s.repo.FetchAccountsByType(ctx, nil, userID, t, true)
 }
 
-func (s *AccountService) FetchAccountTypesByClassification(ctx context.Context, c string) ([]models.AccountType, error) {
-	return s.repo.FindAccountTypeClassification(ctx, nil, c)
-}
-
 func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) (int64, error) {
 
 	changes := utils.InitChanges()
@@ -224,10 +241,10 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	if req.Classification == "asset" {
 		if req.CreditLimit != nil {
 			if req.Balance.LessThan(req.CreditLimit.Neg()) {
-				return 0, errors.New("provided initial balance cannot be below credit limit")
+				return 0, apperr.New(apperr.Validation, "provided initial balance cannot be below credit limit")
 			}
 		} else if req.Balance.LessThan(decimal.NewFromInt(0)) {
-			return 0, errors.New("provided initial balance cannot be negative")
+			return 0, apperr.New(apperr.Validation, "provided initial balance cannot be negative")
 		}
 	}
 
@@ -242,7 +259,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	}
 
 	if accCount >= maxAcc {
-		return 0, fmt.Errorf("you can only have %d active accounts", maxAcc)
+		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("you can only have %d active accounts", maxAcc))
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -276,7 +293,11 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 
 	accType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
 	if err != nil {
-		return 0, fmt.Errorf("can't find account_type for given id %w", err)
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAccountTypeNotFound
+		}
+		return 0, err
 	}
 
 	account := &models.Account{
@@ -369,23 +390,32 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	// Load record
 	exAcc, _, err := s.repo.FindAccountByIDWithOpening(ctx, tx, id, userID)
 	if err != nil {
-		return 0, fmt.Errorf("can't find account with given id %w", err)
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAccountNotFound
+		}
+		return 0, err
 	}
 
 	if !exAcc.IsActive {
-		return 0, errors.New("can't update non-active account")
+		tx.Rollback()
+		return 0, apperr.New(apperr.Conflict, "can't update non-active account")
 	}
 
-	// Load existing relations for comparison
 	exAccType, err := s.repo.FindAccountTypeByID(ctx, tx, exAcc.AccountTypeID)
 	if err != nil {
-		return 0, fmt.Errorf("can't find account type with given id %w", err)
+		tx.Rollback()
+		return 0, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find account type %d for existing account", exAcc.AccountTypeID), err)
 	}
 
 	// Resolve new relations from req
 	newAccType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
 	if err != nil {
-		return 0, fmt.Errorf("can't find account type with given id %w", err)
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAccountTypeNotFound
+		}
+		return 0, err
 	}
 
 	// Handle OpenedAt change
@@ -419,8 +449,9 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			// validate the new date is before earliest transaction
 			if !newOpenedAt.Before(*earliestTxnDate) {
 				tx.Rollback()
-				return 0, fmt.Errorf("opened date must be before the earliest transaction date (%s)",
-					earliestTxnDate.Format("2006-01-02"))
+				return 0, apperr.New(apperr.Validation, fmt.Sprintf(
+					"opened date must be before the earliest transaction date (%s)",
+					earliestTxnDate.Format("2006-01-02")))
 			}
 		}
 
@@ -462,10 +493,10 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		}
 		if req.CreditLimit == nil && !latestBal.IsPositive() {
 			tx.Rollback()
-			return 0, errors.New("cannot remove credit limit while account balance is not positive")
+			return 0, apperr.New(apperr.Conflict, "cannot remove credit limit while account balance is not positive")
 		} else if req.CreditLimit != nil && latestBal.IsNegative() && req.CreditLimit.LessThanOrEqual(latestBal.Neg()) {
 			tx.Rollback()
-			return 0, errors.New("credit limit must exceed current negative balance")
+			return 0, apperr.New(apperr.Validation, "credit limit must exceed current negative balance")
 		}
 	}
 
@@ -501,7 +532,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		desired, err := decimal.NewFromString(req.Balance.String())
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("invalid balance value: %w", err)
+			return 0, apperr.Wrap(apperr.Validation, "invalid balance value", err)
 		}
 
 		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
@@ -599,7 +630,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		accForLog := &models.Account{ID: exAcc.ID, Name: acc.Name, Currency: exAcc.Currency}
 		if err := s.LogBalanceChange(ctx, accForLog, userID, delta); err != nil {
 			s.logger.Error("balance change logging failed",
-				zap.Error(err), zap.Int64("account_id", exAcc.ID))
+				zap.Error(err), zap.Int64("user_id", userID), zap.Int64("account_id", exAcc.ID))
 		}
 	}
 
@@ -635,23 +666,34 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 	}()
 
 	// Load record to confirm it exists
-	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false, true)
+	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false)
 	if err != nil {
-		return fmt.Errorf("can't find account with given id %w", err)
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAccountNotFound
+		}
+		return err
+	}
+	if err := utils.ValidateAccount(exAcc, "", utils.AllowInactive); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	accCount, err := s.repo.CountAccounts(ctx, tx, userID, nil, false, nil)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	maxAcc, err := s.settingsRepo.FetchMaxAccountsForUser(ctx, nil)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	if !exAcc.IsActive && accCount >= maxAcc {
-		return fmt.Errorf("you can only have %d active accounts", maxAcc)
+		tx.Rollback()
+		return apperr.New(apperr.Conflict, fmt.Sprintf("you can only have %d active accounts", maxAcc))
 	}
 
 	acc := &models.Account{
@@ -713,7 +755,14 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	acc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find account with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAccountNotFound
+		}
+		return err
+	}
+	if err := utils.ValidateAccount(acc, ""); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	if !acc.Balance.TotalBalance.IsZero() {
@@ -778,7 +827,10 @@ func (s *AccountService) PurgeAccount(ctx context.Context, actorID, accountID in
 
 	acc, err := s.repo.FindAccountForPurge(ctx, nil, accountID)
 	if err != nil {
-		return fmt.Errorf("can't find account with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAccountNotFound
+		}
+		return err
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -924,14 +976,14 @@ func (s *AccountService) resolveUserDateRange(ctx context.Context, tx *gorm.DB, 
 	} else {
 		dto, parseErr = time.Parse("2006-01-02", to)
 		if parseErr != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'to' date: %w", parseErr)
+			return time.Time{}, time.Time{}, apperr.Wrap(apperr.Validation, "invalid 'to' date, expected YYYY-MM-DD", parseErr)
 		}
 	}
 
 	if strings.TrimSpace(from) != "" {
 		dfrom, parseErr = time.Parse("2006-01-02", from)
 		if parseErr != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'from' date: %w", parseErr)
+			return time.Time{}, time.Time{}, apperr.Wrap(apperr.Validation, "invalid 'from' date, expected YYYY-MM-DD", parseErr)
 		}
 	} else {
 		// default from = min(first balance as_of, first txn date, today)
@@ -996,7 +1048,14 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find account with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAccountNotFound
+		}
+		return err
+	}
+	if err := utils.ValidateAccount(exAcc, ""); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	acc := &models.Account{
@@ -1057,7 +1116,14 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find account with given id %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAccountNotFound
+		}
+		return err
+	}
+	if err := utils.ValidateAccount(exAcc, ""); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	acc := &models.Account{
@@ -1133,6 +1199,14 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	// Confirm account exists
 	account, err := s.repo.FindAccountByID(ctx, tx, accountID, userID, false)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAccountNotFound
+		}
+		return err
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1140,11 +1214,13 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	if setAsDefault {
 		hasDefault, err := s.repo.HasDefaultForAccountType(ctx, tx, userID, account.AccountTypeID)
 		if err != nil {
+			tx.Rollback()
 			return err
 		}
 
 		if hasDefault {
-			return fmt.Errorf("a default account already exists for this account type")
+			tx.Rollback()
+			return apperr.New(apperr.Conflict, "a default account already exists for this account type")
 		}
 	}
 
@@ -1153,6 +1229,7 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 
 	err = s.repo.UpdateDefaultAccount(ctx, tx, *account, setAsDefault)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1259,26 +1336,38 @@ func (s *AccountService) QueueAccountMerge(ctx context.Context, userID, sourceID
 
 func (s *AccountService) resolveAccountMerge(ctx context.Context, tx *gorm.DB, userID, sourceID, destinationID int64) (*models.Account, *models.Account, error) {
 	if sourceID == destinationID {
-		return nil, nil, errors.New("source and destination accounts must be different")
+		return nil, nil, apperr.New(apperr.Validation, "source and destination accounts must be different")
 	}
 
-	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false, true)
+	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("source account not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, ErrInvalidSourceAccountID
+		}
+		return nil, nil, err
 	}
-	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false, true)
+	if err := utils.ValidateAccount(srcAcc, "source", utils.AllowInactive); err != nil {
+		return nil, nil, err
+	}
+	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("destination account not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, ErrInvalidDestinationAccountID
+		}
+		return nil, nil, err
+	}
+	if err := utils.ValidateAccount(dstAcc, "destination", utils.AllowInactive); err != nil {
+		return nil, nil, err
 	}
 
 	// Guard: investment and crypto accounts require the same type and sub-type (no cross-merging)
 	srcType := strings.ToLower(srcAcc.AccountType.Type)
 	if srcType == "investment" || srcType == "crypto" {
 		if srcAcc.AccountType.Type != dstAcc.AccountType.Type || srcAcc.AccountType.Subtype != dstAcc.AccountType.Subtype {
-			return nil, nil, fmt.Errorf(
+			return nil, nil, apperr.New(apperr.Validation, fmt.Sprintf(
 				"investment/crypto accounts can only be merged into an account with the same type and sub-type (%s / %s)",
 				srcAcc.AccountType.Type, srcAcc.AccountType.Subtype,
-			)
+			))
 		}
 	}
 
@@ -1286,7 +1375,7 @@ func (s *AccountService) resolveAccountMerge(ctx context.Context, tx *gorm.DB, u
 	srcIsLiability := strings.ToLower(srcAcc.AccountType.Classification) == "liability"
 	dstIsLiability := strings.ToLower(dstAcc.AccountType.Classification) == "liability"
 	if srcIsLiability != dstIsLiability {
-		return nil, nil, fmt.Errorf("liability accounts can only be merged into other liability accounts")
+		return nil, nil, apperr.New(apperr.Validation, "liability accounts can only be merged into other liability accounts")
 	}
 
 	return srcAcc, dstAcc, nil
@@ -1442,7 +1531,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		Causer:      &userID,
 	}); err != nil {
 		s.logger.Error("account merge activity log failed",
-			zap.Error(err), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
+			zap.Error(err), zap.Int64("user_id", userID), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
 	}
 
 	return nil

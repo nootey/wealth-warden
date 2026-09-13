@@ -1,15 +1,12 @@
 package models
 
 import (
-	"errors"
 	"time"
 
 	"github.com/shopspring/decimal"
 )
 
 var (
-	ErrTemplateAlreadyRanToday = errors.New("template already executed today")
-
 	ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment, TxnTypeOpening}
 )
 
@@ -194,6 +191,10 @@ type TransferReq struct {
 
 type TrRestoreReq struct {
 	ID int64 `json:"id" validate:"required"`
+}
+
+type RenameTemplateReq struct {
+	Name string `json:"name" validate:"required"`
 }
 
 type CategoryReq struct {
