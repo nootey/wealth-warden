@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/utils"
+	"wealth-warden/pkg/validators"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,17 +19,20 @@ type AuthHandler struct {
 	cfg        *config.Config
 	middleware middleware.WebClientMiddlewareInterface
 	Service    services.AuthServiceInterface
+	v          validators.Validator
 }
 
 func NewAuthHandler(
 	cfg *config.Config,
 	middleware middleware.WebClientMiddlewareInterface,
 	service services.AuthServiceInterface,
+	v validators.Validator,
 ) *AuthHandler {
 	return &AuthHandler{
 		cfg:        cfg,
 		middleware: middleware,
 		Service:    service,
+		v:          v,
 	}
 }
 
@@ -58,6 +62,11 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 	var form models.LoginForm
 	if err := c.ShouldBindJSON(&form); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(form); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
@@ -121,6 +130,11 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
+	if err := h.v.ValidateStruct(form); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
 	if err := utils.SanitizeStruct(&form); err != nil {
 		_ = c.Error(err)
 		return
@@ -162,6 +176,11 @@ func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 		return
 	}
 
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
 	err := h.Service.ResendConfirmationEmail(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
 		_ = c.Error(err)
@@ -178,6 +197,11 @@ func (h *AuthHandler) CompleteSetup(c *gin.Context) {
 	var req models.CompleteSetupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
@@ -218,6 +242,11 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
 	err := h.Service.RequestPasswordReset(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
 		_ = c.Error(err)
@@ -252,6 +281,11 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var form models.ResetPasswordForm
 	if err := c.ShouldBindJSON(&form); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(form); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 

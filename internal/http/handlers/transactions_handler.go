@@ -424,10 +424,7 @@ func (h *TransactionHandler) MergeCategories(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var req struct {
-		SourceID      int64 `json:"source_id" validate:"required"`
-		DestinationID int64 `json:"destination_id" validate:"required"`
-	}
+	var req models.MergeReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
@@ -471,10 +468,15 @@ func (h *TransactionHandler) RestoreTransaction(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var req *models.TrRestoreReq
+	var req models.TrRestoreReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
@@ -491,10 +493,15 @@ func (h *TransactionHandler) RestoreCategory(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var req *models.TrRestoreReq
+	var req models.TrRestoreReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
@@ -511,10 +518,15 @@ func (h *TransactionHandler) RestoreCategoryName(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var req *models.TrRestoreReq
+	var req models.TrRestoreReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
@@ -641,11 +653,14 @@ func (h *TransactionHandler) RenameTransactionTemplate(c *gin.Context) {
 		return
 	}
 
-	var body struct {
-		Name string `json:"name"`
-	}
+	var body models.RenameTemplateReq
 	if err := c.ShouldBindJSON(&body); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(body); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 

@@ -37,7 +37,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	validator := validators.NewValidator()
 
 	// Register handlers
-	authHandler := httpHandlers.NewAuthHandler(r.Container.Config, wm, r.Container.AuthService)
+	authHandler := httpHandlers.NewAuthHandler(r.Container.Config, wm, r.Container.AuthService, validator)
 	backOfficeHandler := httpHandlers.NewBackofficeHandler(r.Container.BackofficeService, validator)
 	jobHandler := httpHandlers.NewJobHandler(r.Container.JobService)
 	userHandler := httpHandlers.NewUserHandler(r.Container.UserService, validator)
@@ -50,7 +50,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	exportHandler := httpHandlers.NewExportHandler(r.Container.ExportService, validator)
 	investmentHandler := httpHandlers.NewInvestmentHandler(r.Container.InvestmentService, validator)
 	notesHandler := httpHandlers.NewNotesHandler(r.Container.NotesService, validator)
-	analyticsHandler := httpHandlers.NewAnalyticsHandler(r.Container.AnalyticsService)
+	analyticsHandler := httpHandlers.NewAnalyticsHandler(r.Container.AnalyticsService, validator)
 	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService, validator)
 	notificationHandler := httpHandlers.NewNotificationHandler(r.Container.NotificationService)
 	websocketHandler := httpHandlers.NewWebsocketHandler(r.Container.Hub, r.Container.Config)

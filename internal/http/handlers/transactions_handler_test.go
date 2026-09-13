@@ -58,6 +58,7 @@ func (suite *TransactionHandlerTestSuite) SetupTest() {
 	suite.router.DELETE("/transactions/:id", suite.handler.DeleteTransaction)
 	suite.router.DELETE("/transfers/:id", suite.handler.DeleteTransfer)
 	suite.router.GET("/transactions", suite.handler.GetTransactionsPaginated)
+	suite.router.POST("/transactions/restore", suite.handler.RestoreTransaction)
 }
 
 func (suite *TransactionHandlerTestSuite) TearDownTest() {
@@ -391,6 +392,22 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_ServiceEr
 	suite.router.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusInternalServerError, w.Code)
+}
+
+// the restore body was bound but never validated, so a missing id passed as 0
+func (suite *TransactionHandlerTestSuite) TestRestoreTransaction_ValidationFails() {
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.Anything).
+		Return(errors.New("id is required")).
+		Once()
+
+	req := httptest.NewRequest(http.MethodPost, "/transactions/restore", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnprocessableEntity, w.Code)
+	suite.mockService.AssertNotCalled(suite.T(), "RestoreTransaction")
 }
 
 func TestTransactionHandlerTestSuite(t *testing.T) {

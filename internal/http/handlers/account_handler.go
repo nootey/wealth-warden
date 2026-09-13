@@ -511,10 +511,7 @@ func (h *AccountHandler) MergeAccounts(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var req struct {
-		SourceID      int64 `json:"source_id" validate:"required"`
-		DestinationID int64 `json:"destination_id" validate:"required"`
-	}
+	var req models.MergeReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))

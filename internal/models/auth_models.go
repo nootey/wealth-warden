@@ -20,8 +20,8 @@ type SessionInfo struct {
 }
 
 type AuthForm struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
 }
 
 type LoginForm struct {
@@ -32,20 +32,20 @@ type LoginForm struct {
 type RegisterForm struct {
 	AuthForm
 	DisplayName          string `json:"display_name" validate:"required"`
-	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
+	PasswordConfirmation string `json:"password_confirmation" validate:"required"`
 	InvitationID         *int64 `json:"invitation_id"`
 }
 
 type ResetPasswordForm struct {
 	AuthForm
-	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
-	Token                string `json:"token" binding:"required"`
+	PasswordConfirmation string `json:"password_confirmation" validate:"required"`
+	Token                string `json:"token" validate:"required"`
 }
 
 type ReqID struct {
-	ID string `json:"id" binding:"required"`
+	ID string `json:"id" validate:"required"`
 }
 
 type ReqEmail struct {
-	Email string `json:"email" binding:"required,email"`
+	Email string `json:"email" validate:"required,email"`
 }

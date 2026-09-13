@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 	"wealth-warden/internal/apperr"
@@ -11,16 +10,18 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
+	"wealth-warden/pkg/validators"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AnalyticsHandler struct {
 	Service services.AnalyticsServiceInterface
+	v       validators.Validator
 }
 
-func NewAnalyticsHandler(service services.AnalyticsServiceInterface) *AnalyticsHandler {
-	return &AnalyticsHandler{Service: service}
+func NewAnalyticsHandler(service services.AnalyticsServiceInterface, v validators.Validator) *AnalyticsHandler {
+	return &AnalyticsHandler{Service: service, v: v}
 }
 
 func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
@@ -41,49 +42,32 @@ func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.DELETE("/reports/:id", authz.RequireAllMW("manage_data"), h.DeleteReport)
 }
 
+func (h *AnalyticsHandler) bindQuery(c *gin.Context, q any) bool {
+	if err := c.ShouldBindQuery(q); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid query parameters", err))
+		return false
+	}
+
+	if err := h.v.ValidateStruct(q); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return false
+	}
+
+	return true
+}
+
 func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	p := c.QueryMap("params")
-
-	currency := c.Query("currency")
-	if currency == "" {
-		currency = p["currency"]
+	var q models.NetWorthQuery
+	if !h.bindQuery(c, &q) {
+		return
 	}
+	r := strings.ToLower(strings.TrimSpace(q.Range))
 
-	r := strings.ToLower(strings.TrimSpace(c.Query("range")))
-	if r == "" {
-		r = strings.ToLower(strings.TrimSpace(p["range"]))
-	}
-
-	from := c.Query("from")
-	if from == "" {
-		from = p["from"]
-	}
-
-	to := c.Query("to")
-	if to == "" {
-		to = p["to"]
-	}
-
-	accStr := c.Query("account")
-	if accStr == "" {
-		accStr = p["account"]
-	}
-
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "account must be a valid integer", err))
-			return
-		}
-		accID = &v
-	}
-
-	series, err := h.Service.GetNetWorthSeries(ctx, userID, currency, r, from, to, accID)
+	series, err := h.Service.GetNetWorthSeries(ctx, userID, q.Currency, r, q.From, q.To, q.Account)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -96,35 +80,12 @@ func (h *AnalyticsHandler) GetYearlyCashFlowBreakdown(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	p := c.QueryMap("params")
-
-	y := c.Query("year")
-	if y == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "year is required"))
-		return
-	}
-	year, err := strconv.Atoi(y)
-	if err != nil || year < 1900 || year > 3000 {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid year"))
+	var q models.YearAccountQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	accStr := c.Query("account")
-	if accStr == "" {
-		accStr = p["account"]
-	}
-
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "account must be a valid integer", err))
-			return
-		}
-		accID = &v
-	}
-
-	series, err := h.Service.GetYearlyCashFlowBreakdown(ctx, userID, year, accID)
+	series, err := h.Service.GetYearlyCashFlowBreakdown(ctx, userID, q.Year, q.Account)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -137,64 +98,13 @@ func (h *AnalyticsHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	p := c.QueryMap("params")
-
-	accStr := c.Query("account")
-	if accStr == "" {
-		accStr = p["account"]
-	}
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "account must be a valid integer", err))
-			return
-		}
-		accID = &v
+	var q models.CategoryBreakdownQuery
+	if !h.bindQuery(c, &q) {
+		return
 	}
 
-	catStr := c.Query("category")
-	if catStr == "" {
-		catStr = p["category"]
-	}
-	var catID *int64
-	if strings.TrimSpace(catStr) != "" {
-		v, err := strconv.ParseInt(catStr, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "category must be a valid integer", err))
-			return
-		}
-		catID = &v
-	}
-
-	class := c.DefaultQuery("class", "expense")
-	asPercent := c.DefaultQuery("percent", "false") == "true"
-
-	// Multi-year support via ?years=
-	if ys := strings.TrimSpace(c.Query("years")); ys != "" {
-		parts := strings.Split(ys, ",")
-		if len(parts) > 5 {
-			_ = c.Error(apperr.New(apperr.Invalid, "a maximum of 5 years is supported!"))
-			return
-		}
-		var years []int
-		for _, s := range parts {
-			s = strings.TrimSpace(s)
-			if s == "" {
-				continue
-			}
-			yr, err := strconv.Atoi(s)
-			if err != nil {
-				_ = c.Error(apperr.Wrap(apperr.Invalid, "years must be comma-separated integers", err))
-				return
-			}
-			years = append(years, yr)
-		}
-		if len(years) == 0 {
-			_ = c.Error(apperr.New(apperr.Invalid, "years is empty"))
-			return
-		}
-		res, err := h.Service.GetCategoryUsageForYears(ctx, userID, years, class, accID, catID, asPercent)
+	if len(q.Years) > 0 {
+		res, err := h.Service.GetCategoryUsageForYears(ctx, userID, q.Years, q.Class, q.Account, q.Category, q.Percent)
 		if err != nil {
 			_ = c.Error(err)
 			return
@@ -203,18 +113,7 @@ func (h *AnalyticsHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 		return
 	}
 
-	yearStr := c.Query("year")
-	if yearStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "year is required when 'years' is not provided"))
-		return
-	}
-	year, err := strconv.Atoi(yearStr)
-	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "year must be a valid integer", err))
-		return
-	}
-
-	series, err := h.Service.GetCategoryUsageForYear(ctx, userID, year, class, accID, catID, asPercent)
+	series, err := h.Service.GetCategoryUsageForYear(ctx, userID, q.Year, q.Class, q.Account, q.Category, q.Percent)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -227,29 +126,12 @@ func (h *AnalyticsHandler) GetYearlySankeyData(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	y := c.Query("year")
-	if y == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "year is required"))
-		return
-	}
-	year, err := strconv.Atoi(y)
-	if err != nil || year < 1900 || year > 3000 {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid year"))
+	var q models.YearAccountQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	accStr := c.Query("account")
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "account must be a valid integer", err))
-			return
-		}
-		accID = &v
-	}
-
-	sankeyData, err := h.Service.GetYearlySankeyData(ctx, userID, accID, year)
+	sankeyData, err := h.Service.GetYearlySankeyData(ctx, userID, q.Account, q.Year)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -263,30 +145,12 @@ func (h *AnalyticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	// year (required)
-	y := c.Query("year")
-	if y == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "year is required"))
-		return
-	}
-	year, err := strconv.Atoi(y)
-	if err != nil || year < 1900 || year > 3000 {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid year"))
+	var q models.AccountStatsQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	// accId (optional)
-	var accID *int64
-	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "accId must be a valid integer", err))
-			return
-		}
-		accID = &v
-	}
-
-	stats, err := h.Service.GetAccountBasicStatistics(ctx, accID, userID, year)
+	stats, err := h.Service.GetAccountBasicStatistics(ctx, q.AccID, userID, q.Year)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -300,19 +164,12 @@ func (h *AnalyticsHandler) GetAvailableStatsYears(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var accID *int64
-	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "accId must be a valid integer", err))
-			return
-		}
-		accID = &v
+	var q models.StatsYearsQuery
+	if !h.bindQuery(c, &q) {
+		return
 	}
 
-	includeMonths := c.Query("include_months") == "true"
-
-	years, err := h.Service.GetAvailableStatsYears(ctx, accID, userID, includeMonths)
+	years, err := h.Service.GetAvailableStatsYears(ctx, q.AccID, userID, q.IncludeMonths)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -326,29 +183,20 @@ func (h *AnalyticsHandler) GetMonthlyStats(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
+	var q models.MonthlyStatsQuery
+	if !h.bindQuery(c, &q) {
+		return
+	}
+
 	now := time.Now()
-	year := now.Year()
-	month := int(now.Month())
-
-	if y := c.Query("year"); y != "" {
-		v, err := strconv.Atoi(y)
-		if err != nil || v < 1900 || v > 3000 {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "year must be a valid integer", err))
-			return
-		}
-		year = v
+	if q.Year == 0 {
+		q.Year = now.Year()
+	}
+	if q.Month == 0 {
+		q.Month = int(now.Month())
 	}
 
-	if m := c.Query("month"); m != "" {
-		v, err := strconv.Atoi(m)
-		if err != nil || v < 1 || v > 12 {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "month must be between 1 and 12", err))
-			return
-		}
-		month = v
-	}
-
-	records, err := h.Service.GetMonthlyStats(ctx, userID, nil, year, month)
+	records, err := h.Service.GetMonthlyStats(ctx, userID, nil, q.Year, q.Month)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -382,22 +230,12 @@ func (h *AnalyticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 		return
 	}
 
-	var accountID int64
-	if s := c.Query("account_id"); s != "" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "account_id must be a valid integer", err))
-			return
-		}
-		accountID = v
-	} else {
-		_ = c.Error(apperr.New(apperr.Invalid, "account_id is required"))
+	var q models.CategoryAverageQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	isGroup := c.Query("is_group") == "true"
-
-	average, err := h.Service.GetYearlyAverageForCategory(ctx, userID, accountID, categoryID, isGroup)
+	average, err := h.Service.GetYearlyAverageForCategory(ctx, userID, q.AccountID, categoryID, q.IsGroup)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -411,40 +249,12 @@ func (h *AnalyticsHandler) GetYearlyBreakdownStats(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	// year (required)
-	y := c.Query("year")
-	if y == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "year is required"))
-		return
-	}
-	year, err := strconv.Atoi(y)
-	if err != nil || year < 1900 || year > 3000 {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid year"))
+	var q models.YearlyBreakdownQuery
+	if !h.bindQuery(c, &q) {
 		return
 	}
 
-	// accId (optional)
-	var accID *int64
-	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "accId must be a valid integer", err))
-			return
-		}
-		accID = &v
-	}
-
-	var comparisonYear *int
-	if cy := c.Query("comparison_year"); cy != "" && cy != "null" && cy != "undefined" {
-		compYear, err := strconv.Atoi(cy)
-		if err != nil || compYear < 1900 || compYear > 3000 {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "invalid comparison_year", err))
-			return
-		}
-		comparisonYear = &compYear
-	}
-
-	stats, err := h.Service.GetYearlyBreakdownStats(ctx, accID, userID, year, comparisonYear)
+	stats, err := h.Service.GetYearlyBreakdownStats(ctx, q.AccID, userID, q.Year, q.ComparisonYear)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -479,34 +289,24 @@ func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var req struct {
-		InflowCategoryIDs  []int64 `json:"inflow_category_ids"`
-		OutflowCategoryIDs []int64 `json:"outflow_category_ids"`
-		Years              []int   `json:"years"`
-		Description        string  `json:"description"`
-		AllTime            bool    `json:"all_time"`
-		AccountID          *int64  `json:"account_id"`
-		AccountTypeOnly    bool    `json:"account_type_only"`
-	}
+	var req models.CategoryReportReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
+	// the validator's `required` accepts an empty slice, so non-empty checks stay here
 	if !req.AllTime && len(req.Years) == 0 {
 		_ = c.Error(apperr.New(apperr.Invalid, "years is required"))
 		return
 	}
-	if len(req.Years) > 10 {
-		_ = c.Error(apperr.New(apperr.Invalid, "a maximum of 10 years is supported"))
-		return
-	}
 	if len(req.InflowCategoryIDs) == 0 && len(req.OutflowCategoryIDs) == 0 {
 		_ = c.Error(apperr.New(apperr.Invalid, "at least one inflow or outflow category is required"))
-		return
-	}
-	if req.AccountTypeOnly && req.AccountID == nil {
-		_ = c.Error(apperr.New(apperr.Invalid, "an account is required when filtering by account type"))
 		return
 	}
 

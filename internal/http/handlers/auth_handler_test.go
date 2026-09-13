@@ -14,6 +14,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/mocks"
+	"wealth-warden/pkg/validators"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/mock"
@@ -40,6 +41,7 @@ func (suite *AuthHandlerTestSuite) SetupTest() {
 		suite.mockConfig,
 		suite.mockMiddleware,
 		suite.mockService,
+		validators.NewValidator(),
 	)
 
 	suite.router = gin.New()
@@ -61,6 +63,19 @@ func (suite *AuthHandlerTestSuite) SetupTest() {
 func (suite *AuthHandlerTestSuite) TearDownTest() {
 	suite.mockService.AssertExpectations(suite.T())
 	suite.mockMiddleware.AssertExpectations(suite.T())
+}
+
+// display_name used a validate tag that no handler ever checked
+func (suite *AuthHandlerTestSuite) TestSignUp_MissingDisplayName() {
+	body := []byte(`{"email":"test@example.com","password":"password123","password_confirmation":"password123"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/signup", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnprocessableEntity, w.Code)
+	suite.mockService.AssertNotCalled(suite.T(), "SignUp")
 }
 
 func TestAuthHandlerTestSuite(t *testing.T) {
