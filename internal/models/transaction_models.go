@@ -42,6 +42,7 @@ type Transaction struct {
 	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
 	TransactionType TransactionType `gorm:"not null;default:'ledger'" json:"transaction_type"`
 	IdempotencyKey  *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
+	ExternalTxnID   *string         `gorm:"type:varchar(256)" json:"external_txn_id,omitempty"`
 	Account         Account         `json:"account"`
 	Category        Category        `json:"category,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`

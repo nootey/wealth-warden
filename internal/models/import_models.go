@@ -73,6 +73,7 @@ type JSONTxn struct {
 	TxnDate         time.Time `json:"txn_date"`
 	Category        string    `json:"category"`
 	Description     string    `json:"description"`
+	ExternalTxnID   *string   `json:"external_txn_id,omitempty"`
 	Fee             *string   `json:"fee,omitempty"`
 	TradePrice      *string   `json:"trade_price,omitempty"`
 }
