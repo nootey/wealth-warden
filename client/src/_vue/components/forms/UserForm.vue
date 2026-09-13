@@ -2,6 +2,7 @@
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { nextTick, onMounted, ref } from "vue";
+import dayjs from "dayjs";
 import type { Role, User } from "../../../models/user_models.ts";
 import { email, required, requiredIf } from "@regle/rules";
 import { useRegle } from "@regle/core";
@@ -88,6 +89,9 @@ async function loadRecord(id: number) {
     record.value = {
       ...initData(),
       ...data,
+      email_confirmed: data.email_confirmed
+        ? dayjs(data.email_confirmed).toDate()
+        : null,
     };
 
     await nextTick();
@@ -124,7 +128,12 @@ async function manageRecord() {
   let recordData = {
     email: record.value.email,
     role_id: record.value?.role?.id,
-    ...(props.mode === "update" && { display_name: record.value.display_name }),
+    ...(props.mode === "update" && {
+      display_name: record.value.display_name,
+      email_confirmed: record.value.email_confirmed
+        ? dayjs(record.value.email_confirmed).toISOString()
+        : null,
+    }),
   };
 
   try {
@@ -249,6 +258,24 @@ async function deleteRecord(id: number) {
             dropdown
             @complete="searchRole"
           />
+        </div>
+      </div>
+
+      <div v-if="mode == 'update'" class="flex flex-row w-full">
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError :is-required="false">
+            <label>Verified</label>
+          </ValidationError>
+          <div>
+            <DatePicker
+              v-model="record.email_confirmed"
+              date-format="dd/mm/yy"
+              show-icon
+              fluid
+              icon-display="input"
+              size="small"
+            />
+          </div>
         </div>
       </div>
 

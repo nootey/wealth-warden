@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"strconv"
+	"wealth-warden/internal/apperr"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,21 +31,10 @@ func SuccessMessage(c *gin.Context, message, title string, code int) {
 	c.JSON(code, response)
 }
 
-func ErrorMessage(c *gin.Context, title, message string, code int, err error) {
-
-	// Append the error to the context and let the gin middleware log it.
+func ParseID(c *gin.Context, param string) (int64, error) {
+	id, err := strconv.ParseInt(c.Param(param), 10, 64)
 	if err != nil {
-		_ = c.Error(err)
+		return 0, apperr.Wrap(apperr.Invalid, "id must be a valid integer", err)
 	}
-
-	response := APIResponse{
-		Title:   title,
-		Message: message,
-		Code:    code,
-	}
-	c.JSON(code, response)
-}
-
-func ValidationFailed(c *gin.Context, message string, err error) {
-	ErrorMessage(c, "Validation Failed", message, 422, err)
+	return id, nil
 }

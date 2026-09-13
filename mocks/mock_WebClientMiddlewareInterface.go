@@ -273,52 +273,6 @@ func (_c *MockWebClientMiddlewareInterface_DestroySession_Call) RunAndReturn(run
 	return _c
 }
 
-// ErrorLogger provides a mock function for the type MockWebClientMiddlewareInterface
-func (_mock *MockWebClientMiddlewareInterface) ErrorLogger() gin.HandlerFunc {
-	ret := _mock.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for ErrorLogger")
-	}
-
-	var r0 gin.HandlerFunc
-	if returnFunc, ok := ret.Get(0).(func() gin.HandlerFunc); ok {
-		r0 = returnFunc()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(gin.HandlerFunc)
-		}
-	}
-	return r0
-}
-
-// MockWebClientMiddlewareInterface_ErrorLogger_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ErrorLogger'
-type MockWebClientMiddlewareInterface_ErrorLogger_Call struct {
-	*mock.Call
-}
-
-// ErrorLogger is a helper method to define mock.On call
-func (_e *MockWebClientMiddlewareInterface_Expecter) ErrorLogger() *MockWebClientMiddlewareInterface_ErrorLogger_Call {
-	return &MockWebClientMiddlewareInterface_ErrorLogger_Call{Call: _e.mock.On("ErrorLogger")}
-}
-
-func (_c *MockWebClientMiddlewareInterface_ErrorLogger_Call) Run(run func()) *MockWebClientMiddlewareInterface_ErrorLogger_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *MockWebClientMiddlewareInterface_ErrorLogger_Call) Return(handlerFunc gin.HandlerFunc) *MockWebClientMiddlewareInterface_ErrorLogger_Call {
-	_c.Call.Return(handlerFunc)
-	return _c
-}
-
-func (_c *MockWebClientMiddlewareInterface_ErrorLogger_Call) RunAndReturn(run func() gin.HandlerFunc) *MockWebClientMiddlewareInterface_ErrorLogger_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // WebClientAuthentication provides a mock function for the type MockWebClientMiddlewareInterface
 func (_mock *MockWebClientMiddlewareInterface) WebClientAuthentication() gin.HandlerFunc {
 	ret := _mock.Called()

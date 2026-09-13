@@ -106,7 +106,7 @@ func (j *categoryReportRun) run(ctx context.Context) error {
 
 // A failed report is a finished run, not a retryable one. Only an unrecorded failure is worth retrying.
 func (j *categoryReportRun) fail(ctx context.Context, cause error) error {
-	j.logger.Error("category report generation failed", zap.Int64("reportID", j.ReportID), zap.Error(cause))
+	j.logger.Error("category report generation failed", zap.Int64("report_id", j.ReportID), zap.Error(cause))
 
 	if err := j.analyticsSvc.MarkReportFailed(ctx, j.ReportID, cause.Error()); err != nil {
 		return err

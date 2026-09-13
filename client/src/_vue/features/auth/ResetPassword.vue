@@ -87,7 +87,10 @@ async function resetPassword() {
   loading.value = true;
 
   try {
-    const response = await authStore.resetPassword(form.value);
+    const response = await authStore.resetPassword({
+      ...form.value,
+      token: token.value,
+    });
     toastStore.successResponseToast(response);
     await router.push({ name: "login" });
   } catch (error) {

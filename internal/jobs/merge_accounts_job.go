@@ -27,15 +27,15 @@ func (w *MergeAccountsWorker) Work(ctx context.Context, job *river.Job[jobqueue.
 
 	if err := w.account.MergeAccount(ctx, args.UserID, args.InternalSourceAccountID, args.InternalDestinationAccountID); err != nil {
 		w.logger.Error("Failed to merge accounts",
-			zap.Int64("userID", args.UserID),
-			zap.Int64("sourceID", args.InternalSourceAccountID),
-			zap.Int64("destinationID", args.InternalDestinationAccountID),
+			zap.Int64("user_id", args.UserID),
+			zap.Int64("source_id", args.InternalSourceAccountID),
+			zap.Int64("destination_id", args.InternalDestinationAccountID),
 			zap.Error(err))
 		return err
 	}
 
 	w.logger.Info("Merged accounts",
-		zap.Int64("userID", args.UserID),
+		zap.Int64("user_id", args.UserID),
 		zap.String("source", args.SourceAccount),
 		zap.String("destination", args.DestinationAccount),
 	)

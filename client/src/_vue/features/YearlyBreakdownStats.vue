@@ -128,8 +128,12 @@ async function loadAccounts() {
   }
 }
 
-const formatPct = (val: number) => {
-  return `${val.toFixed(1)}%`;
+const formatRate = (val: number) => {
+  return `${val.toFixed(2)}%`;
+};
+
+const formatRateDiff = (diff: number) => {
+  return `${diff >= 0 ? "+" : ""}${diff.toFixed(2)} pp`;
 };
 
 const calcDiff = (current: string, comparison: string) => {
@@ -142,8 +146,10 @@ const calcOutflowDiff = (current: string, comparison: string) => {
   return -calcDiff(current, comparison);
 };
 
-const calcPctDiff = (current: number, comparison: number) => {
-  return current - comparison;
+// Round before subtracting so the diff matches the rates shown on screen.
+const calcRateDiff = (current: number, comparison: number) => {
+  const diff = Number(current.toFixed(2)) - Number(comparison.toFixed(2));
+  return Number(diff.toFixed(2));
 };
 
 const getDiffColor = (diff: number) => {
@@ -153,8 +159,8 @@ const getDiffColor = (diff: number) => {
 </script>
 
 <template>
-  <div v-if="breakdownStats" class="w-full flex flex-col gap-4 p-4">
-    <div class="flex flex-row gap-4 w-full justify-between items-center">
+  <div v-if="breakdownStats" class="w-full flex flex-col gap-3 p-3">
+    <div class="flex flex-row gap-3 w-full justify-between items-center">
       <div class="mobile-hide flex flex-col gap-2 flex-1">
         <span class="text-sm" style="color: var(--text-secondary)">
           Select year and optional comparison year
@@ -237,7 +243,7 @@ const getDiffColor = (diff: number) => {
 
     <ShowLoading v-if="isLoading" :num-fields="5" />
     <div v-else id="stats-container" class="flex flex-row gap-6 w-full">
-      <div class="flex flex-col gap-4 flex-1">
+      <div class="flex flex-col gap-3 flex-1">
         <h4 style="color: var(--text-primary)">
           {{ breakdownStats.current_year.year }}
           <span
@@ -250,7 +256,7 @@ const getDiffColor = (diff: number) => {
         </h4>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-col gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -417,7 +423,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-col gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -434,40 +440,36 @@ const getDiffColor = (diff: number) => {
                   breakdownStats.current_year.savings_allocated,
                 )
               }}</b>
-              <span class="text-sm" style="color: var(--text-secondary)">
-                ({{ formatPct(breakdownStats.current_year.savings_pct) }})
-              </span>
               <span
                 v-if="breakdownStats.comparison_year"
                 class="mobile-comparison text-xs"
                 :style="{
                   color: getDiffColor(
-                    calcPctDiff(
-                      breakdownStats.current_year.savings_pct,
-                      breakdownStats.comparison_year.savings_pct,
+                    calcDiff(
+                      breakdownStats.current_year.savings_allocated,
+                      breakdownStats.comparison_year.savings_allocated,
                     ),
                   ),
                 }"
               >
                 ({{
-                  calcPctDiff(
-                    breakdownStats.current_year.savings_pct,
-                    breakdownStats.comparison_year.savings_pct,
+                  calcDiff(
+                    breakdownStats.current_year.savings_allocated,
+                    breakdownStats.comparison_year.savings_allocated,
                   ) >= 0
                     ? "+"
                     : ""
                 }}{{
-                  formatPct(
-                    calcPctDiff(
-                      breakdownStats.current_year.savings_pct,
-                      breakdownStats.comparison_year.savings_pct,
+                  vueHelper.displayAsCurrency(
+                    calcDiff(
+                      breakdownStats.current_year.savings_allocated,
+                      breakdownStats.comparison_year.savings_allocated,
                     ),
                   )
                 }})
               </span>
             </div>
           </div>
-
           <div class="flex flex-row justify-between mobile-small">
             <span>Investments:</span>
             <div class="flex flex-row gap-2 items-center">
@@ -476,40 +478,36 @@ const getDiffColor = (diff: number) => {
                   breakdownStats.current_year.investment_allocated,
                 )
               }}</b>
-              <span class="text-sm" style="color: var(--text-secondary)">
-                ({{ formatPct(breakdownStats.current_year.investment_pct) }})
-              </span>
               <span
                 v-if="breakdownStats.comparison_year"
                 class="mobile-comparison text-xs"
                 :style="{
                   color: getDiffColor(
-                    calcPctDiff(
-                      breakdownStats.current_year.investment_pct,
-                      breakdownStats.comparison_year.investment_pct,
+                    calcDiff(
+                      breakdownStats.current_year.investment_allocated,
+                      breakdownStats.comparison_year.investment_allocated,
                     ),
                   ),
                 }"
               >
                 ({{
-                  calcPctDiff(
-                    breakdownStats.current_year.investment_pct,
-                    breakdownStats.comparison_year.investment_pct,
+                  calcDiff(
+                    breakdownStats.current_year.investment_allocated,
+                    breakdownStats.comparison_year.investment_allocated,
                   ) >= 0
                     ? "+"
                     : ""
                 }}{{
-                  formatPct(
-                    calcPctDiff(
-                      breakdownStats.current_year.investment_pct,
-                      breakdownStats.comparison_year.investment_pct,
+                  vueHelper.displayAsCurrency(
+                    calcDiff(
+                      breakdownStats.current_year.investment_allocated,
+                      breakdownStats.comparison_year.investment_allocated,
                     ),
                   )
                 }})
               </span>
             </div>
           </div>
-
           <div class="flex flex-row justify-between mobile-small">
             <span>Debt Payments:</span>
             <div class="flex flex-row gap-2 items-center">
@@ -518,31 +516,109 @@ const getDiffColor = (diff: number) => {
                   breakdownStats.current_year.debt_allocated,
                 )
               }}</b>
-              <span class="text-sm" style="color: var(--text-secondary)">
-                ({{ formatPct(breakdownStats.current_year.debt_pct) }})
+              <span
+                v-if="breakdownStats.comparison_year"
+                class="mobile-comparison text-xs"
+                :style="{ color: colors.dim }"
+              >
+                ({{
+                  calcDiff(
+                    breakdownStats.current_year.debt_allocated,
+                    breakdownStats.comparison_year.debt_allocated,
+                  ) >= 0
+                    ? "+"
+                    : ""
+                }}{{
+                  vueHelper.displayAsCurrency(
+                    calcDiff(
+                      breakdownStats.current_year.debt_allocated,
+                      breakdownStats.comparison_year.debt_allocated,
+                    ),
+                  )
+                }})
               </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="flex flex-col gap-2 p-3"
+          style="background: var(--surface-50); border-radius: 8px"
+        >
+          <span
+            class="font-semibold text-sm"
+            style="color: var(--text-secondary)"
+            >Rates</span
+          >
+
+          <div class="flex flex-row justify-between mobile-small">
+            <span>Savings:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{ formatRate(breakdownStats.current_year.savings_pct) }}</b>
               <span
                 v-if="breakdownStats.comparison_year"
                 class="mobile-comparison text-xs"
                 :style="{
                   color: getDiffColor(
-                    calcPctDiff(
-                      breakdownStats.current_year.debt_pct,
-                      breakdownStats.comparison_year.debt_pct,
+                    calcRateDiff(
+                      breakdownStats.current_year.savings_pct,
+                      breakdownStats.comparison_year.savings_pct,
                     ),
                   ),
                 }"
               >
                 ({{
-                  calcPctDiff(
-                    breakdownStats.current_year.debt_pct,
-                    breakdownStats.comparison_year.debt_pct,
-                  ) >= 0
-                    ? "+"
-                    : ""
-                }}{{
-                  formatPct(
-                    calcPctDiff(
+                  formatRateDiff(
+                    calcRateDiff(
+                      breakdownStats.current_year.savings_pct,
+                      breakdownStats.comparison_year.savings_pct,
+                    ),
+                  )
+                }})
+              </span>
+            </div>
+          </div>
+          <div class="flex flex-row justify-between mobile-small">
+            <span>Investments:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{
+                formatRate(breakdownStats.current_year.investment_pct)
+              }}</b>
+              <span
+                v-if="breakdownStats.comparison_year"
+                class="mobile-comparison text-xs"
+                :style="{
+                  color: getDiffColor(
+                    calcRateDiff(
+                      breakdownStats.current_year.investment_pct,
+                      breakdownStats.comparison_year.investment_pct,
+                    ),
+                  ),
+                }"
+              >
+                ({{
+                  formatRateDiff(
+                    calcRateDiff(
+                      breakdownStats.current_year.investment_pct,
+                      breakdownStats.comparison_year.investment_pct,
+                    ),
+                  )
+                }})
+              </span>
+            </div>
+          </div>
+          <div class="flex flex-row justify-between mobile-small">
+            <span>Debt:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{ formatRate(breakdownStats.current_year.debt_pct) }}</b>
+              <span
+                v-if="breakdownStats.comparison_year"
+                class="mobile-comparison text-xs"
+                :style="{ color: colors.dim }"
+              >
+                ({{
+                  formatRateDiff(
+                    calcRateDiff(
                       breakdownStats.current_year.debt_pct,
                       breakdownStats.comparison_year.debt_pct,
                     ),
@@ -554,7 +630,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-col gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -726,7 +802,7 @@ const getDiffColor = (diff: number) => {
       <div
         v-if="breakdownStats.comparison_year"
         id="desktop-comparison"
-        class="flex flex-col gap-4 flex-1"
+        class="flex flex-col gap-3 flex-1"
       >
         <h4 style="color: var(--text-primary)">
           {{ breakdownStats.comparison_year.year }}
@@ -736,7 +812,7 @@ const getDiffColor = (diff: number) => {
         </h4>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-col gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -901,7 +977,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-col gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -918,39 +994,35 @@ const getDiffColor = (diff: number) => {
                   breakdownStats.comparison_year.savings_allocated,
                 )
               }}</b>
-              <span class="text-sm" style="color: var(--text-secondary)">
-                ({{ formatPct(breakdownStats.comparison_year.savings_pct) }})
-              </span>
               <span
                 class="text-xs"
                 :style="{
                   color: getDiffColor(
-                    calcPctDiff(
-                      breakdownStats.current_year.savings_pct,
-                      breakdownStats.comparison_year.savings_pct,
+                    calcDiff(
+                      breakdownStats.current_year.savings_allocated,
+                      breakdownStats.comparison_year.savings_allocated,
                     ),
                   ),
                 }"
               >
                 ({{
-                  calcPctDiff(
-                    breakdownStats.current_year.savings_pct,
-                    breakdownStats.comparison_year.savings_pct,
+                  calcDiff(
+                    breakdownStats.current_year.savings_allocated,
+                    breakdownStats.comparison_year.savings_allocated,
                   ) >= 0
                     ? "+"
                     : ""
                 }}{{
-                  formatPct(
-                    calcPctDiff(
-                      breakdownStats.current_year.savings_pct,
-                      breakdownStats.comparison_year.savings_pct,
+                  vueHelper.displayAsCurrency(
+                    calcDiff(
+                      breakdownStats.current_year.savings_allocated,
+                      breakdownStats.comparison_year.savings_allocated,
                     ),
                   )
                 }})
               </span>
             </div>
           </div>
-
           <div class="flex flex-row justify-between">
             <span>Investments:</span>
             <div class="flex flex-row gap-2 items-center">
@@ -959,39 +1031,35 @@ const getDiffColor = (diff: number) => {
                   breakdownStats.comparison_year.investment_allocated,
                 )
               }}</b>
-              <span class="text-sm" style="color: var(--text-secondary)">
-                ({{ formatPct(breakdownStats.comparison_year.investment_pct) }})
-              </span>
               <span
                 class="text-xs"
                 :style="{
                   color: getDiffColor(
-                    calcPctDiff(
-                      breakdownStats.current_year.investment_pct,
-                      breakdownStats.comparison_year.investment_pct,
+                    calcDiff(
+                      breakdownStats.current_year.investment_allocated,
+                      breakdownStats.comparison_year.investment_allocated,
                     ),
                   ),
                 }"
               >
                 ({{
-                  calcPctDiff(
-                    breakdownStats.current_year.investment_pct,
-                    breakdownStats.comparison_year.investment_pct,
+                  calcDiff(
+                    breakdownStats.current_year.investment_allocated,
+                    breakdownStats.comparison_year.investment_allocated,
                   ) >= 0
                     ? "+"
                     : ""
                 }}{{
-                  formatPct(
-                    calcPctDiff(
-                      breakdownStats.current_year.investment_pct,
-                      breakdownStats.comparison_year.investment_pct,
+                  vueHelper.displayAsCurrency(
+                    calcDiff(
+                      breakdownStats.current_year.investment_allocated,
+                      breakdownStats.comparison_year.investment_allocated,
                     ),
                   )
                 }})
               </span>
             </div>
           </div>
-
           <div class="flex flex-row justify-between">
             <span>Debt Payments:</span>
             <div class="flex flex-row gap-2 items-center">
@@ -1000,30 +1068,101 @@ const getDiffColor = (diff: number) => {
                   breakdownStats.comparison_year.debt_allocated,
                 )
               }}</b>
-              <span class="text-sm" style="color: var(--text-secondary)">
-                ({{ formatPct(breakdownStats.comparison_year.debt_pct) }})
+              <span class="text-xs" :style="{ color: colors.dim }">
+                ({{
+                  calcDiff(
+                    breakdownStats.current_year.debt_allocated,
+                    breakdownStats.comparison_year.debt_allocated,
+                  ) >= 0
+                    ? "+"
+                    : ""
+                }}{{
+                  vueHelper.displayAsCurrency(
+                    calcDiff(
+                      breakdownStats.current_year.debt_allocated,
+                      breakdownStats.comparison_year.debt_allocated,
+                    ),
+                  )
+                }})
               </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="flex flex-col gap-2 p-3"
+          style="background: var(--surface-50); border-radius: 8px"
+        >
+          <span
+            class="font-semibold text-sm"
+            style="color: var(--text-secondary)"
+            >Rates</span
+          >
+
+          <div class="flex flex-row justify-between">
+            <span>Savings:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{
+                formatRate(breakdownStats.comparison_year.savings_pct)
+              }}</b>
               <span
                 class="text-xs"
                 :style="{
                   color: getDiffColor(
-                    calcPctDiff(
-                      breakdownStats.current_year.debt_pct,
-                      breakdownStats.comparison_year.debt_pct,
+                    calcRateDiff(
+                      breakdownStats.current_year.savings_pct,
+                      breakdownStats.comparison_year.savings_pct,
                     ),
                   ),
                 }"
               >
                 ({{
-                  calcPctDiff(
-                    breakdownStats.current_year.debt_pct,
-                    breakdownStats.comparison_year.debt_pct,
-                  ) >= 0
-                    ? "+"
-                    : ""
-                }}{{
-                  formatPct(
-                    calcPctDiff(
+                  formatRateDiff(
+                    calcRateDiff(
+                      breakdownStats.current_year.savings_pct,
+                      breakdownStats.comparison_year.savings_pct,
+                    ),
+                  )
+                }})
+              </span>
+            </div>
+          </div>
+          <div class="flex flex-row justify-between">
+            <span>Investments:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{
+                formatRate(breakdownStats.comparison_year.investment_pct)
+              }}</b>
+              <span
+                class="text-xs"
+                :style="{
+                  color: getDiffColor(
+                    calcRateDiff(
+                      breakdownStats.current_year.investment_pct,
+                      breakdownStats.comparison_year.investment_pct,
+                    ),
+                  ),
+                }"
+              >
+                ({{
+                  formatRateDiff(
+                    calcRateDiff(
+                      breakdownStats.current_year.investment_pct,
+                      breakdownStats.comparison_year.investment_pct,
+                    ),
+                  )
+                }})
+              </span>
+            </div>
+          </div>
+          <div class="flex flex-row justify-between">
+            <span>Debt:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{ formatRate(breakdownStats.comparison_year.debt_pct) }}</b>
+              <span class="text-xs" :style="{ color: colors.dim }">
+                ({{
+                  formatRateDiff(
+                    calcRateDiff(
                       breakdownStats.current_year.debt_pct,
                       breakdownStats.comparison_year.debt_pct,
                     ),
@@ -1035,7 +1174,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-col gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -1202,7 +1341,7 @@ const getDiffColor = (diff: number) => {
 
       <div
         v-else
-        class="flex flex-col gap-4 flex-1 justify-center items-center p-6"
+        class="flex flex-col gap-3 flex-1 justify-center items-center p-6"
         style="border: 1px dashed var(--border-color); border-radius: 8px"
       >
         <span class="text-sm" style="color: var(--text-secondary)">

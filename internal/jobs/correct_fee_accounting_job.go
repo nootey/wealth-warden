@@ -62,6 +62,11 @@ func (w *CorrectFeeAccountingWorker) Work(ctx context.Context, _ *river.Job[jobq
 				return nil
 			}
 			err := w.investmentService.CorrectFeeAccountingAndRebuild(ctx, userID)
+			if err != nil {
+				w.logger.Error("Fee accounting correction failed for user",
+					zap.Int64("user_id", userID),
+					zap.Error(err))
+			}
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -79,12 +84,6 @@ func (w *CorrectFeeAccountingWorker) Work(ctx context.Context, _ *river.Job[jobq
 		zap.Int("corrected", corrected),
 		zap.Int("failed", failed),
 		zap.Int("users_total", len(userIDs)))
-
-	if firstErr != nil {
-		w.logger.Error("Failed to correct fee accounting",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("correction stopped after %d of %d users: %w", corrected+failed, len(userIDs), err)

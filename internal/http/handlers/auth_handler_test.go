@@ -7,14 +7,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/http/handlers"
+	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 	"wealth-warden/mocks"
+	"wealth-warden/pkg/validators"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/zap"
 )
 
 type AuthHandlerTestSuite struct {
@@ -36,9 +41,12 @@ func (suite *AuthHandlerTestSuite) SetupTest() {
 		suite.mockConfig,
 		suite.mockMiddleware,
 		suite.mockService,
+		validators.NewValidator(),
 	)
 
 	suite.router = gin.New()
+
+	suite.router.Use(middleware.ErrorHandler(zap.NewNop()))
 
 	suite.router.Use(func(c *gin.Context) {
 		c.Set("user_id", int64(123))
@@ -49,11 +57,25 @@ func (suite *AuthHandlerTestSuite) SetupTest() {
 	suite.router.POST("/auth/signup", suite.handler.SignUp)
 	suite.router.GET("/auth/user", suite.handler.GetAuthUser)
 	suite.router.POST("/auth/logout", suite.handler.LogoutUser)
+	suite.router.POST("/auth/reset-password", suite.handler.ResetPassword)
 }
 
 func (suite *AuthHandlerTestSuite) TearDownTest() {
 	suite.mockService.AssertExpectations(suite.T())
 	suite.mockMiddleware.AssertExpectations(suite.T())
+}
+
+// display_name used a validate tag that no handler ever checked
+func (suite *AuthHandlerTestSuite) TestSignUp_MissingDisplayName() {
+	body := []byte(`{"email":"test@example.com","password":"password123","password_confirmation":"password123"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/signup", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnprocessableEntity, w.Code)
+	suite.mockService.AssertNotCalled(suite.T(), "SignUp")
 }
 
 func TestAuthHandlerTestSuite(t *testing.T) {
@@ -234,4 +256,56 @@ func (suite *AuthHandlerTestSuite) TestLogoutUser_RedisDownStillLogsOut() {
 	suite.router.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusOK, w.Code)
+}
+
+func (suite *AuthHandlerTestSuite) login(returned error) *httptest.ResponseRecorder {
+	form := models.LoginForm{
+		AuthForm: models.AuthForm{Email: "test@example.com", Password: "password123"},
+	}
+
+	suite.mockService.On("ValidateLogin", mock.Anything, form.Email, form.Password, mock.Anything, mock.Anything).
+		Return(nil, returned)
+
+	body, _ := json.Marshal(form)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+	return w
+}
+
+// the handler no longer picks a status, so the sentinel carries it
+func (suite *AuthHandlerTestSuite) TestLoginUser_BadCredentialsAreClassified() {
+	w := suite.login(services.ErrInvalidCredentials)
+
+	suite.Equal(http.StatusUnauthorized, w.Code)
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal("Invalid email or password", response["message"])
+}
+
+func (suite *AuthHandlerTestSuite) TestLoginUser_UnclassifiedDoesNotLeak() {
+	w := suite.login(errors.New("pq: relation \"users\" does not exist"))
+
+	suite.Equal(http.StatusInternalServerError, w.Code)
+	suite.NotContains(w.Body.String(), "pq:")
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal(apperr.GenericMessage, response["message"])
+}
+
+// a handler-born error: the body never reaches the service
+func (suite *AuthHandlerTestSuite) TestResetPassword_InvalidJSON() {
+	req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewBufferString(`{"password":}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusBadRequest, w.Code)
+
+	var response map[string]any
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal("Invalid JSON", response["message"])
 }

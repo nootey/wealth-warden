@@ -87,27 +87,22 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 			if row.LastPriceDate != nil {
 				from = row.LastPriceDate.AddDate(0, 0, 1)
 			}
-			err := j.investmentSvc.BackfillTickerPriceHistory(ctx, row.Ticker, from, today)
-			if err != nil {
+			if err := j.investmentSvc.BackfillTickerPriceHistory(ctx, row.Ticker, from, today); err != nil {
+				j.logger.Error("Price history backfill failed for ticker",
+					zap.String("ticker", row.Ticker),
+					zap.Error(err))
 				mu.Lock()
 				failed++
 				mu.Unlock()
-				return err
 			}
 			return nil
 		})
 	}
-	firstErr := g.Wait()
+	_ = g.Wait()
 
 	j.logger.Info("Backfill completed",
 		zap.Int("total", len(tickers)),
 		zap.Int("failed", failed))
-
-	if firstErr != nil {
-		j.logger.Error("Backfill had failures",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
 
 	return ctx.Err()
 }

@@ -2,16 +2,14 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"strconv"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/riverqueue/river/rivertype"
 )
 
 type JobHandler struct {
@@ -51,11 +49,7 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 
 	rows, paginator, err := h.service.FetchJobs(ctx, params)
 	if err != nil {
-		if errors.Is(err, services.ErrInvalidJobState) {
-			utils.ErrorMessage(c, "Invalid filter", err.Error(), http.StatusBadRequest, err)
-			return
-		}
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -72,26 +66,22 @@ func (h *JobHandler) ListJobs(c *gin.Context) {
 func (h *JobHandler) JobCounts(c *gin.Context) {
 	counts, err := h.service.FetchJobCounts(c.Request.Context())
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": counts})
 }
 
 func (h *JobHandler) GetJob(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid id", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	job, err := h.service.FetchJob(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, rivertype.ErrNotFound) {
-			utils.ErrorMessage(c, "Not found", "job not found", http.StatusNotFound, err)
-			return
-		}
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": job})
@@ -100,7 +90,7 @@ func (h *JobHandler) GetJob(c *gin.Context) {
 func (h *JobHandler) ListQueues(c *gin.Context) {
 	queues, err := h.service.FetchQueues(c.Request.Context())
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": queues})
@@ -109,7 +99,7 @@ func (h *JobHandler) ListQueues(c *gin.Context) {
 func (h *JobHandler) ListPeriodic(c *gin.Context) {
 	jobs, err := h.service.FetchPeriodicJobs(c.Request.Context())
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": jobs})
@@ -130,23 +120,12 @@ func (h *JobHandler) DeleteJobs(c *gin.Context) {
 func (h *JobHandler) runJobAction(c *gin.Context, okMsg string, action func(context.Context, []int64) error) {
 	var body models.JobIDsBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		utils.ErrorMessage(c, "Invalid request", "body must be {\"ids\": [...]}", http.StatusBadRequest, err)
-		return
-	}
-	if len(body.IDs) == 0 {
-		err := errors.New("no job ids provided")
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "body must be {\"ids\": [...]}", err))
 		return
 	}
 
 	if err := action(c.Request.Context(), body.IDs); err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, rivertype.ErrNotFound) {
-			status = http.StatusNotFound
-		} else if errors.Is(err, rivertype.ErrJobRunning) {
-			status = http.StatusConflict
-		}
-		utils.ErrorMessage(c, "Action failed", err.Error(), status, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -155,7 +134,7 @@ func (h *JobHandler) runJobAction(c *gin.Context, okMsg string, action func(cont
 
 func (h *JobHandler) PauseQueue(c *gin.Context) {
 	if err := h.service.PauseQueue(c.Request.Context(), c.Param("name")); err != nil {
-		utils.ErrorMessage(c, "Action failed", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	utils.SuccessMessage(c, "Queue paused", "Success", http.StatusOK)
@@ -163,7 +142,7 @@ func (h *JobHandler) PauseQueue(c *gin.Context) {
 
 func (h *JobHandler) ResumeQueue(c *gin.Context) {
 	if err := h.service.ResumeQueue(c.Request.Context(), c.Param("name")); err != nil {
-		utils.ErrorMessage(c, "Action failed", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	utils.SuccessMessage(c, "Queue resumed", "Success", http.StatusOK)
@@ -177,11 +156,7 @@ func (h *JobHandler) ListUserJobs(c *gin.Context) {
 
 	jobs, paginator, err := h.service.ListUserJobs(c.Request.Context(), userID, kind, params)
 	if err != nil {
-		if errors.Is(err, services.ErrJobKindNotAllowed) {
-			utils.ErrorMessage(c, "Invalid kind", err.Error(), http.StatusBadRequest, err)
-			return
-		}
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -197,19 +172,15 @@ func (h *JobHandler) ListUserJobs(c *gin.Context) {
 
 func (h *JobHandler) RetryUserJob(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid id", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	err = h.service.RetryUserJob(c.Request.Context(), userID, id)
 	if err != nil {
-		if errors.Is(err, rivertype.ErrNotFound) {
-			utils.ErrorMessage(c, "Not found", "job not found", http.StatusNotFound, err)
-			return
-		}
-		utils.ErrorMessage(c, "Retry failed", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -218,19 +189,15 @@ func (h *JobHandler) RetryUserJob(c *gin.Context) {
 
 func (h *JobHandler) CancelUserJob(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid id", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
 	err = h.service.CancelUserJob(c.Request.Context(), userID, id)
 	if err != nil {
-		if errors.Is(err, rivertype.ErrNotFound) {
-			utils.ErrorMessage(c, "Not found", "job not found", http.StatusNotFound, err)
-			return
-		}
-		utils.ErrorMessage(c, "Cancel failed", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

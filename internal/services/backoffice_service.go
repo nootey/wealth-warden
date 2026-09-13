@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -41,19 +42,31 @@ func NewBackofficeService(
 var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, jobqueue.BackfillAssetCashFlowsArgs{})
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.BackfillAssetCashFlowsArgs{}); err != nil {
+		return apperr.Wrap(apperr.Internal, err.Error(), err)
+	}
+	return nil
 }
 
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, jobqueue.CorrectFeeAccountingArgs{})
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.CorrectFeeAccountingArgs{}); err != nil {
+		return apperr.Wrap(apperr.Internal, err.Error(), err)
+	}
+	return nil
 }
 
 func (s *BackofficeService) BackfillIncomeExchangeRates(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, jobqueue.BackfillIncomeFXRatesArgs{})
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.BackfillIncomeFXRatesArgs{}); err != nil {
+		return apperr.Wrap(apperr.Internal, err.Error(), err)
+	}
+	return nil
 }
 
 func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, jobqueue.MigrateZeroCostTradesArgs{})
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.MigrateZeroCostTradesArgs{}); err != nil {
+		return apperr.Wrap(apperr.Internal, err.Error(), err)
+	}
+	return nil
 }
 
 func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostMigrationResult, error) {
@@ -92,6 +105,7 @@ func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*mod
 
 		if err := s.investmentService.MigrateZeroCostTradesForAsset(ctx, userID, assetID, group); err != nil {
 			s.logger.Error("failed to migrate trades for asset",
+				zap.Int64("user_id", userID),
 				zap.Int64("asset_id", assetID),
 				zap.String("ticker", assetTicker[assetID]),
 				zap.Error(err),

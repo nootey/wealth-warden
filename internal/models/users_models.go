@@ -50,9 +50,10 @@ type InvitationReq struct {
 }
 
 type UserReq struct {
-	Email                string  `json:"email" validate:"required,email"`
-	DisplayName          string  `json:"display_name" validate:"required"`
-	RoleID               int64   `json:"role_id" validate:"required"`
-	Password             *string `json:"password"`
-	PasswordConfirmation *string `json:"password_confirmation"`
+	Email                string     `json:"email" validate:"required,email"`
+	DisplayName          string     `json:"display_name" validate:"required"`
+	RoleID               int64      `json:"role_id" validate:"required"`
+	EmailConfirmed       *time.Time `json:"email_confirmed"`
+	Password             *string    `json:"password"`
+	PasswordConfirmation *string    `json:"password_confirmation"`
 }

@@ -3,12 +3,14 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/utils"
+	"wealth-warden/pkg/validators"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,17 +19,20 @@ type AuthHandler struct {
 	cfg        *config.Config
 	middleware middleware.WebClientMiddlewareInterface
 	Service    services.AuthServiceInterface
+	v          validators.Validator
 }
 
 func NewAuthHandler(
 	cfg *config.Config,
 	middleware middleware.WebClientMiddlewareInterface,
 	service services.AuthServiceInterface,
+	v validators.Validator,
 ) *AuthHandler {
 	return &AuthHandler{
 		cfg:        cfg,
 		middleware: middleware,
 		Service:    service,
+		v:          v,
 	}
 }
 
@@ -36,7 +41,6 @@ func (h *AuthHandler) PublicRoutes(apiGroup *gin.RouterGroup) {
 	apiGroup.POST("/login", h.LoginUser)
 	apiGroup.POST("/logout", h.LogoutUser)
 	apiGroup.POST("/signup", h.SignUp)
-	apiGroup.POST("/register", h.RegisterUser)
 	apiGroup.POST("/request-password-reset", h.RequestPasswordReset)
 	apiGroup.GET("/validate-password-reset", h.ValidatePasswordReset)
 	apiGroup.POST("/reset-password", h.ResetPassword)
@@ -57,19 +61,24 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	var form models.LoginForm
 	if err := c.ShouldBindJSON(&form); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(form); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	user, err := h.Service.ValidateLogin(ctx, form.Email, form.Password, userAgent, loginIP)
 	if err != nil {
-		utils.ErrorMessage(c, "Login failed", err.Error(), http.StatusUnauthorized, err)
+		_ = c.Error(err)
 		return
 	}
 
 	sessionID, maxAge, err := h.middleware.CreateLoginSession(ctx, user.ID, form.RememberMe, userAgent, loginIP)
 	if err != nil {
-		utils.ErrorMessage(c, "Failed to create session", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -88,7 +97,7 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 
 	user, err := h.Service.GetCurrentUser(ctx, userID)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -117,18 +126,23 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 
 	var form models.RegisterForm
 	if err := c.ShouldBindJSON(&form); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(form); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := utils.SanitizeStruct(&form); err != nil {
-		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
 	_, err := h.Service.SignUp(ctx, form, userAgent, loginIP)
 	if err != nil {
-		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -141,16 +155,13 @@ func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
 	queryParams := c.Request.URL.Query()
 	hash := queryParams.Get("token")
 
-	err := h.Service.ValidateInvitation(ctx, hash)
-	if err == nil {
-		redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
-		c.Redirect(http.StatusFound, fmt.Sprintf("%s%s?token=%s", redirectUrl, "signup", hash))
-	} else {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+	if err := h.Service.ValidateInvitation(ctx, hash); err != nil {
+		_ = c.Error(err)
 		return
 	}
 
-	utils.SuccessMessage(c, "Email has been validated", "Success", http.StatusOK)
+	redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
+	c.Redirect(http.StatusFound, fmt.Sprintf("%s%s?token=%s", redirectUrl, "signup", hash))
 }
 
 func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
@@ -161,13 +172,18 @@ func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 
 	var req models.ReqEmail
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	err := h.Service.ResendConfirmationEmail(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
-		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -180,12 +196,17 @@ func (h *AuthHandler) CompleteSetup(c *gin.Context) {
 
 	var req models.CompleteSetupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := h.Service.CompleteSetup(ctx, userID, req); err != nil {
-		utils.ErrorMessage(c, "Setup failed", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -200,16 +221,13 @@ func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
 	queryParams := c.Request.URL.Query()
 	token := queryParams.Get("token")
 
-	err := h.Service.ConfirmEmail(ctx, token, userAgent, reqIP)
-	if err == nil {
-		redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
-		c.Redirect(http.StatusFound, redirectUrl)
-	} else {
-		utils.ErrorMessage(c, "Error confirming email", err.Error(), http.StatusInternalServerError, err)
+	if err := h.Service.ConfirmEmail(ctx, token, userAgent, reqIP); err != nil {
+		_ = c.Error(err)
 		return
 	}
 
-	utils.SuccessMessage(c, "", "Email confirmed", http.StatusOK)
+	redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
+	c.Redirect(http.StatusFound, redirectUrl)
 }
 
 func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
@@ -220,13 +238,18 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 
 	var req models.ReqEmail
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	err := h.Service.RequestPasswordReset(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
-		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -241,7 +264,7 @@ func (h *AuthHandler) ValidatePasswordReset(c *gin.Context) {
 
 	token, err := h.Service.ValidatePasswordReset(ctx, tokenValue)
 	if err != nil {
-		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -257,46 +280,25 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 	var form models.ResetPasswordForm
 	if err := c.ShouldBindJSON(&form); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(form); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := utils.SanitizeStruct(&form); err != nil {
-		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
 	err := h.Service.ResetPassword(ctx, form, userAgent, loginIP)
 	if err != nil {
-		utils.ErrorMessage(c, "Password reset failed", err.Error(), http.StatusUnauthorized, err)
+		_ = c.Error(err)
 		return
 	}
 
 	utils.SuccessMessage(c, "", "Password reset complete", http.StatusOK)
-}
-
-func (h *AuthHandler) RegisterUser(c *gin.Context) {
-
-	ctx := c.Request.Context()
-	loginIP := c.ClientIP()
-	userAgent := c.GetHeader("User-Agent")
-
-	var form models.RegisterForm
-	if err := c.ShouldBindJSON(&form); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	if err := utils.SanitizeStruct(&form); err != nil {
-		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	err := h.Service.RegisterUser(ctx, form, userAgent, loginIP)
-	if err != nil {
-		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "", "Registration complete", http.StatusOK)
 }

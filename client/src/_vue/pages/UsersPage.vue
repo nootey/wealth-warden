@@ -167,22 +167,32 @@ async function handleEmit(emitType: any) {
           key="users"
           class="flex flex-col justify-center w-full gap-4"
         >
-          <Panel :collapsed="false" header="Users">
-            <div id="mobile-row" class="flex flex-row w-full">
-              <UsersPaginated
-                ref="usrRef"
-                :roles="roles"
-                @update-user="(id) => manipulateDialog('updateUser', id)"
-              />
-            </div>
-          </Panel>
+          <div
+            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Users</span>
+            <UsersPaginated
+              ref="usrRef"
+              :roles="roles"
+              @update-user="(id) => manipulateDialog('updateUser', id)"
+            />
+          </div>
         </div>
         <div v-else key="invitations" class="w-full">
-          <Panel :collapsed="false" header="Invitations">
-            <div class="flex flex-row gap-2 w-full">
-              <InvitationsPaginated />
-            </div>
-          </Panel>
+          <div
+            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Invitations</span>
+            <InvitationsPaginated />
+          </div>
         </div>
       </Transition>
     </div>

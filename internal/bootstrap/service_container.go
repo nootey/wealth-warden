@@ -86,14 +86,14 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
-	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, jobDispatcher, mail, sessionStore)
-	roleService := services.NewRolePermissionService(roleRepo, jobDispatcher)
+	authService := services.NewAuthService(logger.Named("auth_srv"), userRepo, roleRepo, settingsRepo, jobDispatcher, mail, sessionStore)
+	roleService := services.NewRolePermissionService(logger.Named("role_srv"), roleRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, balanceRepo, transactionRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
 	balanceService := services.NewBalanceService(logger.Named("balance_srv"), balanceRepo)
 	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, balanceRepo, settingsRepo, savingsRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, jobDispatcher, sessionStore)
-	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, balanceRepo, investmentRepo, settingsRepo, jobDispatcher)
+	importService := services.NewImportService(logger.Named("import_srv"), importRepo, transactionRepo, accountRepo, balanceRepo, investmentRepo, settingsRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, balanceRepo, settingsRepo, jobDispatcher)
 	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, balanceRepo, transactionRepo, settingsRepo, jobDispatcher, priceFetcher)
 	notesService := services.NewNotesService(notesRepo, jobDispatcher)

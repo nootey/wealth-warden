@@ -53,11 +53,23 @@ The instructions below are for anyone that wants to run the app locally.
 - Go > 1.26
 - Node > 20
 - PostgreSQL > 14
+- Redis > 7
+- Docker (`make run` starts the observability stack with Docker Compose)
 
 ### Getting started
 
-Edit configuration files
-- `./config/dev.yaml`
-- `./client/.env`
+Create the configuration files from their examples and edit them
+- `./config/dev.example.yaml` -> `./config/dev.yaml`
+- `./client/.env.example` -> `./client/.env` (optional, defaults work for local dev)
+
+Run the migrations and seeders, then start the server and the client
+
+```sh
+make migrate type=fresh-seed-basic
+make run
+cd client && pnpm install && pnpm run dev
+```
+
+See [docs/database.md](./docs/database.md) for migrations and seeders.
 
 By default, the app will be available at http://localhost:5000

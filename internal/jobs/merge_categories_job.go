@@ -28,15 +28,15 @@ func (w *MergeCategoriesWorker) Work(ctx context.Context, job *river.Job[jobqueu
 	moved, err := w.transaction.MergeCategories(ctx, args.UserID, args.InternalSourceCategoryID, args.InternalDestinationCategoryID)
 	if err != nil {
 		w.logger.Error("Failed to merge categories",
-			zap.Int64("userID", args.UserID),
-			zap.Int64("sourceID", args.InternalSourceCategoryID),
-			zap.Int64("destinationID", args.InternalDestinationCategoryID),
+			zap.Int64("user_id", args.UserID),
+			zap.Int64("source_id", args.InternalSourceCategoryID),
+			zap.Int64("destination_id", args.InternalDestinationCategoryID),
 			zap.Error(err))
 		return err
 	}
 
 	w.logger.Info("Merged categories",
-		zap.Int64("userID", args.UserID),
+		zap.Int64("user_id", args.UserID),
 		zap.String("source", args.SourceCategory),
 		zap.String("destination", args.DestinationCategory),
 		zap.Int64("transactions", moved),

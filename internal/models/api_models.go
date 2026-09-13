@@ -8,3 +8,8 @@ type PaginationResponse struct {
 	TotalRecords int         `json:"total_records"`
 	Data         interface{} `json:"data"`
 }
+
+type MergeReq struct {
+	SourceID      int64 `json:"source_id" validate:"required"`
+	DestinationID int64 `json:"destination_id" validate:"required"`
+}
