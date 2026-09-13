@@ -7,7 +7,7 @@ The app uses **PostgreSQL**.
 To spin up a local database instance:
 
 ```sh
-docker-compose -f ./docker-compose.yaml -p wealth-warden up db -d
+docker compose -f ./docker-compose.yaml up db -d
 ```
 
 This will run a Docker container running Postgres, and expose it on the configured port. You can connect via any Postgres-compatible client.
@@ -30,8 +30,8 @@ This will generate a new .sql file where you define both Up and Down migration s
 
 Use the following command to apply or rollback migrations:
 
-```go 
-go run ./cmd migrate $(type) -d "/app/migrations"
+```sh
+go run ./cmd migrate <type>
 ```
 
 Options include:
@@ -51,7 +51,7 @@ Seeders populate the database with either initial production values or fake deve
 
 ### Creating a Seeder
 
-Seeders are handled manually. To create a new seeder, create it in `./pkg/database/seeders/workers` and register it in the `allSeeders` map inside `SeedDatabase` (`./pkg/database/seeders/seed.go`).
+Seeders are handled manually. To create a new seeder, create it in `./pkg/database/seeders/workers` and register it in the `allSeeders` slice inside `SeedDatabase` (`./pkg/database/seeders/seed.go`).
 
 Each seeder must follow this signature:
 ```go
@@ -60,26 +60,28 @@ func SeedMySeeder(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 }
 ```
 
-When registering, set the `Basic` and `Full` flags to control which seed types include it:
+When registering, set the `Basic`, `Full` and `Bulk` flags to control which seed types include it. Set `NoTx` if the seeder drives services that open their own transactions:
 ```go
-"SeedMySeeder": {Func: workers.SeedMySeeder, Basic: false, Full: true},
+{Name: "SeedMySeeder", Func: workers.SeedMySeeder, Basic: false, Full: true},
 ```
 
 ### Running seeders
 
 Run the seeders with the following command:
 ```sh
-go run ./cmd seed <type> [name]
+go run ./cmd seed <type> [name] [--users N] [--timeout 30m]
 ```
 
 Available types:
 - `basic` -> runs all seeders flagged as `basic` (initial production values)
 - `full` -> runs all seeders flagged as `full` (includes fake/dev data)
 - `individual <name>` -> runs a single seeder by name without clearing storage
+- `bulk` -> runs all seeders flagged as `bulk` on top of existing data (user count from `seed.bulk.users` or `--users`)
 
 ```sh
 # Examples
 go run ./cmd seed basic
 go run ./cmd seed full
 go run ./cmd seed individual SeedRolesAndPermissions
+go run ./cmd seed bulk --users 1000
 ```
