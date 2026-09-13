@@ -6,7 +6,6 @@ package mocks
 
 import (
 	"context"
-	"io"
 	"wealth-warden/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
@@ -472,74 +471,68 @@ func (_c *MockImportServiceInterface_ImportTransactions_Call) RunAndReturn(run f
 	return _c
 }
 
-// ParseBankStatement provides a mock function for the type MockImportServiceInterface
-func (_mock *MockImportServiceInterface) ParseBankStatement(bankName string, fileName string, r io.Reader) (models.TxnImportPayload, error) {
-	ret := _mock.Called(bankName, fileName, r)
+// ParseBankStatements provides a mock function for the type MockImportServiceInterface
+func (_mock *MockImportServiceInterface) ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error) {
+	ret := _mock.Called(bankName, files)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ParseBankStatement")
+		panic("no return value specified for ParseBankStatements")
 	}
 
 	var r0 models.TxnImportPayload
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, string, io.Reader) (models.TxnImportPayload, error)); ok {
-		return returnFunc(bankName, fileName, r)
+	if returnFunc, ok := ret.Get(0).(func(string, []models.BankStatementFile) (models.TxnImportPayload, error)); ok {
+		return returnFunc(bankName, files)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, string, io.Reader) models.TxnImportPayload); ok {
-		r0 = returnFunc(bankName, fileName, r)
+	if returnFunc, ok := ret.Get(0).(func(string, []models.BankStatementFile) models.TxnImportPayload); ok {
+		r0 = returnFunc(bankName, files)
 	} else {
 		r0 = ret.Get(0).(models.TxnImportPayload)
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, string, io.Reader) error); ok {
-		r1 = returnFunc(bankName, fileName, r)
+	if returnFunc, ok := ret.Get(1).(func(string, []models.BankStatementFile) error); ok {
+		r1 = returnFunc(bankName, files)
 	} else {
 		r1 = ret.Error(1)
 	}
 	return r0, r1
 }
 
-// MockImportServiceInterface_ParseBankStatement_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ParseBankStatement'
-type MockImportServiceInterface_ParseBankStatement_Call struct {
+// MockImportServiceInterface_ParseBankStatements_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ParseBankStatements'
+type MockImportServiceInterface_ParseBankStatements_Call struct {
 	*mock.Call
 }
 
-// ParseBankStatement is a helper method to define mock.On call
+// ParseBankStatements is a helper method to define mock.On call
 //   - bankName string
-//   - fileName string
-//   - r io.Reader
-func (_e *MockImportServiceInterface_Expecter) ParseBankStatement(bankName any, fileName any, r any) *MockImportServiceInterface_ParseBankStatement_Call {
-	return &MockImportServiceInterface_ParseBankStatement_Call{Call: _e.mock.On("ParseBankStatement", bankName, fileName, r)}
+//   - files []models.BankStatementFile
+func (_e *MockImportServiceInterface_Expecter) ParseBankStatements(bankName any, files any) *MockImportServiceInterface_ParseBankStatements_Call {
+	return &MockImportServiceInterface_ParseBankStatements_Call{Call: _e.mock.On("ParseBankStatements", bankName, files)}
 }
 
-func (_c *MockImportServiceInterface_ParseBankStatement_Call) Run(run func(bankName string, fileName string, r io.Reader)) *MockImportServiceInterface_ParseBankStatement_Call {
+func (_c *MockImportServiceInterface_ParseBankStatements_Call) Run(run func(bankName string, files []models.BankStatementFile)) *MockImportServiceInterface_ParseBankStatements_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 string
+		var arg1 []models.BankStatementFile
 		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 io.Reader
-		if args[2] != nil {
-			arg2 = args[2].(io.Reader)
+			arg1 = args[1].([]models.BankStatementFile)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
 		)
 	})
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ParseBankStatement_Call) Return(txnImportPayload models.TxnImportPayload, err error) *MockImportServiceInterface_ParseBankStatement_Call {
+func (_c *MockImportServiceInterface_ParseBankStatements_Call) Return(txnImportPayload models.TxnImportPayload, err error) *MockImportServiceInterface_ParseBankStatements_Call {
 	_c.Call.Return(txnImportPayload, err)
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ParseBankStatement_Call) RunAndReturn(run func(bankName string, fileName string, r io.Reader) (models.TxnImportPayload, error)) *MockImportServiceInterface_ParseBankStatement_Call {
+func (_c *MockImportServiceInterface_ParseBankStatements_Call) RunAndReturn(run func(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error)) *MockImportServiceInterface_ParseBankStatements_Call {
 	_c.Call.Return(run)
 	return _c
 }

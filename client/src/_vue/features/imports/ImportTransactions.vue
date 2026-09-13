@@ -100,21 +100,33 @@ const bankUploadRef = ref<{ files: File[] } | null>(null);
 const bankFiles = ref<File[]>([]);
 
 function onBankSelect(e: { files: File[] }) {
-  bankFiles.value = e.files.slice(0, 1);
+  bankFiles.value = e.files;
+  bankTxns.value = [];
+}
+
+function onBankRemove(e: { files: File[] }) {
+  bankFiles.value = e.files;
+  bankTxns.value = [];
 }
 
 const bankParsing = ref(false);
 const bankTxns = ref<BankTxn[]>([]);
 
+function bankFormData(): FormData {
+  const formData = new FormData();
+  for (const file of bankFiles.value) {
+    formData.append("files", file);
+  }
+  formData.append("bank", "nlb");
+  return formData;
+}
+
 async function parseBankStatement() {
-  const file = bankFiles.value[0];
-  if (!file) return;
+  if (bankFiles.value.length === 0) return;
 
   bankParsing.value = true;
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("bank", "nlb");
+    const formData = bankFormData();
     const res = await dataStore.parseBankStatement(formData);
     bankTxns.value = res.transactions;
   } catch (error) {
@@ -203,16 +215,12 @@ const isDisabled = computed(() => {
 });
 
 const importBankTransactions = async () => {
-  const file = bankFiles.value[0];
-  if (!file || !selectedCheckingAcc.value?.id) return;
+  if (bankFiles.value.length === 0 || !selectedCheckingAcc.value?.id) return;
 
   importing.value = true;
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("bank", "nlb");
     const res = await dataStore.importBankTransactions(
-      formData,
+      bankFormData(),
       selectedCheckingAcc.value.id,
     );
     toastStore.successResponseToast(res);
@@ -282,21 +290,24 @@ defineExpose({ isDisabled, importTransactions });
       <TabPanels>
         <TabPanel value="0">
           <div class="flex flex-col w-full justify-center items-center gap-4">
-            <h3>Import your bank statement</h3>
+            <h3>Import your bank statements</h3>
             <span class="text-sm" style="color: var(--text-secondary)"
-              >Upload a PDF monthly statement from your bank, or generate a CSV
-              export. The transactions will be extracted automatically.</span
+              >Upload PDF monthly statements from your bank, or generate CSV
+              exports. The transactions will be extracted automatically. Use one
+              kind per import, since PDF rows cannot be deduplicated against CSV
+              rows.</span
             >
 
             <FileUpload
               ref="bankUploadRef"
               accept=".pdf, .csv, application/pdf, text/csv"
               :max-file-size="10485760"
-              :multiple="false"
+              :multiple="true"
               custom-upload
               :show-upload-button="false"
               :show-cancel-button="false"
               @select="onBankSelect"
+              @remove="onBankRemove"
               @clear="onBankClear"
             >
               <template #header="{ chooseCallback }">
@@ -309,7 +320,7 @@ defineExpose({ isDisabled, importTransactions });
                 </div>
               </template>
 
-              <template #content>
+              <template #content="{ removeFileCallback }">
                 <div
                   v-if="bankFiles.length > 0"
                   class="flex flex-col gap-1 w-full items-center"
@@ -317,7 +328,7 @@ defineExpose({ isDisabled, importTransactions });
                   <h5>Pending</h5>
                   <div class="flex flex-wrap gap-2 w-full">
                     <div
-                      v-for="file in bankFiles"
+                      v-for="(file, index) in bankFiles"
                       :key="file.name + file.type + file.size"
                       class="flex flex-row gap-2 p-1 w-full justify-center items-center"
                     >
@@ -332,7 +343,7 @@ defineExpose({ isDisabled, importTransactions });
                       <i
                         class="pi pi-times hover-icon"
                         style="color: var(--p-red-300)"
-                        @click="onBankClear"
+                        @click="removeFileCallback(index)"
                       />
                     </div>
                   </div>

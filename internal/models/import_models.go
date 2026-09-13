@@ -1,6 +1,7 @@
 package models
 
 import (
+	"io"
 	"time"
 )
 
@@ -8,6 +9,11 @@ const (
 	ImportTypeCustom = "custom"
 	ImportTypeBank   = "bank"
 )
+
+type BankStatementFile struct {
+	Name   string
+	Reader io.Reader
+}
 
 type Import struct {
 	ID                     int64      `gorm:"primaryKey;autoIncrement" json:"id"`

@@ -176,35 +176,52 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 	})
 }
 
-func (h *ImportHandler) ParseBankStatement(c *gin.Context) {
+func (h *ImportHandler) parseBankForm(c *gin.Context) (bankName string, payload models.TxnImportPayload, ok bool) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 50<<20)
 
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
-
-	fileHeader, err := c.FormFile("file")
+	form, err := c.MultipartForm()
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
-		return
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A multipart form with files is required", err))
+		return "", payload, false
+	}
+	headers := form.File["files"]
+	if len(headers) == 0 {
+		_ = c.Error(apperr.New(apperr.Invalid, "At least one file is required"))
+		return "", payload, false
 	}
 
-	f, err := fileHeader.Open()
-	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
-		return
-	}
-	defer func(f multipart.File) {
-		if err := f.Close(); err != nil {
-			_ = c.Error(err)
+	files := make([]models.BankStatementFile, 0, len(headers))
+	for _, fh := range headers {
+		f, err := fh.Open()
+		if err != nil {
+			_ = c.Error(apperr.Wrap(apperr.Invalid, fmt.Sprintf("%s could not be opened", fh.Filename), err))
+			return "", payload, false
 		}
-	}(f)
+		defer func(f multipart.File) {
+			if err := f.Close(); err != nil {
+				_ = c.Error(err)
+			}
+		}(f)
+		files = append(files, models.BankStatementFile{Name: fh.Filename, Reader: f})
+	}
 
-	bankName := strings.ToLower(strings.TrimSpace(c.PostForm("bank")))
+	bankName = strings.ToLower(strings.TrimSpace(c.PostForm("bank")))
 	if bankName == "" {
 		bankName = "nlb"
 	}
 
-	payload, err := h.Service.ParseBankStatement(bankName, fileHeader.Filename, f)
+	payload, err = h.Service.ParseBankStatements(bankName, files)
 	if err != nil {
 		_ = c.Error(err)
+		return "", payload, false
+	}
+	return bankName, payload, true
+}
+
+func (h *ImportHandler) ParseBankStatement(c *gin.Context) {
+
+	bankName, payload, ok := h.parseBankForm(c)
+	if !ok {
 		return
 	}
 
@@ -420,33 +437,8 @@ func (h *ImportHandler) ImportBankTransactions(c *gin.Context) {
 		return
 	}
 
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
-
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
-		return
-	}
-
-	f, err := fileHeader.Open()
-	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
-		return
-	}
-	defer func(f multipart.File) {
-		if err := f.Close(); err != nil {
-			_ = c.Error(err)
-		}
-	}(f)
-
-	bankName := strings.ToLower(strings.TrimSpace(c.PostForm("bank")))
-	if bankName == "" {
-		bankName = "nlb"
-	}
-
-	payload, err := h.Service.ParseBankStatement(bankName, fileHeader.Filename, f)
-	if err != nil {
-		_ = c.Error(err)
+	_, payload, ok := h.parseBankForm(c)
+	if !ok {
 		return
 	}
 

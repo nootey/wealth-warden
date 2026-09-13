@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -41,7 +40,7 @@ type ImportServiceInterface interface {
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
 	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
-	ParseBankStatement(bankName, fileName string, r io.Reader) (models.TxnImportPayload, error)
+	ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error)
 }
 
 type ImportService struct {
@@ -236,36 +235,53 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 	return categories, len(set), nil
 }
 
-func (s *ImportService) ParseBankStatement(bankName, fileName string, r io.Reader) (models.TxnImportPayload, error) {
+func (s *ImportService) ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error) {
 	parser, ok := bank.Get(bankName)
 	if !ok {
 		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported bank %q", bankName))
 	}
+	if len(files) == 0 {
+		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, "At least one statement file is required")
+	}
+
+	kind := ""
+	for _, f := range files {
+		ext := strings.ToLower(filepath.Ext(f.Name))
+		if ext != ".csv" && ext != ".pdf" {
+			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("%s: only CSV and PDF statements are supported", f.Name))
+		}
+		if kind == "" {
+			kind = ext
+		} else if kind != ext {
+			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, "Upload either CSV exports or PDF statements in one import, not both")
+		}
+	}
 
 	var txns []statement.Transaction
-	var err error
-	switch strings.ToLower(filepath.Ext(fileName)) {
-	case ".csv":
-		txns, err = parser.ParseCSV(r)
-	case ".pdf":
-		txns, err = parser.ParsePDF(r)
-	default:
-		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, "Only CSV and PDF statements are supported")
-	}
-	if err != nil {
-		if errors.Is(err, pdftext.ErrNotInstalled) {
-			return models.TxnImportPayload{}, apperr.Wrap(apperr.Internal, "PDF parsing is not available on this server", err)
+	for _, f := range files {
+		var parsed []statement.Transaction
+		var err error
+		if kind == ".csv" {
+			parsed, err = parser.ParseCSV(f.Reader)
+		} else {
+			parsed, err = parser.ParsePDF(f.Reader)
 		}
-		return models.TxnImportPayload{}, apperr.Wrap(apperr.Validation, "The statement could not be parsed", err)
+		if err != nil {
+			if errors.Is(err, pdftext.ErrNotInstalled) {
+				return models.TxnImportPayload{}, apperr.Wrap(apperr.Internal, "PDF parsing is not available on this server", err)
+			}
+			return models.TxnImportPayload{}, apperr.Wrap(apperr.Validation, fmt.Sprintf("%s could not be parsed", f.Name), err)
+		}
+		txns = append(txns, parsed...)
 	}
 
 	txns = statement.Dedupe(txns)
 	sort.SliceStable(txns, func(i, j int) bool { return txns[i].Date.Before(txns[j].Date) })
 	if len(txns) == 0 {
-		return models.TxnImportPayload{}, apperr.New(apperr.Validation, "No transactions were found in the statement")
+		return models.TxnImportPayload{}, apperr.New(apperr.Validation, "No transactions were found in the statements")
 	}
 
-	// Month granularity so two statements from one year can be imported on the same day.
+	// Month granularity so two ranges from one year can be imported on the same day.
 	first, last := txns[0].Date.Format("2006-01"), txns[len(txns)-1].Date.Format("2006-01")
 	identifier := fmt.Sprintf("%s_%s", bankName, first)
 	if first != last {
