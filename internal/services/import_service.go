@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,6 +20,10 @@ import (
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
+	"github.com/nootey/wealth-warden-prepper/pkg/bank"
+	"github.com/nootey/wealth-warden-prepper/pkg/format"
+	"github.com/nootey/wealth-warden-prepper/pkg/pdftext"
+	"github.com/nootey/wealth-warden-prepper/pkg/statement"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -28,7 +33,7 @@ type ImportServiceInterface interface {
 	ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error)
 	FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error)
 	FetchImportByID(ctx context.Context, id, userID int64, importType string) (*models.Import, error)
-	ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error
+	ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int, error)
 	ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error
 	ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) error
 	TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error
@@ -36,6 +41,7 @@ type ImportServiceInterface interface {
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
 	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
+	ParseBankStatement(bankName, fileName string, r io.Reader) (models.TxnImportPayload, error)
 }
 
 type ImportService struct {
@@ -230,6 +236,69 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 	return categories, len(set), nil
 }
 
+func (s *ImportService) ParseBankStatement(bankName, fileName string, r io.Reader) (models.TxnImportPayload, error) {
+	parser, ok := bank.Get(bankName)
+	if !ok {
+		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported bank %q", bankName))
+	}
+
+	var txns []statement.Transaction
+	var err error
+	switch strings.ToLower(filepath.Ext(fileName)) {
+	case ".csv":
+		txns, err = parser.ParseCSV(r)
+	case ".pdf":
+		txns, err = parser.ParsePDF(r)
+	default:
+		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, "Only CSV and PDF statements are supported")
+	}
+	if err != nil {
+		if errors.Is(err, pdftext.ErrNotInstalled) {
+			return models.TxnImportPayload{}, apperr.Wrap(apperr.Internal, "PDF parsing is not available on this server", err)
+		}
+		return models.TxnImportPayload{}, apperr.Wrap(apperr.Validation, "The statement could not be parsed", err)
+	}
+
+	txns = statement.Dedupe(txns)
+	sort.SliceStable(txns, func(i, j int) bool { return txns[i].Date.Before(txns[j].Date) })
+	if len(txns) == 0 {
+		return models.TxnImportPayload{}, apperr.New(apperr.Validation, "No transactions were found in the statement")
+	}
+
+	// Month granularity so two statements from one year can be imported on the same day.
+	first, last := txns[0].Date.Format("2006-01"), txns[len(txns)-1].Date.Format("2006-01")
+	identifier := fmt.Sprintf("%s_%s", bankName, first)
+	if first != last {
+		identifier = fmt.Sprintf("%s_%s_%s", bankName, first, last)
+	}
+
+	now := time.Now().UTC()
+	built := format.Build(identifier, txns, now)
+
+	payload := models.TxnImportPayload{
+		Identifier:  built.Identifier,
+		GeneratedAt: now,
+		Txns:        make([]models.JSONTxn, 0, len(built.Transactions)),
+	}
+	for i, t := range built.Transactions {
+		var externalID *string
+		if t.ExternalID != "" {
+			id := t.ExternalID
+			externalID = &id
+		}
+		payload.Txns = append(payload.Txns, models.JSONTxn{
+			TransactionType: t.TransactionType,
+			Amount:          t.Amount,
+			Currency:        t.Currency,
+			TxnDate:         txns[i].Date,
+			Category:        t.Category,
+			Description:     t.Description,
+			ExternalTxnID:   externalID,
+		})
+	}
+	return payload, nil
+}
+
 func (s *ImportService) FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error) {
 	return s.repo.FindImportsByImportType(ctx, nil, userID, importType)
 }
@@ -238,14 +307,18 @@ func (s *ImportService) FetchImportByID(ctx context.Context, id, userID int64, i
 	return s.repo.FindImportByID(ctx, nil, id, userID, importType)
 }
 
-func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error {
+func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int, error) {
+
+	if source != models.ImportTypeCustom && source != models.ImportTypeBank {
+		return 0, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported import source %q", source))
+	}
 
 	sourceAcc, err := s.accRepo.FindAccountByID(ctx, nil, checkID, userID, false)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := utils.ValidateAccount(sourceAcc, ""); err != nil {
-		return err
+		return 0, err
 	}
 
 	openedYear := sourceAcc.OpenedAt.Year()
@@ -266,12 +339,12 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		}
 	}
 	if first.IsZero() {
-		return apperr.New(apperr.Validation, "No row carries a valid txn_date, so the import year cannot be read")
+		return 0, apperr.New(apperr.Validation, "No row carries a valid txn_date, so the import year cannot be read")
 	}
 	importYear := first.Year()
 
 	if openedYear >= importYear {
-		return apperr.New(apperr.Conflict, fmt.Sprintf("The account opened in %d, so it cannot take data for %d or earlier", openedYear, importYear))
+		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("The account opened in %d, so it cannot take data for %d or earlier", openedYear, importYear))
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
@@ -282,23 +355,23 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	tmpPath := filepath.Join(dir, importName+".json.tmp")
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Hard duplicate check
 	if _, err := os.Stat(finalPath); err == nil {
-		return ErrImportFileExists
+		return 0, ErrImportFileExists
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+		return 0, err
 	}
 
 	// Reserve the name with an exclusive temp file (prevents races)
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return ErrImportFileExists
+			return 0, ErrImportFileExists
 		}
-		return err
+		return 0, err
 	}
 	reserved := true
 	defer func() {
@@ -309,7 +382,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	loc, _ := time.LoadLocation(settings.Timezone)
 
@@ -319,7 +392,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
 		Name:      importName,
 		UserID:    userID,
-		Type:      "custom",
+		Type:      source,
 		SubType:   "transactions",
 		Status:    "pending",
 		Step:      "cash",
@@ -327,12 +400,12 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		StartedAt: &started,
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer func() {
@@ -350,13 +423,27 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
 
+	skipped := 0
 	for i, txn := range payload.Txns {
+
+		if source == models.ImportTypeBank && txn.ExternalTxnID != nil && *txn.ExternalTxnID != "" {
+			_, err := s.txnRepo.FindTransactionByExternalID(ctx, tx, sourceAcc.ID, *txn.ExternalTxnID)
+			if err == nil {
+				skipped++
+				continue
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				tx.Rollback()
+				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("external_txn_id", *txn.ExternalTxnID))
+				return 0, err
+			}
+		}
 
 		amount, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
 			tx.Rollback()
 			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))
-			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
+			return 0, apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
 		}
 
 		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
@@ -372,9 +459,9 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 						tx.Rollback()
 						s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *m.CategoryID))
 						if errors.Is(err, gorm.ErrRecordNotFound) {
-							return ErrInvalidCategoryID
+							return 0, ErrInvalidCategoryID
 						}
-						return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find mapped category %d", *m.CategoryID), err)
+						return 0, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find mapped category %d", *m.CategoryID), err)
 					}
 					found = true
 				}
@@ -388,34 +475,41 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 			if err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))
-				return apperr.Wrap(apperr.Internal, "failed to find uncategorized category", err)
+				return 0, apperr.Wrap(apperr.Internal, "failed to find uncategorized category", err)
 			}
 		}
 
 		if txn.TransactionType == "income" || txn.TransactionType == "expense" {
 
+			// Custom files carry the bank's category text as the only label; bank statements carry a real description.
+			desc := txn.Category
+			if source == models.ImportTypeBank && txn.Description != "" {
+				desc = txn.Description
+			}
+
 			t := models.Transaction{
-				UserID:      userID,
-				AccountID:   sourceAcc.ID,
-				CategoryID:  &category.ID,
-				Direction:   txn.TransactionType,
-				Amount:      amount,
-				Currency:    sourceAcc.Currency,
-				TxnDate:     txDay,
-				Description: &txn.Category,
-				ImportID:    &importID,
+				UserID:        userID,
+				AccountID:     sourceAcc.ID,
+				CategoryID:    &category.ID,
+				Direction:     txn.TransactionType,
+				Amount:        amount,
+				Currency:      sourceAcc.Currency,
+				TxnDate:       txDay,
+				Description:   &desc,
+				ExternalTxnID: txn.ExternalTxnID,
+				ImportID:      &importID,
 			}
 
 			if _, err := s.txnRepo.InsertTransaction(ctx, tx, &t); err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("account_id", sourceAcc.ID), zap.Int64("category_id", category.ID))
-				return err
+				return 0, err
 			}
 
 			if err := s.updateDailyCash(ctx, tx, sourceAcc, t.TxnDate, t.Direction, t.Amount, true); err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("account_id", sourceAcc.ID))
-				return err
+				return 0, err
 			}
 
 		}
@@ -433,7 +527,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	); err != nil {
 		tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err, zap.Int64("account_id", sourceAcc.ID))
-		return err
+		return 0, err
 	}
 
 	// Write payload to the reserved temp file
@@ -441,32 +535,32 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	if err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 	if _, err := tmpFile.Write(data); err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 	if err := tmpFile.Sync(); err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 	if err := tmpFile.Close(); err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return err
+		return 0, err
 	}
 
 	// Promote the temp file to final
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
@@ -475,17 +569,18 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {
-		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+		return 0, fmt.Errorf("marking import %d successful failed: %w", importID, err)
 	}
 
 	// Log
 	changes := utils.InitChanges()
-	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", source, changes, "type")
 	utils.CompareChanges("", "transactions", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", sourceAcc.Name, changes, "source_account")
 	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
-	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)-skipped), changes, "transactions_count")
+	utils.CompareChanges("", strconv.Itoa(skipped), changes, "skipped_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -494,10 +589,10 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return skipped, nil
 }
 
 func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error {

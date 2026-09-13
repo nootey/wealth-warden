@@ -2,7 +2,10 @@
 import { computed, onMounted, type Ref, ref } from "vue";
 import { useDataStore } from "../../../services/stores/data_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import type { CustomImportValidationResponse } from "../../../models/dataio_models.ts";
+import type {
+  BankTxn,
+  CustomImportValidationResponse,
+} from "../../../models/dataio_models.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
@@ -55,6 +58,7 @@ onMounted(async () => {
   }
 });
 
+const activeTab = ref("0");
 const importing = ref(false);
 const uploadImportRef = ref<{ files: File[] } | null>(null);
 const fileValidated = ref(false);
@@ -90,6 +94,44 @@ function onClear() {
   selectedFiles.value = [];
   fileValidated.value = false;
   validatedResponse.value = null;
+}
+
+const bankUploadRef = ref<{ files: File[] } | null>(null);
+const bankFiles = ref<File[]>([]);
+
+function onBankSelect(e: { files: File[] }) {
+  bankFiles.value = e.files.slice(0, 1);
+}
+
+const bankParsing = ref(false);
+const bankTxns = ref<BankTxn[]>([]);
+
+async function parseBankStatement() {
+  const file = bankFiles.value[0];
+  if (!file) return;
+
+  bankParsing.value = true;
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bank", "nlb");
+    const res = await dataStore.parseBankStatement(formData);
+    bankTxns.value = res.transactions;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    bankParsing.value = false;
+  }
+}
+
+function onBankClear() {
+  bankFiles.value = [];
+  bankTxns.value = [];
+  try {
+    (bankUploadRef.value as any)?.clear?.();
+  } catch {
+    /* no-op */
+  }
 }
 
 async function validateFile(type: string) {
@@ -149,14 +191,45 @@ function resetWizard() {
   } catch {
     /* no-op */
   }
+  onBankClear();
 }
 
 const isDisabled = computed(() => {
   if (importing.value) return true;
+  if (activeTab.value === "0") {
+    return bankTxns.value.length === 0 || !selectedCheckingAcc.value;
+  }
   return !selectedCheckingAcc.value;
 });
 
+const importBankTransactions = async () => {
+  const file = bankFiles.value[0];
+  if (!file || !selectedCheckingAcc.value?.id) return;
+
+  importing.value = true;
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bank", "nlb");
+    const res = await dataStore.importBankTransactions(
+      formData,
+      selectedCheckingAcc.value.id,
+    );
+    toastStore.successResponseToast(res);
+    emit("completeImport");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    importing.value = false;
+    resetWizard();
+  }
+};
+
 const importTransactions = async () => {
+  if (activeTab.value === "0") {
+    await importBankTransactions();
+    return;
+  }
   if (selectedFiles.value.length < 1) return;
 
   const file = selectedFiles.value[0];
@@ -201,13 +274,139 @@ defineExpose({ isDisabled, importTransactions });
 
 <template>
   <div class="flex flex-col w-full gap-2 p-2">
-    <Tabs value="0">
+    <Tabs v-model:value="activeTab">
       <TabList>
-        <Tab value="0"> Custom </Tab>
-        <Tab value="1"> Bank </Tab>
+        <Tab value="0"> Bank </Tab>
+        <Tab value="1"> Custom </Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="0">
+          <div class="flex flex-col w-full justify-center items-center gap-4">
+            <h3>Import your bank statement</h3>
+            <span class="text-sm" style="color: var(--text-secondary)"
+              >Upload a PDF monthly statement from your bank, or generate a CSV
+              export. The transactions will be extracted automatically.</span
+            >
+
+            <FileUpload
+              ref="bankUploadRef"
+              accept=".pdf, .csv, application/pdf, text/csv"
+              :max-file-size="10485760"
+              :multiple="false"
+              custom-upload
+              :show-upload-button="false"
+              :show-cancel-button="false"
+              @select="onBankSelect"
+              @clear="onBankClear"
+            >
+              <template #header="{ chooseCallback }">
+                <div class="w-full flex flex-row justify-center">
+                  <Button
+                    class="outline-button w-3/12"
+                    label="Upload"
+                    @click="chooseCallback()"
+                  />
+                </div>
+              </template>
+
+              <template #content>
+                <div
+                  v-if="bankFiles.length > 0"
+                  class="flex flex-col gap-1 w-full items-center"
+                >
+                  <h5>Pending</h5>
+                  <div class="flex flex-wrap gap-2 w-full">
+                    <div
+                      v-for="file in bankFiles"
+                      :key="file.name + file.type + file.size"
+                      class="flex flex-row gap-2 p-1 w-full justify-center items-center"
+                    >
+                      <span
+                        class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
+                        >{{ file.name }}</span
+                      >
+                      <Badge
+                        :value="bankTxns.length > 0 ? 'Parsed' : 'Pending'"
+                        :severity="bankTxns.length > 0 ? 'info' : 'warn'"
+                      />
+                      <i
+                        class="pi pi-times hover-icon"
+                        style="color: var(--p-red-300)"
+                        @click="onBankClear"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </FileUpload>
+
+            <Button
+              v-if="bankFiles.length > 0 && bankTxns.length === 0"
+              class="outline-button w-3/12"
+              label="Parse"
+              :loading="bankParsing"
+              @click="parseBankStatement"
+            />
+
+            <DataTable
+              v-if="bankTxns.length > 0"
+              class="w-full enhanced-table"
+              :value="bankTxns"
+              scrollable
+              scroll-height="40vh"
+            >
+              <Column field="txn_date" header="Date">
+                <template #body="{ data }">
+                  {{ data.txn_date.slice(0, 10) }}
+                </template>
+              </Column>
+              <Column field="transaction_type" header="Type" />
+              <Column field="amount" header="Amount" />
+              <Column field="description" header="Description" />
+              <Column field="external_txn_id" header="Bank ID" />
+            </DataTable>
+
+            <div
+              v-if="bankTxns.length > 0 && !importing"
+              class="flex flex-col w-full gap-2 items-center justify-center"
+            >
+              <div class="text-sm" style="color: var(--text-secondary)">
+                Select an account which will receive the import transactions.
+                <div class="flex items-center gap-1">
+                  <Checkbox
+                    v-model="useNonCheckingAccount"
+                    :binary="true"
+                    input-id="use-non-check-bank"
+                    @update:model-value="fetchSourceAccounts"
+                  />
+                  <label
+                    for="use-non-check-bank"
+                    style="color: var(--text-secondary)"
+                    >Use non checking account</label
+                  >
+                </div>
+              </div>
+              <AutoComplete
+                v-model="selectedCheckingAcc"
+                size="small"
+                :suggestions="filteredSourceAccounts"
+                option-label="name"
+                force-selection
+                placeholder="Select checking account"
+                dropdown
+                @complete="searchAccount($event, 'source')"
+              />
+              <span
+                v-if="!selectedCheckingAcc"
+                class="text-sm"
+                style="color: var(--text-secondary)"
+                >Please select an account.</span
+              >
+            </div>
+            <ShowLoading v-else-if="importing" :num-fields="3" />
+          </div>
+        </TabPanel>
+        <TabPanel value="1">
           <div
             v-if="sourceAccounts.length > 0"
             class="flex flex-col w-full justify-center items-center gap-4"
@@ -394,11 +593,6 @@ defineExpose({ isDisabled, importTransactions });
               <span> to start importing. </span>
             </span>
           </div>
-        </TabPanel>
-        <TabPanel value="1">
-          <span style="color: var(--text-secondary)">
-            Bank imports are currently unsupported!
-          </span>
         </TabPanel>
       </TabPanels>
     </Tabs>

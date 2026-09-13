@@ -46,6 +46,8 @@ func (h *ImportHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.POST("custom/savings", authz.RequireAllMW("manage_data"), h.TransferSavingsFromImport)
 	apiGroup.POST("custom/repayments", authz.RequireAllMW("manage_data"), h.TransferRepaymentsFromImport)
 	apiGroup.POST("custom/trades", authz.RequireAllMW("manage_data"), h.TransferInvestmentTrades)
+	apiGroup.POST("bank/parse", authz.RequireAllMW("manage_data"), h.ParseBankStatement)
+	apiGroup.POST("bank/transactions", authz.RequireAllMW("manage_data"), h.ImportBankTransactions)
 	apiGroup.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteImport)
 }
 
@@ -171,6 +173,46 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 		"sample":         sample,
 		"categories":     categories,
 		"step":           step,
+	})
+}
+
+func (h *ImportHandler) ParseBankStatement(c *gin.Context) {
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
+		return
+	}
+
+	f, err := fileHeader.Open()
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
+		return
+	}
+	defer func(f multipart.File) {
+		if err := f.Close(); err != nil {
+			_ = c.Error(err)
+		}
+	}(f)
+
+	bankName := strings.ToLower(strings.TrimSpace(c.PostForm("bank")))
+	if bankName == "" {
+		bankName = "nlb"
+	}
+
+	payload, err := h.Service.ParseBankStatement(bankName, fileHeader.Filename, f)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bank":         bankName,
+		"identifier":   payload.Identifier,
+		"count":        len(payload.Txns),
+		"transactions": payload.Txns,
 	})
 }
 
@@ -353,12 +395,72 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ImportTransactions(ctx, userID, checkAccID, payload); err != nil {
+	if _, err := h.Service.ImportTransactions(ctx, userID, checkAccID, models.ImportTypeCustom, payload); err != nil {
 		_ = c.Error(err)
 		return
 	}
 
 	utils.SuccessMessage(c, "Transaction import successful", "Success", http.StatusOK)
+}
+
+func (h *ImportHandler) ImportBankTransactions(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	checkAccIDStr := c.Query("check_acc_id")
+	if checkAccIDStr == "" {
+		_ = c.Error(apperr.New(apperr.Invalid, "check_acc_id is required"))
+		return
+	}
+
+	checkAccID, err := strconv.ParseInt(checkAccIDStr, 10, 64)
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "check_acc_id must be a valid integer", err))
+		return
+	}
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
+		return
+	}
+
+	f, err := fileHeader.Open()
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
+		return
+	}
+	defer func(f multipart.File) {
+		if err := f.Close(); err != nil {
+			_ = c.Error(err)
+		}
+	}(f)
+
+	bankName := strings.ToLower(strings.TrimSpace(c.PostForm("bank")))
+	if bankName == "" {
+		bankName = "nlb"
+	}
+
+	payload, err := h.Service.ParseBankStatement(bankName, fileHeader.Filename, f)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	skipped, err := h.Service.ImportTransactions(ctx, userID, checkAccID, models.ImportTypeBank, payload)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	msg := fmt.Sprintf("Imported %d transactions", len(payload.Txns)-skipped)
+	if skipped > 0 {
+		msg = fmt.Sprintf("%s, skipped %d already imported", msg, skipped)
+	}
+	utils.SuccessMessage(c, msg, "Success", http.StatusOK)
 }
 
 func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {

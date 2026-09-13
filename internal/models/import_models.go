@@ -4,6 +4,11 @@ import (
 	"time"
 )
 
+const (
+	ImportTypeCustom = "custom"
+	ImportTypeBank   = "bank"
+)
+
 type Import struct {
 	ID                     int64      `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name                   string     `gorm:"size:128;not null" json:"name"`

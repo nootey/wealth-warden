@@ -34,6 +34,7 @@ type TransactionRepositoryInterface interface {
 	FindTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error)
 	FindTransactionsByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transaction, error)
 	FindTransactionByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transaction, error)
+	FindTransactionByExternalID(ctx context.Context, tx *gorm.DB, accountID int64, externalID string) (models.Transaction, error)
 	FindTransferByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.Transfer, error)
 	FindTransfersByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transfer, error)
 	FindTransferByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transfer, error)
@@ -503,6 +504,18 @@ func (r *TransactionRepository) FindTransactionByIdempotencyKey(ctx context.Cont
 
 	var record models.Transaction
 	result := db.Where("user_id = ? AND idempotency_key = ? AND deleted_at IS NULL", userID, key).First(&record)
+	return record, result.Error
+}
+
+func (r *TransactionRepository) FindTransactionByExternalID(ctx context.Context, tx *gorm.DB, accountID int64, externalID string) (models.Transaction, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record models.Transaction
+	result := db.Where("account_id = ? AND external_txn_id = ?", accountID, externalID).First(&record)
 	return record, result.Error
 }
 

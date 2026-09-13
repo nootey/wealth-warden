@@ -107,7 +107,12 @@ defineExpose({ isDisabled, startOperation });
               @click="selectedRef = 'accounts'"
             >
               <i class="pi pi-building" style="color: #f05737" />
-              <span>Import accounts</span>
+              <div class="flex flex-col">
+                <span>Import accounts</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Create accounts from a JSON file, with their opening balances.
+                </span>
+              </div>
               <i
                 class="pi pi-chevron-right"
                 style="margin-left: auto; color: var(--text-secondary)"
@@ -119,7 +124,12 @@ defineExpose({ isDisabled, startOperation });
               @click="selectedRef = 'categories'"
             >
               <i class="pi pi-gift" style="color: #fa8c73" />
-              <span>Import categories</span>
+              <div class="flex flex-col">
+                <span>Import categories</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Create categories and category groups from a JSON file.
+                </span>
+              </div>
               <i
                 class="pi pi-chevron-right"
                 style="margin-left: auto; color: var(--text-secondary)"
@@ -131,7 +141,12 @@ defineExpose({ isDisabled, startOperation });
               @click="selectedRef = 'transactions'"
             >
               <i class="pi pi-book" style="color: #486af0" />
-              <span>Import transactions</span>
+              <div class="flex flex-col">
+                <span>Import transactions</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Load a JSON file of transactions into a checking account.
+                </span>
+              </div>
               <i
                 class="pi pi-chevron-right"
                 style="margin-left: auto; color: var(--text-secondary)"
@@ -143,7 +158,13 @@ defineExpose({ isDisabled, startOperation });
               @click="selectedRef = 'investments'"
             >
               <i class="pi pi-chart-line" style="color: #9948f0" />
-              <span>Transfer investments</span>
+              <div class="flex flex-col">
+                <span>Transfer investments</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Move investment rows from a completed transaction import into
+                  your investment accounts.
+                </span>
+              </div>
               <i
                 class="pi pi-chevron-right"
                 style="margin-left: auto; color: var(--text-secondary)"
@@ -155,7 +176,13 @@ defineExpose({ isDisabled, startOperation });
               @click="selectedRef = 'savings'"
             >
               <i class="pi pi-building-columns" style="color: #c166f2" />
-              <span>Transfer savings</span>
+              <div class="flex flex-col">
+                <span>Transfer savings</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Move savings rows from a completed transaction import into
+                  your savings accounts.
+                </span>
+              </div>
               <i
                 class="pi pi-chevron-right"
                 style="margin-left: auto; color: var(--text-secondary)"
@@ -167,7 +194,13 @@ defineExpose({ isDisabled, startOperation });
               @click="selectedRef = 'repayments'"
             >
               <i class="pi pi-upload" style="color: #48f05c" />
-              <span>Transfer repayments</span>
+              <div class="flex flex-col">
+                <span>Transfer repayments</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Move repayment rows from a completed transaction import into
+                  your loan accounts.
+                </span>
+              </div>
               <i
                 class="pi pi-chevron-right"
                 style="margin-left: auto; color: var(--text-secondary)"
@@ -179,7 +212,13 @@ defineExpose({ isDisabled, startOperation });
               @click="selectedRef = 'trades'"
             >
               <i class="pi pi-bitcoin" style="color: #ffc30d" />
-              <span>Transfer trades</span>
+              <div class="flex flex-col">
+                <span>Transfer trades</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Load a JSON file of buy and sell trades into your investment
+                  accounts.
+                </span>
+              </div>
               <i
                 class="pi pi-chevron-right"
                 style="margin-left: auto; color: var(--text-secondary)"
