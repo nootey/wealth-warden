@@ -30,9 +30,9 @@ async function exportData() {
     <h3>Export your data</h3>
     <span
       >This will create a downloadable snapshot of your accounts, transactions,
-      transfers and categories.</span
+      transfers, categories and rules.</span
     >
-    <span>A zip file will be created for the seperate exported modules.</span>
+    <span>A zip file will be created for the separate exported modules.</span>
     <Button
       class="main-button w-3/12"
       label="Export"

@@ -1,6 +1,10 @@
 package services_test
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -187,4 +191,95 @@ func (s *ImportServiceSuite) TestParseBankStatementsRejectsMixedKinds() {
 	_, err := s.TC.App.ImportService.ParseBankStatements("nlb", files)
 	s.Require().Error(err)
 	s.Contains(err.Error(), "not both")
+}
+
+// A rule with a nested condition group must round-trip through export and import: conditions
+// come back as the same tree, and the set_category action resolves by category name, not id.
+func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	groceriesCat, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+
+	isActive := true
+	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
+		Name:      "grocery stores",
+		IsActive:  &isActive,
+		MatchType: models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{
+			{IsGroup: true, MatchType: models.RuleMatchAny, Conditions: []models.RuleConditionReq{
+				{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "MERCATOR"},
+				{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "SPAR"},
+			}},
+		},
+		Actions: []models.RuleActionReq{
+			{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(groceriesCat, 10)},
+		},
+	})
+	s.Require().NoError(err)
+
+	export, err := s.TC.App.ExportService.CreateExport(s.Ctx, seedUserID)
+	s.Require().NoError(err)
+	zipData, err := s.TC.App.ExportService.DownloadExport(s.Ctx, export.ID, seedUserID)
+	s.Require().NoError(err)
+
+	zr, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+	s.Require().NoError(err)
+	var rulesJSON []byte
+	for _, f := range zr.File {
+		if f.Name != "rules.json" {
+			continue
+		}
+		rc, err := f.Open()
+		s.Require().NoError(err)
+		rulesJSON, err = io.ReadAll(rc)
+		s.Require().NoError(err)
+		_ = rc.Close()
+	}
+	s.Require().NotEmpty(rulesJSON)
+
+	var payload models.RuleImportPayload
+	s.Require().NoError(json.Unmarshal(rulesJSON, &payload))
+
+	var exported *models.RuleExport
+	for i, r := range payload.Rules {
+		if r.Name == "grocery stores" {
+			exported = &payload.Rules[i]
+		}
+	}
+	s.Require().NotNil(exported, "the rule created for this test must be in the export")
+	s.Require().Len(exported.Conditions, 1)
+	s.True(exported.Conditions[0].IsGroup)
+	s.Require().Len(exported.Conditions[0].Conditions, 2)
+	s.Require().Len(exported.Actions, 1)
+	s.Equal("groceries", exported.Actions[0].Value) // category name, not id
+
+	importPayload := models.RuleImportPayload{GeneratedAt: payload.GeneratedAt, Rules: []models.RuleExport{*exported}}
+	s.Require().NoError(s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, importPayload))
+
+	var imported models.Rule
+	s.Require().NoError(s.TC.DB.
+		Preload("Conditions").
+		Preload("Actions").
+		Where("user_id = ? AND name = ? AND import_id IS NOT NULL", seedUserID, "grocery stores").
+		First(&imported).Error)
+
+	s.Require().Len(imported.Actions, 1)
+	s.Equal(strconv.FormatInt(groceriesCat, 10), imported.Actions[0].Value)
+
+	s.Require().Len(imported.Conditions, 3)
+	var group models.RuleCondition
+	leafCount := 0
+	for _, c := range imported.Conditions {
+		if c.IsGroup {
+			group = c
+		}
+	}
+	s.Require().NotZero(group.ID)
+	for _, c := range imported.Conditions {
+		if c.ParentID != nil && *c.ParentID == group.ID {
+			leafCount++
+		}
+	}
+	s.Equal(2, leafCount)
 }

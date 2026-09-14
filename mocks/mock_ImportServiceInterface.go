@@ -387,6 +387,69 @@ func (_c *MockImportServiceInterface_ImportCategories_Call) RunAndReturn(run fun
 	return _c
 }
 
+// ImportRules provides a mock function for the type MockImportServiceInterface
+func (_mock *MockImportServiceInterface) ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) error {
+	ret := _mock.Called(ctx, userID, payload)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ImportRules")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.RuleImportPayload) error); ok {
+		r0 = returnFunc(ctx, userID, payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockImportServiceInterface_ImportRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ImportRules'
+type MockImportServiceInterface_ImportRules_Call struct {
+	*mock.Call
+}
+
+// ImportRules is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - payload models.RuleImportPayload
+func (_e *MockImportServiceInterface_Expecter) ImportRules(ctx any, userID any, payload any) *MockImportServiceInterface_ImportRules_Call {
+	return &MockImportServiceInterface_ImportRules_Call{Call: _e.mock.On("ImportRules", ctx, userID, payload)}
+}
+
+func (_c *MockImportServiceInterface_ImportRules_Call) Run(run func(ctx context.Context, userID int64, payload models.RuleImportPayload)) *MockImportServiceInterface_ImportRules_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 models.RuleImportPayload
+		if args[2] != nil {
+			arg2 = args[2].(models.RuleImportPayload)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockImportServiceInterface_ImportRules_Call) Return(err error) *MockImportServiceInterface_ImportRules_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockImportServiceInterface_ImportRules_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload models.RuleImportPayload) error) *MockImportServiceInterface_ImportRules_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ImportTransactions provides a mock function for the type MockImportServiceInterface
 func (_mock *MockImportServiceInterface) ImportTransactions(ctx context.Context, userID int64, checkID int64, source string, payload models.TxnImportPayload) (int, error) {
 	ret := _mock.Called(ctx, userID, checkID, source, payload)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
@@ -33,6 +34,7 @@ type ExportService struct {
 	accRepo       repositories.AccountRepositoryInterface
 	balanceRepo   repositories.BalanceRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
+	rulesRepo     repositories.RulesRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 }
 
@@ -42,6 +44,7 @@ func NewExportService(
 	accRepo *repositories.AccountRepository,
 	balanceRepo *repositories.BalanceRepository,
 	settingsRepo *repositories.SettingsRepository,
+	rulesRepo *repositories.RulesRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *ExportService {
 	return &ExportService{
@@ -50,6 +53,7 @@ func NewExportService(
 		accRepo:       accRepo,
 		balanceRepo:   balanceRepo,
 		settingsRepo:  settingsRepo,
+		rulesRepo:     rulesRepo,
 		jobDispatcher: jobDispatcher,
 	}
 }
@@ -128,6 +132,71 @@ func (s *ExportService) buildCategoryExportJSON(cats []models.Category) ([]byte,
 	}
 
 	return json.MarshalIndent(out, "", "  ")
+}
+
+func (s *ExportService) buildRuleExportJSON(rules []models.Rule, categories []models.Category) ([]byte, error) {
+	type bundle struct {
+		GeneratedAt time.Time           `json:"generated_at"`
+		Rules       []models.RuleExport `json:"rules"`
+	}
+
+	catNameByID := make(map[int64]string, len(categories))
+	for _, c := range categories {
+		catNameByID[c.ID] = c.Name
+	}
+
+	out := bundle{
+		GeneratedAt: time.Now().UTC(),
+		Rules:       make([]models.RuleExport, 0, len(rules)),
+	}
+
+	for _, r := range rules {
+		e := models.RuleExport{
+			Name:          r.Name,
+			IsActive:      r.IsActive,
+			MatchType:     r.MatchType,
+			EffectiveDate: r.EffectiveDate,
+			Conditions:    buildRuleConditionExportTree(r.Conditions, nil),
+		}
+
+		for _, a := range r.Actions {
+			value := a.Value
+			if a.ActionType == models.RuleActionSetCategory {
+				if id, err := strconv.ParseInt(a.Value, 10, 64); err == nil {
+					if name, ok := catNameByID[id]; ok {
+						value = name
+					}
+				}
+			}
+			e.Actions = append(e.Actions, models.RuleActionExport{ActionType: a.ActionType, Value: value})
+		}
+
+		out.Rules = append(out.Rules, e)
+	}
+
+	return json.MarshalIndent(out, "", "  ")
+}
+
+func buildRuleConditionExportTree(conditions []models.RuleCondition, parentID *int64) []models.RuleConditionExport {
+	out := make([]models.RuleConditionExport, 0)
+	for _, c := range conditions {
+		if (c.ParentID == nil) != (parentID == nil) || (parentID != nil && *c.ParentID != *parentID) {
+			continue
+		}
+		e := models.RuleConditionExport{
+			IsGroup:   c.IsGroup,
+			MatchType: c.MatchType,
+			Field:     c.Field,
+			Operator:  c.Operator,
+			Value:     c.Value,
+		}
+		if c.IsGroup {
+			id := c.ID
+			e.Conditions = buildRuleConditionExportTree(conditions, &id)
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func (s *ExportService) buildTxnAndTransfersExportJSON(txns []models.Transaction, transfers []models.Transfer) ([]byte, error) {
@@ -278,6 +347,16 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		return nil, err
 	}
 
+	rules, err := s.rulesRepo.FindRules(ctx, tx, userID, false)
+	if err != nil {
+		tx.Rollback()
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
+		return nil, err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
 		if sErr != nil {
@@ -314,6 +393,15 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		return nil, err
 	}
 
+	rulesJSON, err := s.buildRuleExportJSON(rules, categories)
+	if err != nil {
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
+		return nil, err
+	}
+
 	// Create ZIP
 	var buf bytes.Buffer
 	zipWriter := zip.NewWriter(&buf)
@@ -322,6 +410,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		"accounts.json":     accJSON,
 		"categories.json":   catJSON,
 		"transactions.json": txnsJSON,
+		"rules.json":        rulesJSON,
 	}
 
 	for name, data := range files {
@@ -387,6 +476,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	utils.CompareChanges("", fmt.Sprintf("%d", len(categories)), changes, "categories_count")
 	utils.CompareChanges("", fmt.Sprintf("%d", len(txns)), changes, "transactions_count")
 	utils.CompareChanges("", fmt.Sprintf("%d", len(transfers)), changes, "transfers_count")
+	utils.CompareChanges("", fmt.Sprintf("%d", len(rules)), changes, "rules_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",

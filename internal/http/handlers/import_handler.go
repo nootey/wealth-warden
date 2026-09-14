@@ -41,6 +41,7 @@ func (h *ImportHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.POST("custom/validate", authz.RequireAllMW("manage_data"), h.ValidateCustomImport)
 	apiGroup.POST("custom/accounts", authz.RequireAllMW("manage_data"), h.ImportAccounts)
 	apiGroup.POST("custom/categories", authz.RequireAllMW("manage_data"), h.ImportCategories)
+	apiGroup.POST("custom/rules", authz.RequireAllMW("manage_data"), h.ImportRules)
 	apiGroup.POST("custom/transactions", authz.RequireAllMW("manage_data"), h.ImportTransactions)
 	apiGroup.POST("custom/investments", authz.RequireAllMW("manage_data"), h.TransferInvestmentsFromImport)
 	apiGroup.POST("custom/savings", authz.RequireAllMW("manage_data"), h.TransferSavingsFromImport)
@@ -345,6 +346,57 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Category import successful", "Success", http.StatusOK)
+}
+
+func (h *ImportHandler) ImportRules(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A file is required", err))
+		return
+	}
+
+	f, err := fileHeader.Open()
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The uploaded file could not be opened", err))
+		return
+	}
+	defer func(f multipart.File) {
+		if err := f.Close(); err != nil {
+			_ = c.Error(err)
+		}
+	}(f)
+
+	var payload models.RuleImportPayload
+
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&payload); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "The file is not valid JSON", err))
+		return
+	}
+
+	if dec.More() {
+		_ = c.Error(apperr.New(apperr.Invalid, "The file has unexpected data after the JSON object"))
+		return
+	}
+
+	// Validate
+	if err := h.v.ValidateStruct(payload); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
+	if err := h.Service.ImportRules(ctx, userID, payload); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Rule import successful", "Success", http.StatusOK)
 }
 
 func (h *ImportHandler) ImportTransactions(c *gin.Context) {

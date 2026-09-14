@@ -43,6 +43,11 @@ type CategoryImportPayload struct {
 	Categories  []CategoryExport `json:"categories" validate:"required"`
 }
 
+type RuleImportPayload struct {
+	GeneratedAt time.Time    `json:"generated_at" validate:"required"`
+	Rules       []RuleExport `json:"rules" validate:"required"`
+}
+
 type TxnImportPayload struct {
 	Identifier          string            `json:"identifier" validate:"required"`
 	GeneratedAt         time.Time         `json:"generated_at" validate:"required"`

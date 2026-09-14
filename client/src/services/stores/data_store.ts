@@ -59,6 +59,14 @@ export const useDataStore = defineStore("data", {
       return data;
     },
 
+    async importRules(payload: unknown) {
+      const { data } = await apiClient.post(
+        `${this.importPrefix}/custom/rules`,
+        payload,
+      );
+      return data;
+    },
+
     async transferInvestmentsFromImport(payload: {
       import_id: number | string;
       checking_acc_id: number;

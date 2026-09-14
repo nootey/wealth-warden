@@ -14,6 +14,7 @@ type RulesRepositoryInterface interface {
 	InsertRule(ctx context.Context, tx *gorm.DB, newRecord *models.Rule) (int64, error)
 	UpdateRule(ctx context.Context, tx *gorm.DB, record models.Rule) (int64, error)
 	DeleteRule(ctx context.Context, tx *gorm.DB, id int64) error
+	PurgeImportedRules(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error)
 }
 
 type RulesRepository struct {
@@ -153,4 +154,15 @@ func (r *RulesRepository) DeleteRule(ctx context.Context, tx *gorm.DB, id int64)
 	db = db.WithContext(ctx)
 
 	return db.Where("id = ?", id).Delete(&models.Rule{}).Error
+}
+
+func (r *RulesRepository) PurgeImportedRules(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Where("user_id = ? AND import_id = ?", userID, importID).Delete(&models.Rule{})
+	return res.RowsAffected, res.Error
 }

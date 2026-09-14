@@ -4,6 +4,7 @@ import ImportTransactions from "../../features/imports/ImportTransactions.vue";
 import ImportInvestments from "../../features/imports/ImportInvestments.vue";
 import ImportAccounts from "../../features/imports/ImportAccounts.vue";
 import ImportCategories from "../../features/imports/ImportCategories.vue";
+import ImportRules from "../../features/imports/ImportRules.vue";
 import ImportSavings from "../../features/imports/ImportSavings.vue";
 import ImportRepayments from "../../features/imports/ImportRepayments.vue";
 import ImportInvestmentTrades from "../../features/imports/ImportInvestmentTrades.vue";
@@ -16,6 +17,7 @@ const selectedRef = ref("");
 
 const accRef = ref<InstanceType<typeof ImportAccounts> | null>(null);
 const catRef = ref<InstanceType<typeof ImportCategories> | null>(null);
+const ruleRef = ref<InstanceType<typeof ImportRules> | null>(null);
 const txnRef = ref<InstanceType<typeof ImportTransactions> | null>(null);
 const invRef = ref<InstanceType<typeof ImportInvestments> | null>(null);
 const savRef = ref<InstanceType<typeof ImportSavings> | null>(null);
@@ -47,6 +49,9 @@ async function startOperation() {
     case "categories":
       catRef.value?.importCategories();
       break;
+    case "rules":
+      ruleRef.value?.importRules();
+      break;
     case "trades":
       tradeRef.value?.transferInvestmentTrades();
       break;
@@ -69,6 +74,8 @@ const isDisabled = computed(() => {
       return accRef.value?.isDisabled ?? true;
     case "categories":
       return catRef.value?.isDisabled ?? true;
+    case "rules":
+      return ruleRef.value?.isDisabled ?? true;
     case "trades":
       return tradeRef.value?.isDisabled ?? true;
     default:
@@ -110,6 +117,11 @@ defineExpose({ isDisabled, isBusy, startOperation });
             class="flex flex-col w-full rounded-2xl p-2 gap-2"
             style="background: var(--background-primary)"
           >
+            <span
+              class="text-xs font-semibold uppercase px-2"
+              style="color: var(--text-secondary)"
+              >Native</span
+            >
             <div
               class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'accounts'"
@@ -146,6 +158,23 @@ defineExpose({ isDisabled, isBusy, startOperation });
             <div style="border-bottom: 2px solid var(--border-color)" />
             <div
               class="flex flex-row gap-2 p-2 items-center hover-icon"
+              @click="selectedRef = 'rules'"
+            >
+              <i class="pi pi-filter" style="color: #48c9f0" />
+              <div class="flex flex-col">
+                <span>Import rules</span>
+                <span class="text-xs" style="color: var(--text-secondary)">
+                  Create categorization rules from a JSON file.
+                </span>
+              </div>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
+            <div style="border-bottom: 2px solid var(--border-color)" />
+            <div
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'transactions'"
             >
               <i class="pi pi-book" style="color: #486af0" />
@@ -161,6 +190,11 @@ defineExpose({ isDisabled, isBusy, startOperation });
               />
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
+            <span
+              class="text-xs font-semibold uppercase px-2"
+              style="color: var(--text-secondary)"
+              >Custom</span
+            >
             <div
               class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'investments'"
@@ -246,6 +280,11 @@ defineExpose({ isDisabled, isBusy, startOperation });
       <ImportCategories
         v-else-if="selectedRef === 'categories'"
         ref="catRef"
+        @complete-import="completeAction('import')"
+      />
+      <ImportRules
+        v-else-if="selectedRef === 'rules'"
+        ref="ruleRef"
         @complete-import="completeAction('import')"
       />
       <ImportTransactions

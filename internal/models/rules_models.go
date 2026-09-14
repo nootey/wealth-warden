@@ -33,6 +33,7 @@ type Rule struct {
 	EffectiveDate *time.Time      `gorm:"type:date" json:"effective_date,omitempty"`
 	Conditions    []RuleCondition `gorm:"foreignKey:RuleID" json:"conditions"`
 	Actions       []RuleAction    `gorm:"foreignKey:RuleID" json:"actions"`
+	ImportID      *int64          `json:"import_id,omitempty"`
 	CreatedAt     time.Time       `gorm:"autoCreateTime;not null" json:"created_at"`
 	UpdatedAt     time.Time       `gorm:"autoUpdateTime;not null" json:"updated_at"`
 }

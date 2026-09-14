@@ -35,6 +35,7 @@ type ImportServiceInterface interface {
 	ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int, error)
 	ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error
 	ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) error
+	ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) error
 	TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error
 	TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
@@ -1065,6 +1066,201 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 	utils.CompareChanges("", "categories", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)), changes, "categories_count")
+
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+		Event:       "create",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) buildRuleFromImport(ctx context.Context, tx *gorm.DB, userID int64, r models.RuleExport) (models.Rule, error) {
+	rule := models.Rule{
+		UserID:        userID,
+		Name:          r.Name,
+		IsActive:      r.IsActive,
+		MatchType:     r.MatchType,
+		EffectiveDate: r.EffectiveDate,
+		Conditions:    buildRuleConditionsFromExport(r.Conditions),
+	}
+
+	for _, a := range r.Actions {
+		value := a.Value
+		if a.ActionType == models.RuleActionSetCategory {
+			cat, err := s.txnRepo.FindCategoryByName(ctx, tx, a.Value, &userID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return rule, apperr.New(apperr.Validation, fmt.Sprintf("The category %q from the rule %q was not found", a.Value, r.Name))
+				}
+				return rule, err
+			}
+			value = strconv.FormatInt(cat.ID, 10)
+		}
+		rule.Actions = append(rule.Actions, models.RuleAction{ActionType: a.ActionType, Value: value})
+	}
+
+	return rule, nil
+}
+
+func buildRuleConditionsFromExport(conditions []models.RuleConditionExport) []models.RuleCondition {
+	out := make([]models.RuleCondition, 0, len(conditions))
+	for i, c := range conditions {
+		rc := models.RuleCondition{
+			IsGroup:   c.IsGroup,
+			MatchType: c.MatchType,
+			Field:     c.Field,
+			Operator:  c.Operator,
+			Value:     c.Value,
+			Position:  i,
+		}
+		if c.IsGroup {
+			rc.Children = buildRuleConditionsFromExport(c.Conditions)
+		}
+		out = append(out, rc)
+	}
+	return out
+}
+
+func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) error {
+
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	importName := fmt.Sprintf("custom_rules_generated_%s", todayStr)
+
+	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
+	finalPath := filepath.Join(dir, importName+".json")
+	tmpPath := filepath.Join(dir, importName+".json.tmp")
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	// Hard duplicate check
+	if _, err := os.Stat(finalPath); err == nil {
+		return ErrImportFileExists
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Reserve the name with an exclusive temp file
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return ErrImportFileExists
+		}
+		return err
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	ruleSettings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	// create the import as PENDING
+	started := time.Now().UTC()
+
+	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
+		Name:      importName,
+		UserID:    userID,
+		Type:      "custom",
+		SubType:   "rules",
+		Status:    "pending",
+		Step:      "rules",
+		Currency:  ruleSettings.DefaultCurrency,
+		StartedAt: &started,
+	})
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			s.markImportFailed(ctx, userID, importID, err)
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	for i, r := range payload.Rules {
+		rule, err := s.buildRuleFromImport(ctx, tx, userID, r)
+		if err != nil {
+			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("rule_name", r.Name))
+			tx.Rollback()
+			return err
+		}
+		rule.ImportID = &importID
+
+		if _, err := s.rulesRepo.InsertRule(ctx, tx, &rule); err != nil {
+			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("rule_name", r.Name))
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Write payload to the reserved temp file
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Promote the temp file to final
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+
+	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
+		"status":       "success",
+		"step":         "end",
+		"completed_at": time.Now().UTC(),
+		"error":        "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+	}
+
+	// Log
+	changes := utils.InitChanges()
+	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", "rules", changes, "sub_type")
+	utils.CompareChanges("", importName, changes, "name")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Rules)), changes, "rules_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -2343,6 +2539,11 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 		if err != nil {
 			return err
 		}
+	case "rules":
+		err = s.deleteRulesImport(ctx, userID, imp)
+		if err != nil {
+			return err
+		}
 	case "trades":
 		err = s.deleteTradesImport(ctx, userID, imp)
 		if err != nil {
@@ -2567,6 +2768,48 @@ func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *
 
 	// hard delete the data
 	if err := s.accRepo.PurgeImportedAccounts(ctx, tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete import row
+	if err := s.repo.DeleteImport(ctx, tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete import files
+	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
+	tmpPath := finalPath + ".tmp"
+	for _, p := range []string{tmpPath, finalPath} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			tx.Rollback()
+			return fmt.Errorf("failed to remove file %s: %w", p, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) deleteRulesImport(ctx context.Context, userID int64, imp *models.Import) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// hard delete the data
+	if _, err := s.rulesRepo.PurgeImportedRules(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
