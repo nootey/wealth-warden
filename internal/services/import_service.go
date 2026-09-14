@@ -2257,8 +2257,12 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) error {
 
-	imp, err := s.FetchImportByID(ctx, id, userID, "custom")
+	// Both custom and bank imports are listed for deletion, so no type filter here.
+	imp, err := s.FetchImportByID(ctx, id, userID, "")
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.New(apperr.NotFound, "Import not found")
+		}
 		return err
 	}
 

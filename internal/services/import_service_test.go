@@ -1,10 +1,13 @@
 package services_test
 
 import (
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
 
@@ -98,6 +101,38 @@ func (s *ImportServiceSuite) TestParseBankStatementsMergesFiles() {
 	s.Equal("TX3", *payload.Txns[2].ExternalTxnID)
 }
 
+// Bank imports are listed next to custom ones, so deleting one must remove its rows and the import itself.
+func (s *ImportServiceSuite) TestDeleteBankImport() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, s.bankPayload("nlb_del", "TX1", "TX2"))
+	s.Require().NoError(err)
+
+	var imp models.Import
+	s.Require().NoError(s.TC.DB.Where("name LIKE ?", "txns_nlb_del%").First(&imp).Error)
+
+	s.Require().NoError(s.TC.App.ImportService.DeleteImport(s.Ctx, seedUserID, imp.ID))
+
+	var count int64
+	s.Require().NoError(s.TC.DB.Model(&models.Transaction{}).Where("import_id = ?", imp.ID).Count(&count).Error)
+	s.Equal(int64(0), count)
+	s.Require().NoError(s.TC.DB.Model(&models.Import{}).Where("id = ?", imp.ID).Count(&count).Error)
+	s.Equal(int64(0), count)
+
+	err = s.TC.App.ImportService.DeleteImport(s.Ctx, seedUserID, imp.ID)
+	s.Require().Error(err)
+	status, _ := apperr.Resolve(err)
+	s.Equal(http.StatusNotFound, status)
+}
 func (s *ImportServiceSuite) TestParseBankStatementsRejectsMixedKinds() {
 	files := []models.BankStatementFile{
 		{Name: "a.csv", Reader: strings.NewReader("")},

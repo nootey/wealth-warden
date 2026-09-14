@@ -79,7 +79,10 @@ func (r *ImportRepository) FindImportByID(ctx context.Context, tx *gorm.DB, id, 
 
 	var record models.Import
 	q := db.Model(&models.Import{}).
-		Where("id= ? AND user_id = ? AND type = ?", id, userID, importType)
+		Where("id = ? AND user_id = ?", id, userID)
+	if importType != "" {
+		q = q.Where("type = ?", importType)
+	}
 
 	err := q.First(&record).Error
 	if err != nil {
