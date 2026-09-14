@@ -40,6 +40,11 @@ const trTemplateCount = ref<number>(0);
 
 const activeTab = ref("transactions");
 
+const directionOptions = [
+  { label: "Income", value: "income" },
+  { label: "Expense", value: "expense" },
+];
+
 const activeColumns = computed<Column[]>(() => [
   {
     field: "account",
@@ -57,6 +62,15 @@ const activeColumns = computed<Column[]>(() => [
     hideOnMobile: true,
   },
   { field: "amount", header: "Amount", type: "number" },
+  {
+    field: "direction",
+    header: "Direction",
+    type: "enum",
+    options: directionOptions,
+    optionLabel: "label",
+    optionValue: "value",
+    hideOnMobile: true,
+  },
   { field: "txn_date", header: "Date", type: "date" },
   {
     field: "description",

@@ -29,6 +29,10 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			Join:         "LEFT JOIN accounts ON accounts.id = transactions.account_id",
 			OrEquals:     true,
 		},
+		"direction": {
+			Column:   "direction",
+			OrEquals: true,
+		},
 	},
 	"transfers": {
 		"from": {
