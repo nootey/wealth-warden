@@ -335,6 +335,24 @@ defineExpose({ isDisabled, importing, importTransactions });
               rows.</span
             >
 
+            <div
+              class="flex flex-col gap-2 p-4 rounded-xl text-sm"
+              style="
+                background: var(--background-secondary);
+                border: 1px solid var(--border-color);
+                color: var(--text-secondary);
+              "
+            >
+              <div class="flex flex-row gap-2 items-center justify-center">
+                <i class="pi pi-info-circle" style="flex-shrink: 0" />
+                <span class="text-xs">
+                  Only NLB bank statements are tested. CSV import expects these
+                  columns: amount, +/-, value date, description. Other banks or
+                  formats may fail to import or import incorrectly.
+                </span>
+              </div>
+            </div>
+
             <FileUpload
               ref="bankUploadRef"
               accept=".pdf, .csv, application/pdf, text/csv"
