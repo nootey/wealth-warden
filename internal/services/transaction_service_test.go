@@ -66,7 +66,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 		First(&transaction).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(accID, transaction.AccountID)
-	s.Assert().Equal("expense", transaction.Direction)
+	s.Assert().Equal(models.TxnDirectionExpense, transaction.Direction)
 	s.Assert().True(amount.Equal(transaction.Amount))
 	s.Assert().Equal(desc, *transaction.Description)
 
@@ -1332,7 +1332,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		Where("id = ?", txn.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal("income", updatedTxn.Direction)
+	s.Assert().Equal(models.TxnDirectionIncome, updatedTxn.Direction)
 
 	// After update: snapshot should be 13,000 (10,000 + 3,000)
 	var snapshotAfter models.BalanceSnapshot
@@ -1423,7 +1423,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		First(&outflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(sourceID, outflowTxn.AccountID)
-	s.Assert().Equal("expense", outflowTxn.Direction)
+	s.Assert().Equal(models.TxnDirectionExpense, outflowTxn.Direction)
 	s.Assert().True(transferAmount.Equal(outflowTxn.Amount))
 
 	var inflowTxn models.Transaction
@@ -1432,7 +1432,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		First(&inflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(destID, inflowTxn.AccountID)
-	s.Assert().Equal("income", inflowTxn.Direction)
+	s.Assert().Equal(models.TxnDirectionIncome, inflowTxn.Direction)
 	s.Assert().True(transferAmount.Equal(inflowTxn.Amount))
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
@@ -3277,7 +3277,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_Success() {
 	s.Require().NoError(err)
 
 	originalNextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
-	txnType := "income"
+	txnType := models.TxnDirectionIncome
 	amount := decimal.NewFromInt(5000)
 
 	template := models.TransactionTemplate{
@@ -3330,7 +3330,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlread
 	s.Require().NoError(err)
 
 	originalNextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
-	txnType := "income"
+	txnType := models.TxnDirectionIncome
 
 	template := models.TransactionTemplate{
 		Name:         "Salary",
@@ -3377,7 +3377,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 	s.Require().NoError(err)
 
 	nextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
-	txnType := "expense"
+	txnType := models.TxnDirectionExpense
 
 	template := models.TransactionTemplate{
 		Name:         "Paused rent",
@@ -3421,7 +3421,7 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 	s.Require().NoError(err)
 
 	overdue := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, -21), time.UTC)
-	txnType := "income"
+	txnType := models.TxnDirectionIncome
 
 	template := models.TransactionTemplate{
 		Name:         "Salary",

@@ -183,6 +183,51 @@ func (s *ImportServiceSuite) TestBankImportRowCategoryThenRules() {
 	s.Equal(uncategorized.ID, *txns[2].CategoryID)
 }
 
+// A rule matching on direction must only apply to rows on that side, even when the description matches too.
+func (s *ImportServiceSuite) TestBankImportRuleMatchesOnDirection() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	refundCat, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Amazon Refunds", Classification: "income"})
+	s.Require().NoError(err)
+	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
+		Name:      "amazon refunds",
+		MatchType: models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{
+			{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "amazon"},
+			{Field: models.RuleFieldDirection, Operator: models.RuleOpEquals, Value: "income"},
+		},
+		Actions: []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(refundCat, 10)}},
+	})
+	s.Require().NoError(err)
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	payload := s.bankPayload("nlb_direction", "TX1", "TX2")
+	payload.Txns[0].Description = "AMAZON order"
+	payload.Txns[0].TransactionType = "expense"
+	payload.Txns[1].Description = "AMAZON refund"
+	payload.Txns[1].TransactionType = "income"
+
+	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	s.Require().NoError(err)
+
+	var txns []models.Transaction
+	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
+	s.Require().Len(txns, 2)
+
+	var uncategorized models.Category
+	s.Require().NoError(s.TC.DB.Where("classification = ?", "uncategorized").First(&uncategorized).Error)
+	s.Equal(uncategorized.ID, *txns[0].CategoryID)
+	s.Equal(refundCat, *txns[1].CategoryID)
+}
+
 func (s *ImportServiceSuite) TestParseBankStatementsRejectsMixedKinds() {
 	files := []models.BankStatementFile{
 		{Name: "a.csv", Reader: strings.NewReader("")},

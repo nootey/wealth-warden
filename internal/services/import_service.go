@@ -89,9 +89,9 @@ var (
 	ErrRepaymentsTransferred  = apperr.New(apperr.Conflict, "Debt repayments have already been transferred for this import")
 )
 
-func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal, snapshot bool) error {
+func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, direction models.TransactionDirection, amt decimal.Decimal, snapshot bool) error {
 	amt = amt.Round(4)
-	if strings.ToLower(txnType) == "expense" {
+	if direction == models.TxnDirectionExpense {
 		amt = amt.Neg()
 	}
 
@@ -569,7 +569,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 				UserID:        userID,
 				AccountID:     sourceAcc.ID,
 				CategoryID:    &category.ID,
-				Direction:     txn.TransactionType,
+				Direction:     models.TransactionDirection(txn.TransactionType),
 				Amount:        amount,
 				Currency:      sourceAcc.Currency,
 				TxnDate:       txDay,
@@ -2688,11 +2688,7 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 
 		// Reverse cash
 		amt := t.Amount.Neg()
-		kind := "income"
-		if strings.ToLower(t.Direction) == "expense" {
-			kind = "expense"
-		}
-		if err := s.updateDailyCash(ctx, tx, acc, t.TxnDate, kind, amt, false); err != nil {
+		if err := s.updateDailyCash(ctx, tx, acc, t.TxnDate, t.Direction, amt, false); err != nil {
 			tx.Rollback()
 			return err
 		}

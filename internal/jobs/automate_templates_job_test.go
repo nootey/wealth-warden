@@ -62,7 +62,7 @@ func (d *recordingDispatcher) ofType(notifType models.NotificationType) []record
 // The template already committed, so a cancelled run must still notify the user.
 func TestAutomateTemplateJob_NotifiesAfterCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	income := "income"
+	income := models.TxnDirectionIncome
 	tmpl := &models.TransactionTemplate{
 		ID:           1,
 		UserID:       7,
@@ -89,7 +89,7 @@ func TestAutomateTemplateJob_NotifiesAfterCancel(t *testing.T) {
 // must say so, or the summary numbers silently stop adding up.
 func TestAutomateTemplateJob_CountsCancelledTemplates(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	income, expense := "income", "expense"
+	income, expense := models.TxnDirectionIncome, models.TxnDirectionExpense
 	in := &models.TransactionTemplate{
 		ID: 1, UserID: 7, Name: "Salary",
 		TemplateType: "transaction", Direction: &income,

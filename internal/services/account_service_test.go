@@ -75,7 +75,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 
 	// Verify adjustment is an income of 5,000
 	expectedAdjustment := decimal.NewFromInt(5000)
-	s.Assert().Equal("income", adjustmentTxn.Direction,
+	s.Assert().Equal(models.TxnDirectionIncome, adjustmentTxn.Direction,
 		"adjustment should be income type")
 	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
@@ -165,7 +165,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 
 	// Verify adjustment is an expense of 8,000
 	expectedAdjustment := decimal.NewFromInt(8000)
-	s.Assert().Equal("expense", adjustmentTxn.Direction,
+	s.Assert().Equal(models.TxnDirectionExpense, adjustmentTxn.Direction,
 		"adjustment should be expense type")
 	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
@@ -315,7 +315,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 	s.Require().NoError(err, "adjustment transaction should exist")
 
 	expectedAdjustment := decimal.NewFromInt(3000)
-	s.Assert().Equal("expense", adjustmentTxn.Direction,
+	s.Assert().Equal(models.TxnDirectionExpense, adjustmentTxn.Direction,
 		"increasing liability debt should be expense type")
 	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
@@ -403,7 +403,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		First(&adjustmentTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal("income", adjustmentTxn.Direction)
+	s.Assert().Equal(models.TxnDirectionIncome, adjustmentTxn.Direction)
 	s.Assert().True(decimal.NewFromInt(5000).Equal(adjustmentTxn.Amount))
 
 	// Verify the account balance carries the adjustment

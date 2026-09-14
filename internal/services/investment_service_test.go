@@ -1396,7 +1396,7 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesL
 		"linked transaction amount should be 40 (50 gross - 10 tax withheld), got %s", txn.Amount.String())
 	s.Assert().Equal(models.TxnTypeInvestmentIncome, txn.TransactionType, "linked dividend transaction must be marked investment_income")
 	s.Assert().Equal(accID, txn.AccountID, "linked transaction should be in the asset's account")
-	s.Assert().Equal("income", txn.Direction)
+	s.Assert().Equal(models.TxnDirectionIncome, txn.Direction)
 }
 
 // Tests that deleting a staking income record reverses the quantity increment on the asset.

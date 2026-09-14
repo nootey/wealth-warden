@@ -99,8 +99,8 @@ func (s *RulesServiceSuite) TestInsertRuleWithGroupRoundTrips() {
 	}
 	s.NotZero(groupID)
 	s.Equal(2, children)
-	s.True(rule.Matches("Spotify AB", decimal.RequireFromString("9.99")))
-	s.False(rule.Matches("Spotify AB", decimal.RequireFromString("5.00")))
+	s.True(rule.Matches("Spotify AB", decimal.RequireFromString("9.99"), ""))
+	s.False(rule.Matches("Spotify AB", decimal.RequireFromString("5.00"), ""))
 
 	// update keeps the tree intact after the delete-and-recreate
 	req.MatchType = models.RuleMatchAny
@@ -109,7 +109,7 @@ func (s *RulesServiceSuite) TestInsertRuleWithGroupRoundTrips() {
 	rule, err = svc.FetchRuleByID(s.Ctx, seedUserID, id)
 	s.Require().NoError(err)
 	s.Require().Len(rule.Conditions, 4)
-	s.True(rule.Matches("Netflix", decimal.RequireFromString("2.99")))
+	s.True(rule.Matches("Netflix", decimal.RequireFromString("2.99"), ""))
 
 	// an empty group and a nested group are rejected
 	req.Conditions = []models.RuleConditionReq{{IsGroup: true, MatchType: models.RuleMatchAny}}

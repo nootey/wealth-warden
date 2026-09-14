@@ -93,6 +93,13 @@ func (s *RulesService) buildConditions(reqs []models.RuleConditionReq, depth int
 			if _, err := decimal.NewFromString(c.Value); err != nil {
 				return nil, apperr.New(apperr.Validation, fmt.Sprintf("An amount condition needs a numeric value, got %q", c.Value))
 			}
+		case models.RuleFieldDirection:
+			if c.Operator != models.RuleOpEquals {
+				return nil, apperr.New(apperr.Validation, "A direction condition only supports the equals operator")
+			}
+			if !models.TransactionDirection(c.Value).IsValid() {
+				return nil, apperr.New(apperr.Validation, fmt.Sprintf("A direction condition needs income or expense, got %q", c.Value))
+			}
 		}
 		out = append(out, models.RuleCondition{Field: c.Field, Operator: c.Operator, Value: c.Value, Position: i})
 	}
