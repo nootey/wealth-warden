@@ -127,9 +127,9 @@ func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, user
 	return nil
 }
 
-func (s *ImportService) applyRules(ctx context.Context, tx *gorm.DB, userID int64, rules []models.Rule, cache map[int64]models.Category, desc string, amount decimal.Decimal) (models.Category, bool, error) {
+func (s *ImportService) applyRules(ctx context.Context, tx *gorm.DB, userID int64, rules []models.Rule, cache map[int64]models.Category, desc string, amount decimal.Decimal, direction models.TransactionDirection) (models.Category, bool, error) {
 	for _, rule := range rules {
-		if !rule.Matches(desc, amount) {
+		if !rule.Matches(desc, amount, direction) {
 			continue
 		}
 		categoryID, ok := rule.CategoryID()
@@ -545,7 +545,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		}
 
 		if !found {
-			category, found, err = s.applyRules(ctx, tx, userID, rules, ruleCategories, desc, amount)
+			category, found, err = s.applyRules(ctx, tx, userID, rules, ruleCategories, desc, amount, models.TransactionDirection(txn.TransactionType))
 			if err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))

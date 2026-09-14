@@ -10,6 +10,7 @@ import (
 const (
 	RuleFieldDescription = "description"
 	RuleFieldAmount      = "amount"
+	RuleFieldDirection   = "direction"
 
 	RuleOpContains = "contains"
 	RuleOpEquals   = "equals"
@@ -61,11 +62,11 @@ type RuleAction struct {
 
 // Matches evaluates the condition tree rooted at the rule. Unknown fields, operators and
 // match types never match, so a rule the current code cannot evaluate stays inert.
-func (r Rule) Matches(description string, amount decimal.Decimal) bool {
-	return r.matchesChildren(nil, r.MatchType, description, amount)
+func (r Rule) Matches(description string, amount decimal.Decimal, direction TransactionDirection) bool {
+	return r.matchesChildren(nil, r.MatchType, description, amount, direction)
 }
 
-func (r Rule) matchesChildren(parentID *int64, matchType string, description string, amount decimal.Decimal) bool {
+func (r Rule) matchesChildren(parentID *int64, matchType string, description string, amount decimal.Decimal, direction TransactionDirection) bool {
 	if matchType != RuleMatchAll && matchType != RuleMatchAny {
 		return false
 	}
@@ -78,9 +79,9 @@ func (r Rule) matchesChildren(parentID *int64, matchType string, description str
 		var ok bool
 		if c.IsGroup {
 			id := c.ID
-			ok = r.matchesChildren(&id, c.MatchType, description, amount)
+			ok = r.matchesChildren(&id, c.MatchType, description, amount, direction)
 		} else {
-			ok = c.matches(description, amount)
+			ok = c.matches(description, amount, direction)
 		}
 		if ok && matchType == RuleMatchAny {
 			return true
@@ -92,7 +93,7 @@ func (r Rule) matchesChildren(parentID *int64, matchType string, description str
 	return found && matchType == RuleMatchAll
 }
 
-func (c RuleCondition) matches(description string, amount decimal.Decimal) bool {
+func (c RuleCondition) matches(description string, amount decimal.Decimal, direction TransactionDirection) bool {
 	switch c.Field {
 	case RuleFieldDescription:
 		if c.Operator != RuleOpContains {
@@ -116,6 +117,11 @@ func (c RuleCondition) matches(description string, amount decimal.Decimal) bool 
 		case RuleOpLte:
 			return amount.LessThanOrEqual(want)
 		}
+	case RuleFieldDirection:
+		if c.Operator != RuleOpEquals {
+			return false
+		}
+		return direction == TransactionDirection(c.Value)
 	}
 	return false
 }
@@ -147,7 +153,7 @@ type RuleConditionReq struct {
 	IsGroup    bool               `json:"is_group"`
 	MatchType  string             `json:"match_type" validate:"omitempty,oneof=all any"`
 	Conditions []RuleConditionReq `json:"conditions" validate:"omitempty,dive"`
-	Field      string             `json:"field" validate:"omitempty,oneof=description amount"`
+	Field      string             `json:"field" validate:"omitempty,oneof=description amount direction"`
 	Operator   string             `json:"operator" validate:"omitempty,oneof=contains equals gt gte lt lte"`
 	Value      string             `json:"value" validate:"max=255"`
 }

@@ -320,6 +320,11 @@ const searchCategory = (event: { query: string }) => {
         <span>of the following</span>
       </div>
 
+      <span class="text-sm" style="color: var(--text-secondary)">
+        All requires every condition to match. Any requires just one. Add a
+        group to nest a separate All/Any block inside the rule.
+      </span>
+
       <template v-for="(item, i) in record.conditions" :key="i">
         <div
           v-if="item.is_group"

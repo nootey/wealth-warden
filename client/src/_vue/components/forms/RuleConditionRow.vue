@@ -28,6 +28,12 @@ const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 const fieldOptions = [
   { label: "Description", value: "description" },
   { label: "Amount", value: "amount" },
+  { label: "Direction", value: "direction" },
+];
+
+const directionOptions = [
+  { label: "Income", value: "income" },
+  { label: "Expense", value: "expense" },
 ];
 
 const operatorOptions = computed(() => {
@@ -40,12 +46,16 @@ const operatorOptions = computed(() => {
       { label: "Less than or equal", value: "lte" },
     ];
   }
+  if (model.value.field === "direction") {
+    return [{ label: "Equals", value: "equals" }];
+  }
   return [{ label: "Contains", value: "contains" }];
 });
 
 function onFieldChange(): void {
-  model.value.operator = model.value.field === "amount" ? "equals" : "contains";
-  model.value.value = "";
+  model.value.operator =
+    model.value.field === "description" ? "contains" : "equals";
+  model.value.value = model.value.field === "direction" ? "income" : "";
 }
 </script>
 
@@ -91,6 +101,15 @@ function onFieldChange(): void {
         :currency="settingsStore.defaultCurrency"
         :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
         :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
+      />
+      <Select
+        v-else-if="model.field === 'direction'"
+        v-model="model.value"
+        :options="directionOptions"
+        option-label="label"
+        option-value="value"
+        placeholder="Select direction"
+        size="small"
       />
       <InputText v-else v-model="model.value" size="small" />
     </div>
