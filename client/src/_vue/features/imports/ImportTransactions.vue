@@ -137,7 +137,7 @@ function bankFormData(): FormData {
   for (const file of bankFiles.value) {
     formData.append("files", file);
   }
-  formData.append("bank", "nlb");
+  formData.append("bank", "auto");
   return formData;
 }
 

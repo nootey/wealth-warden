@@ -130,8 +130,8 @@ func (suite *ImportHandlerTestSuite) SetupTest() {
 // bankImport posts one statement file with the given extra form fields; the parser is mocked to return two rows.
 func (suite *ImportHandlerTestSuite) bankImport(fields map[string]string) *httptest.ResponseRecorder {
 	tx1, tx2 := "TX1", "TX2"
-	suite.mockService.On("ParseBankStatements", "nlb", mock.Anything).
-		Return(models.TxnImportPayload{Identifier: "nlb_2017-01", Txns: []models.JSONTxn{
+	suite.mockService.On("ParseBankStatements", "auto", mock.Anything).
+		Return(models.TxnImportPayload{Identifier: "auto_2017-01", Txns: []models.JSONTxn{
 			{Amount: "1.00", ExternalTxnID: &tx1},
 			{Amount: "2.00", ExternalTxnID: &tx2},
 		}}, nil).Once()

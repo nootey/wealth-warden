@@ -208,7 +208,7 @@ func (h *ImportHandler) parseBankForm(c *gin.Context) (bankName string, payload 
 
 	bankName = strings.ToLower(strings.TrimSpace(c.PostForm("bank")))
 	if bankName == "" {
-		bankName = "nlb"
+		bankName = "auto"
 	}
 
 	payload, err = h.Service.ParseBankStatements(bankName, files)

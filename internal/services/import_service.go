@@ -265,9 +265,14 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 }
 
 func (s *ImportService) ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error) {
-	parser, ok := bank.Get(bankName)
-	if !ok {
-		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported bank %q", bankName))
+	auto := bankName == "auto"
+	var parser statement.Parser
+	if !auto {
+		p, ok := bank.Get(bankName)
+		if !ok {
+			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported bank %q", bankName))
+		}
+		parser = p
 	}
 	if len(files) == 0 {
 		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, "At least one statement file is required")
@@ -286,11 +291,18 @@ func (s *ImportService) ParseBankStatements(bankName string, files []models.Bank
 		}
 	}
 
+	label := bankName
 	var txns []statement.Transaction
 	for _, f := range files {
 		var parsed []statement.Transaction
 		var err error
-		if kind == ".csv" {
+		if auto {
+			var detected string
+			parsed, detected, err = bank.ParseAuto(f.Reader, kind)
+			if detected != "" {
+				label = detected
+			}
+		} else if kind == ".csv" {
 			parsed, err = parser.ParseCSV(f.Reader)
 		} else {
 			parsed, err = parser.ParsePDF(f.Reader)
@@ -312,9 +324,9 @@ func (s *ImportService) ParseBankStatements(bankName string, files []models.Bank
 
 	// Month granularity so two ranges from one year can be imported on the same day.
 	first, last := txns[0].Date.Format("2006-01"), txns[len(txns)-1].Date.Format("2006-01")
-	identifier := fmt.Sprintf("%s_%s", bankName, first)
+	identifier := fmt.Sprintf("%s_%s", label, first)
 	if first != last {
-		identifier = fmt.Sprintf("%s_%s_%s", bankName, first, last)
+		identifier = fmt.Sprintf("%s_%s_%s", label, first, last)
 	}
 
 	now := time.Now().UTC()
