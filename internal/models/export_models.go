@@ -41,3 +41,26 @@ type CategoryExport struct {
 	ParentID       *int64 `json:"parent_id,omitempty"`
 	IsDefault      bool   `json:"is_default"`
 }
+
+type RuleExport struct {
+	Name          string                `json:"name"`
+	IsActive      bool                  `json:"is_active"`
+	MatchType     string                `json:"match_type"`
+	EffectiveDate *time.Time            `json:"effective_date,omitempty"`
+	Conditions    []RuleConditionExport `json:"conditions"`
+	Actions       []RuleActionExport    `json:"actions"`
+}
+
+type RuleConditionExport struct {
+	IsGroup    bool                  `json:"is_group"`
+	MatchType  string                `json:"match_type,omitempty"`
+	Field      string                `json:"field,omitempty"`
+	Operator   string                `json:"operator,omitempty"`
+	Value      string                `json:"value,omitempty"`
+	Conditions []RuleConditionExport `json:"conditions,omitempty"`
+}
+
+type RuleActionExport struct {
+	ActionType string `json:"action_type"`
+	Value      string `json:"value"`
+}

@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import apiClient from "../api/api_client.ts";
+import type { BankParseResponse } from "../../models/dataio_models.ts";
 
 export const useDataStore = defineStore("data", {
   state: () => ({
@@ -58,6 +59,14 @@ export const useDataStore = defineStore("data", {
       return data;
     },
 
+    async importRules(payload: unknown) {
+      const { data } = await apiClient.post(
+        `${this.importPrefix}/custom/rules`,
+        payload,
+      );
+      return data;
+    },
+
     async transferInvestmentsFromImport(payload: {
       import_id: number | string;
       checking_acc_id: number;
@@ -100,6 +109,23 @@ export const useDataStore = defineStore("data", {
         formData,
       );
       return res.data;
+    },
+
+    async parseBankStatement(formData: FormData): Promise<BankParseResponse> {
+      const res = await apiClient.post(
+        `${this.importPrefix}/bank/parse`,
+        formData,
+      );
+      return res.data;
+    },
+
+    async importBankTransactions(formData: FormData, checkID: number) {
+      const { data } = await apiClient.post(
+        `${this.importPrefix}/bank/transactions`,
+        formData,
+        { params: { check_acc_id: checkID } },
+      );
+      return data;
     },
 
     async getExports() {

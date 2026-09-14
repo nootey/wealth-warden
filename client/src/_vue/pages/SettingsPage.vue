@@ -45,6 +45,12 @@ const items: SettingsMenuItem[] = [
     block: !hasPermission("manage_data"),
   },
   {
+    name: "settings.rules",
+    label: "Rules",
+    icon: "pi-filter",
+    block: !hasPermission("manage_data"),
+  },
+  {
     name: "",
     label: "Roles",
     separator: true,

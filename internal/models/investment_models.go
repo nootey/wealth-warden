@@ -100,10 +100,10 @@ type InvestmentTrade struct {
 
 // amount must already be in the account's currency.
 func NewTradeCashTransaction(userID, accountID int64, categoryID *int64, ticker, currency string, tradeType TradeType, txnDate time.Time, amount decimal.Decimal) Transaction {
-	txnType := "expense"
+	txnType := TxnDirectionExpense
 	desc := "Buy: " + ticker
 	if tradeType == InvestmentSell {
-		txnType = "income"
+		txnType = TxnDirectionIncome
 		desc = "Sell: " + ticker
 	}
 

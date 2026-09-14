@@ -574,10 +574,10 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		signed := delta
 
 		if !signed.IsZero() {
-			txnType := "income"
+			txnType := models.TxnDirectionIncome
 			amount := signed
 			if signed.IsNegative() {
-				txnType = "expense"
+				txnType = models.TxnDirectionExpense
 				amount = signed.Neg()
 			}
 

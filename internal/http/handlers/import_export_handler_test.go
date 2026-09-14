@@ -1,8 +1,10 @@
 package handlers_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/http/handlers"
 	"wealth-warden/internal/middleware"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/mocks"
 
@@ -121,6 +124,52 @@ func (suite *ImportHandlerTestSuite) SetupTest() {
 
 	suite.router = newErrorRouter()
 	suite.router.POST("/imports/validate", handler.ValidateCustomImport)
+	suite.router.POST("/imports/bank/transactions", handler.ImportBankTransactions)
+}
+
+// bankImport posts one statement file with the given extra form fields; the parser is mocked to return two rows.
+func (suite *ImportHandlerTestSuite) bankImport(fields map[string]string) *httptest.ResponseRecorder {
+	tx1, tx2 := "TX1", "TX2"
+	suite.mockService.On("ParseBankStatements", "nlb", mock.Anything).
+		Return(models.TxnImportPayload{Identifier: "nlb_2017-01", Txns: []models.JSONTxn{
+			{Amount: "1.00", ExternalTxnID: &tx1},
+			{Amount: "2.00", ExternalTxnID: &tx2},
+		}}, nil).Once()
+
+	body := &bytes.Buffer{}
+	mw := multipart.NewWriter(body)
+	fw, _ := mw.CreateFormFile("files", "statement.csv")
+	_, _ = fw.Write([]byte("x"))
+	for k, v := range fields {
+		_ = mw.WriteField(k, v)
+	}
+	_ = mw.Close()
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/imports/bank/transactions?check_acc_id=1", body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	suite.router.ServeHTTP(w, req)
+	return w
+}
+
+func (suite *ImportHandlerTestSuite) TestBankImport_SkipsRowsAfterSettingCategories() {
+	suite.mockService.On("ImportTransactions", mock.Anything, int64(123), int64(1), models.ImportTypeBank, mock.MatchedBy(func(p models.TxnImportPayload) bool {
+		return len(p.Txns) == 1 && *p.Txns[0].ExternalTxnID == "TX2" && p.Txns[0].CategoryID != nil && *p.Txns[0].CategoryID == 5
+	})).Return(0, nil).Once()
+
+	w := suite.bankImport(map[string]string{
+		"row_categories": `[{"row":1,"category_id":5}]`,
+		"skip_rows":      `[0]`,
+	})
+
+	suite.Equal(http.StatusOK, w.Code)
+}
+
+func (suite *ImportHandlerTestSuite) TestBankImport_AllRowsSkippedNeverReachesService() {
+	w := suite.bankImport(map[string]string{"skip_rows": `[0,1]`})
+
+	suite.Equal(http.StatusBadRequest, w.Code)
+	suite.Contains(decode(suite, w)["message"], "nothing to import")
 }
 
 func (suite *ImportHandlerTestSuite) validate(returned error) *httptest.ResponseRecorder {

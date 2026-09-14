@@ -476,9 +476,9 @@ func bulkTransactionsForAccount(
 	txns := make([]models.Transaction, 0, count)
 
 	for _, date := range dates {
-		ttype := "expense"
+		ttype := models.TxnDirectionExpense
 		if rng.Float64() < incomeProb {
-			ttype = "income"
+			ttype = models.TxnDirectionIncome
 		}
 
 		amt := decimal.NewFromFloat(10 + rng.Float64()*900).Round(2)
@@ -486,7 +486,7 @@ func bulkTransactionsForAccount(
 		// keep asset accounts solvent
 		if !isLiability && ttype == "expense" {
 			if !currBal.IsPositive() {
-				ttype = "income"
+				ttype = models.TxnDirectionIncome
 			} else if amt.GreaterThan(currBal) {
 				amt = currBal
 			}
@@ -495,7 +495,7 @@ func bulkTransactionsForAccount(
 		if isLiability && ttype == "income" && currBal.Add(amt).IsPositive() {
 			amt = currBal.Abs().Mul(decimal.NewFromFloat(0.8)).Round(2)
 			if amt.LessThan(decimal.NewFromInt(1)) {
-				ttype = "expense"
+				ttype = models.TxnDirectionExpense
 			}
 		}
 		if !amt.IsPositive() {

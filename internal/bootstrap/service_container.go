@@ -36,6 +36,7 @@ type ServiceContainer struct {
 	ExportService       *services.ExportService
 	InvestmentService   *services.InvestmentService
 	NotesService        *services.NotesService
+	RulesService        *services.RulesService
 	AnalyticsService    *services.AnalyticsService
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
@@ -80,6 +81,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	exportRepo := repositories.NewExportRepository(db)
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	notesRepo := repositories.NewNotesRepository(db)
+	rulesRepo := repositories.NewRulesRepository(db)
 	analyticsRepo := repositories.NewAnalyticsRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
 	notificationRepo := repositories.NewNotificationRepository(db)
@@ -93,10 +95,11 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	balanceService := services.NewBalanceService(logger.Named("balance_srv"), balanceRepo)
 	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, balanceRepo, settingsRepo, savingsRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, jobDispatcher, sessionStore)
-	importService := services.NewImportService(logger.Named("import_srv"), importRepo, transactionRepo, accountRepo, balanceRepo, investmentRepo, settingsRepo, jobDispatcher)
-	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, balanceRepo, settingsRepo, jobDispatcher)
+	importService := services.NewImportService(logger.Named("import_srv"), importRepo, transactionRepo, accountRepo, balanceRepo, investmentRepo, settingsRepo, rulesRepo, jobDispatcher)
+	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, balanceRepo, settingsRepo, rulesRepo, jobDispatcher)
 	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, balanceRepo, transactionRepo, settingsRepo, jobDispatcher, priceFetcher)
 	notesService := services.NewNotesService(notesRepo, jobDispatcher)
+	rulesService := services.NewRulesService(rulesRepo, transactionRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher)
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService)
 	jobService := services.NewJobService(logger.Named("job_srv"), jobRepo, jobManager, jobDispatcher, hub)
@@ -124,6 +127,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 		ExportService:       exportService,
 		InvestmentService:   investmentService,
 		NotesService:        notesService,
+		RulesService:        rulesService,
 		AnalyticsService:    analyticsService,
 		SavingsService:      savingsService,
 		NotificationService: notificationService,

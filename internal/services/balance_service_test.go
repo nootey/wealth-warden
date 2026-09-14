@@ -59,7 +59,7 @@ func (s *BalanceServiceSuite) seedAccounts() []int64 {
 
 	txns := []struct {
 		account int64
-		kind    string
+		kind    models.TransactionDirection
 		amount  int64
 		day     int
 	}{
