@@ -14,6 +14,7 @@ import ImportCategoryMapping from "../../components/base/ImportCategoryMapping.v
 import type { Category } from "../../../models/transaction_models.ts";
 import { useRouter } from "vue-router";
 import searchHelper from "../../../utils/search_helper.ts";
+import Select from "primevue/select";
 
 const emit = defineEmits<{
   (e: "completeImport"): void;
@@ -48,6 +49,14 @@ const filteredCategories = computed(() =>
 );
 
 const categoryMappings = ref<Record<string, number | null>>({});
+
+const categoryOptions = computed(() =>
+  filteredCategories.value.map((c) => ({
+    label: c.display_name || c.name,
+    value: c.id,
+    classification: c.classification,
+  })),
+);
 
 onMounted(async () => {
   try {
@@ -101,16 +110,27 @@ const bankFiles = ref<File[]>([]);
 
 function onBankSelect(e: { files: File[] }) {
   bankFiles.value = e.files;
-  bankTxns.value = [];
+  clearBankParse();
 }
 
 function onBankRemove(e: { files: File[] }) {
   bankFiles.value = e.files;
-  bankTxns.value = [];
+  clearBankParse();
 }
 
 const bankParsing = ref(false);
-const bankTxns = ref<BankTxn[]>([]);
+// The row index keys the server-side edits; PDF rows have no bank id to key on.
+type BankRow = BankTxn & { row: number };
+const bankTxns = ref<BankRow[]>([]);
+const bankSelected = ref<BankRow[]>([]);
+// Category picked by hand per parsed row, keyed by row index; unset rows go through the rules.
+const bankRowCategories = ref<Record<number, number | null>>({});
+
+function clearBankParse() {
+  bankTxns.value = [];
+  bankSelected.value = [];
+  bankRowCategories.value = {};
+}
 
 function bankFormData(): FormData {
   const formData = new FormData();
@@ -128,7 +148,8 @@ async function parseBankStatement() {
   try {
     const formData = bankFormData();
     const res = await dataStore.parseBankStatement(formData);
-    bankTxns.value = res.transactions;
+    bankTxns.value = res.transactions.map((t, row) => ({ ...t, row }));
+    bankSelected.value = [...bankTxns.value];
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -138,7 +159,7 @@ async function parseBankStatement() {
 
 function onBankClear() {
   bankFiles.value = [];
-  bankTxns.value = [];
+  clearBankParse();
   try {
     (bankUploadRef.value as any)?.clear?.();
   } catch {
@@ -209,7 +230,7 @@ function resetWizard() {
 const isDisabled = computed(() => {
   if (importing.value) return true;
   if (activeTab.value === "0") {
-    return bankTxns.value.length === 0 || !selectedCheckingAcc.value;
+    return bankSelected.value.length === 0 || !selectedCheckingAcc.value;
   }
   return !selectedCheckingAcc.value;
 });
@@ -219,8 +240,18 @@ const importBankTransactions = async () => {
 
   importing.value = true;
   try {
+    const form = bankFormData();
+    const rowCategories = Object.entries(bankRowCategories.value)
+      .filter(([, id]) => id != null)
+      .map(([row, id]) => ({ row: Number(row), category_id: id }));
+    form.append("row_categories", JSON.stringify(rowCategories));
+    const keep = new Set(bankSelected.value.map((t) => t.row));
+    const skipRows = bankTxns.value
+      .filter((t) => !keep.has(t.row))
+      .map((t) => t.row);
+    form.append("skip_rows", JSON.stringify(skipRows));
     const res = await dataStore.importBankTransactions(
-      bankFormData(),
+      form,
       selectedCheckingAcc.value.id,
     );
     toastStore.successResponseToast(res);
@@ -277,12 +308,18 @@ const importTransactions = async () => {
   }
 };
 
-defineExpose({ isDisabled, importTransactions });
+defineExpose({ isDisabled, importing, importTransactions });
 </script>
 
 <template>
   <div class="flex flex-col w-full gap-2 p-2">
-    <Tabs v-model:value="activeTab">
+    <div v-if="importing" class="flex flex-col items-center gap-4 py-6">
+      <span class="font-semibold text-center"
+        >Importing transactions... please do not close this window.</span
+      >
+      <ShowLoading :num-fields="5" />
+    </div>
+    <Tabs v-else v-model:value="activeTab">
       <TabList>
         <Tab value="0"> Bank </Tab>
         <Tab value="1"> Custom </Tab>
@@ -359,44 +396,88 @@ defineExpose({ isDisabled, importTransactions });
               @click="parseBankStatement"
             />
 
+            <div
+              v-if="bankTxns.length > 0"
+              class="flex flex-col text-sm items-center text-center gap-2"
+              style="color: var(--text-secondary)"
+            >
+              <span>
+                Uncheck a row to leave it out of the import. Pick a category on
+                a row to set it by hand. Rows left on Auto get their category
+                from your active rules. If no rule matches, they stay
+                uncategorized.
+              </span>
+
+              <span>
+                Each row receives an external transaction id, which is used for
+                de-duplication. Some monthly statements do not include it.
+              </span>
+            </div>
+
             <DataTable
               v-if="bankTxns.length > 0"
-              class="w-full enhanced-table"
+              v-model:selection="bankSelected"
+              class="w-full enhanced-table bank-table"
               :value="bankTxns"
+              data-key="row"
+              size="small"
               scrollable
               scroll-height="40vh"
             >
+              <Column selection-mode="multiple" header-style="width: 3rem" />
               <Column field="txn_date" header="Date">
                 <template #body="{ data }">
                   {{ data.txn_date.slice(0, 10) }}
                 </template>
               </Column>
-              <Column field="transaction_type" header="Type" />
+              <Column field="transaction_type" header="Direction" />
               <Column field="amount" header="Amount" />
-              <Column field="description" header="Description" />
+              <Column field="description" header="Description">
+                <template #body="{ data }">
+                  <span
+                    v-tooltip="data.description"
+                    class="truncate-text"
+                    style="max-width: 350px"
+                  >
+                    {{ data.description }}
+                  </span>
+                </template>
+              </Column>
+              <Column header="Category">
+                <template #body="{ data }">
+                  <Select
+                    class="w-full"
+                    size="small"
+                    :model-value="bankRowCategories[data.row] ?? null"
+                    :options="categoryOptions"
+                    option-label="label"
+                    option-value="value"
+                    show-clear
+                    filter
+                    placeholder="Auto (rules)"
+                    @update:model-value="bankRowCategories[data.row] = $event"
+                  >
+                    <template #option="{ option }">
+                      <div class="flex justify-between w-full gap-2">
+                        <span>{{ option.label }}</span>
+                        <small class="text-muted-color">
+                          {{ option.classification }}
+                        </small>
+                      </div>
+                    </template>
+                  </Select>
+                </template>
+              </Column>
               <Column field="external_txn_id" header="Bank ID" />
             </DataTable>
 
             <div
-              v-if="bankTxns.length > 0 && !importing"
-              class="flex flex-col w-full gap-2 items-center justify-center"
+              v-if="bankTxns.length > 0"
+              class="flex flex-col w-full gap-3 items-center justify-center"
             >
-              <div class="text-sm" style="color: var(--text-secondary)">
+              <span class="text-sm" style="color: var(--text-secondary)">
                 Select an account which will receive the import transactions.
-                <div class="flex items-center gap-1">
-                  <Checkbox
-                    v-model="useNonCheckingAccount"
-                    :binary="true"
-                    input-id="use-non-check-bank"
-                    @update:model-value="fetchSourceAccounts"
-                  />
-                  <label
-                    for="use-non-check-bank"
-                    style="color: var(--text-secondary)"
-                    >Use non checking account</label
-                  >
-                </div>
-              </div>
+              </span>
               <AutoComplete
                 v-model="selectedCheckingAcc"
                 size="small"
@@ -407,6 +488,22 @@ defineExpose({ isDisabled, importTransactions });
                 dropdown
                 @complete="searchAccount($event, 'source')"
               />
+              <div
+                class="flex items-center gap-1 text-sm"
+                style="color: var(--text-secondary)"
+              >
+                <Checkbox
+                  v-model="useNonCheckingAccount"
+                  :binary="true"
+                  input-id="use-non-check-bank"
+                  @update:model-value="fetchSourceAccounts"
+                />
+                <label
+                  for="use-non-check-bank"
+                  style="color: var(--text-secondary)"
+                  >Use non checking account</label
+                >
+              </div>
               <span
                 v-if="!selectedCheckingAcc"
                 class="text-sm"
@@ -414,7 +511,6 @@ defineExpose({ isDisabled, importTransactions });
                 >Please select an account.</span
               >
             </div>
-            <ShowLoading v-else-if="importing" :num-fields="3" />
           </div>
         </TabPanel>
         <TabPanel value="1">
@@ -434,7 +530,6 @@ defineExpose({ isDisabled, importTransactions });
             >
 
             <FileUpload
-              v-if="!importing"
               ref="uploadImportRef"
               accept=".json, application/json"
               :max-file-size="10485760"
@@ -450,7 +545,7 @@ defineExpose({ isDisabled, importTransactions });
                   <Button
                     v-if="!fileValidated"
                     class="outline-button w-3/12"
-                    :disabled="sourceAccounts.length == 0 || importing"
+                    :disabled="sourceAccounts.length == 0"
                     label="Upload"
                     @click="chooseCallback()"
                   />
@@ -487,7 +582,6 @@ defineExpose({ isDisabled, importTransactions });
                 </div>
               </template>
             </FileUpload>
-            <ShowLoading v-else :num-fields="3" />
 
             <div
               v-if="!fileValidated"
@@ -510,78 +604,74 @@ defineExpose({ isDisabled, importTransactions });
               </div>
             </div>
 
-            <div v-if="validatedResponse">
+            <div
+              v-if="validatedResponse"
+              class="flex flex-col w-full justify-center items-center gap-4"
+            >
               <div
-                v-if="!importing"
-                class="flex flex-col w-full justify-center items-center gap-4"
+                class="flex flex-col w-full gap-2 items-center justify-center"
               >
-                <div
-                  class="flex flex-col w-full gap-2 items-center justify-center"
-                >
-                  <div class="text-sm" style="color: var(--text-secondary)">
-                    Select an account which will receive the import
-                    transactions.
-                    <div class="flex items-center gap-1">
-                      <Checkbox
-                        v-model="useNonCheckingAccount"
-                        :binary="true"
-                        input-id="use-non-check-pt"
-                        @update:model-value="fetchSourceAccounts"
-                      />
-                      <label
-                        for="use-non-check-pt"
-                        style="color: var(--text-secondary)"
-                        >Use non checking account</label
-                      >
-                    </div>
+                <div class="text-sm" style="color: var(--text-secondary)">
+                  Select an account which will receive the import transactions.
+                  <div class="flex items-center gap-1">
+                    <Checkbox
+                      v-model="useNonCheckingAccount"
+                      :binary="true"
+                      input-id="use-non-check-pt"
+                      @update:model-value="fetchSourceAccounts"
+                    />
+                    <label
+                      for="use-non-check-pt"
+                      style="color: var(--text-secondary)"
+                      >Use non checking account</label
+                    >
                   </div>
-                  <AutoComplete
-                    v-model="selectedCheckingAcc"
-                    size="small"
-                    :suggestions="filteredSourceAccounts"
-                    option-label="name"
-                    force-selection
-                    placeholder="Select checking account"
-                    dropdown
-                    @complete="searchAccount($event, 'source')"
-                  />
-                  <span
-                    v-if="!selectedCheckingAcc"
-                    class="text-sm"
-                    style="color: var(--text-secondary)"
-                    >Please select an account.</span
-                  >
-                  <span
-                    v-else
-                    class="text-sm"
-                    style="color: var(--text-secondary)"
-                    >Account's opening date is valid.</span
-                  >
                 </div>
-
-                <span>---</span>
-
-                <h4>Validation response</h4>
-                <span class="text-sm" style="color: var(--text-secondary)"
-                  >General information about your import.</span
-                >
-                <div
-                  class="flex flex-row w-full gap-2 items-center justify-center"
-                >
-                  <span>Txn count: </span>
-                  <span>{{ validatedResponse.filtered_count }} </span>
-                </div>
-
-                <span>---</span>
-
-                <h4>Category mappings</h4>
-                <ImportCategoryMapping
-                  :imported-categories="validatedResponse.categories"
-                  :app-categories="filteredCategories"
-                  @save="onSaveMapping"
+                <AutoComplete
+                  v-model="selectedCheckingAcc"
+                  size="small"
+                  :suggestions="filteredSourceAccounts"
+                  option-label="name"
+                  force-selection
+                  placeholder="Select checking account"
+                  dropdown
+                  @complete="searchAccount($event, 'source')"
                 />
+                <span
+                  v-if="!selectedCheckingAcc"
+                  class="text-sm"
+                  style="color: var(--text-secondary)"
+                  >Please select an account.</span
+                >
+                <span
+                  v-else
+                  class="text-sm"
+                  style="color: var(--text-secondary)"
+                  >Account's opening date is valid.</span
+                >
               </div>
-              <ShowLoading v-else :num-fields="5" />
+
+              <span>---</span>
+
+              <h4>Validation response</h4>
+              <span class="text-sm" style="color: var(--text-secondary)"
+                >General information about your import.</span
+              >
+              <div
+                class="flex flex-row w-full gap-2 items-center justify-center"
+              >
+                <span>Txn count: </span>
+                <span>{{ validatedResponse.filtered_count }} </span>
+              </div>
+
+              <span>---</span>
+
+              <h4>Category mappings</h4>
+              <ImportCategoryMapping
+                :imported-categories="validatedResponse.categories"
+                :app-categories="filteredCategories"
+                @save="onSaveMapping"
+              />
             </div>
           </div>
 
@@ -612,6 +702,16 @@ defineExpose({ isDisabled, importTransactions });
 
 <style scoped>
 .p-fileupload {
-  width: 80% !important;
+  width: 70% !important;
+}
+
+.bank-table :deep(td),
+.bank-table :deep(th) {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.bank-table :deep(.p-select) {
+  font-size: 0.8rem;
 }
 </style>

@@ -421,7 +421,16 @@ const searchCategory = (event: { query: string }) => {
             placeholder="Select category"
             dropdown
             @complete="searchCategory"
-          />
+          >
+            <template #option="{ option }">
+              <div class="flex justify-between w-full">
+                <span>{{ option.display_name }}</span>
+                <small class="text-muted-color">
+                  {{ option.classification }}
+                </small>
+              </div>
+            </template>
+          </AutoComplete>
         </div>
       </div>
     </div>

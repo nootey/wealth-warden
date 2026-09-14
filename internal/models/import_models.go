@@ -84,9 +84,15 @@ type JSONTxn struct {
 	TxnDate         time.Time `json:"txn_date"`
 	Category        string    `json:"category"`
 	Description     string    `json:"description"`
+	CategoryID      *int64    `json:"category_id,omitempty"` // set by hand on a bank row; skips mappings and rules
 	ExternalTxnID   *string   `json:"external_txn_id,omitempty"`
 	Fee             *string   `json:"fee,omitempty"`
 	TradePrice      *string   `json:"trade_price,omitempty"`
+}
+
+type RowCategory struct {
+	Row        int   `json:"row"`
+	CategoryID int64 `json:"category_id"`
 }
 
 type CategoryMapping struct {

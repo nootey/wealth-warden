@@ -51,6 +51,7 @@ type ImportService struct {
 	balanceRepo    repositories.BalanceRepositoryInterface
 	investmentRepo repositories.InvestmentRepositoryInterface
 	settingsRepo   repositories.SettingsRepositoryInterface
+	rulesRepo      repositories.RulesRepositoryInterface
 	jobDispatcher  jobqueue.Dispatcher
 }
 
@@ -62,6 +63,7 @@ func NewImportService(
 	balanceRepo *repositories.BalanceRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
+	rulesRepo *repositories.RulesRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *ImportService {
 	return &ImportService{
@@ -72,6 +74,7 @@ func NewImportService(
 		balanceRepo:    balanceRepo,
 		investmentRepo: investmentRepo,
 		settingsRepo:   settingsRepo,
+		rulesRepo:      rulesRepo,
 		jobDispatcher:  jobDispatcher,
 	}
 }
@@ -121,6 +124,31 @@ func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, user
 	}
 
 	return nil
+}
+
+func (s *ImportService) applyRules(ctx context.Context, tx *gorm.DB, userID int64, rules []models.Rule, cache map[int64]models.Category, desc string, amount decimal.Decimal) (models.Category, bool, error) {
+	for _, rule := range rules {
+		if !rule.Matches(desc, amount) {
+			continue
+		}
+		categoryID, ok := rule.CategoryID()
+		if !ok {
+			continue
+		}
+		if c, ok := cache[categoryID]; ok {
+			return c, true, nil
+		}
+		c, err := s.txnRepo.FindCategoryByID(ctx, tx, categoryID, &userID, false)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return models.Category{}, false, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find rule category %d", categoryID), err)
+		}
+		cache[categoryID] = c
+		return c, true, nil
+	}
+	return models.Category{}, false, nil
 }
 
 func (s *ImportService) markImportFailed(ctx context.Context, userID, importID int64, cause error, extra ...zap.Field) {
@@ -439,6 +467,14 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
 
+	rules, err := s.rulesRepo.FindRules(ctx, tx, userID, true)
+	if err != nil {
+		tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return 0, err
+	}
+	ruleCategories := map[int64]models.Category{}
+
 	skipped := 0
 	for i, txn := range payload.Txns {
 
@@ -467,7 +503,23 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		var category models.Category
 		var found bool
 
+		if txn.CategoryID != nil {
+			category, err = s.txnRepo.FindCategoryByID(ctx, tx, *txn.CategoryID, &userID, false)
+			if err != nil {
+				tx.Rollback()
+				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *txn.CategoryID))
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return 0, ErrInvalidCategoryID
+				}
+				return 0, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find row category %d", *txn.CategoryID), err)
+			}
+			found = true
+		}
+
 		for _, m := range payload.CategoryMappings {
+			if found {
+				break
+			}
 			if strings.EqualFold(strings.TrimSpace(m.Name), strings.TrimSpace(txn.Category)) {
 				if m.CategoryID != nil {
 					category, err = s.txnRepo.FindCategoryByID(ctx, tx, *m.CategoryID, &userID, false)
@@ -485,7 +537,22 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 			}
 		}
 
-		// Fallback if no mapping or category_id is nil
+		// Custom files carry the bank's category text as the only label; bank statements carry a real description.
+		desc := txn.Category
+		if source == models.ImportTypeBank && txn.Description != "" {
+			desc = txn.Description
+		}
+
+		if !found {
+			category, found, err = s.applyRules(ctx, tx, userID, rules, ruleCategories, desc, amount)
+			if err != nil {
+				tx.Rollback()
+				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))
+				return 0, err
+			}
+		}
+
+		// Fallback if no manual choice or rule matched
 		if !found {
 			category, err = s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 			if err != nil {
@@ -496,12 +563,6 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		}
 
 		if txn.TransactionType == "income" || txn.TransactionType == "expense" {
-
-			// Custom files carry the bank's category text as the only label; bank statements carry a real description.
-			desc := txn.Category
-			if source == models.ImportTypeBank && txn.Description != "" {
-				desc = txn.Description
-			}
 
 			t := models.Transaction{
 				UserID:        userID,

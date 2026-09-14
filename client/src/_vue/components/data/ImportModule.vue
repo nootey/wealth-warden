@@ -76,13 +76,21 @@ const isDisabled = computed(() => {
   }
 });
 
-defineExpose({ isDisabled, startOperation });
+// Only the transactions flow tracks busy state today; other flows fall through to false.
+const isBusy = computed(() => {
+  if (selectedRef.value === "transactions") {
+    return txnRef.value?.importing ?? false;
+  }
+  return false;
+});
+
+defineExpose({ isDisabled, isBusy, startOperation });
 </script>
 
 <template>
   <div style="min-height: 350px">
     <div
-      v-if="selectedRef !== ''"
+      v-if="selectedRef !== '' && !isBusy"
       class="flex flex-row gap-2 p-4 mb-2 items-center cursor-pointer font-bold hoverable"
       style="color: var(--text-primary)"
     >

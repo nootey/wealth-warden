@@ -133,6 +133,52 @@ func (s *ImportServiceSuite) TestDeleteBankImport() {
 	status, _ := apperr.Resolve(err)
 	s.Equal(http.StatusNotFound, status)
 }
+
+// A category set by hand on a row wins over a rule, a rule wins over the fallback, and the rest stay uncategorized.
+func (s *ImportServiceSuite) TestBankImportRowCategoryThenRules() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	mappedCat, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Mapped", Classification: "expense"})
+	s.Require().NoError(err)
+	ruleCat, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Ruled", Classification: "expense"})
+	s.Require().NoError(err)
+	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
+		Name:       "spar",
+		MatchType:  models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "spar"}},
+		Actions:    []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(ruleCat, 10)}},
+	})
+	s.Require().NoError(err)
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	payload := s.bankPayload("nlb_rules", "TX1", "TX2", "TX3")
+	payload.Txns[0].CategoryID = &mappedCat
+	payload.Txns[0].Description = "SPAR by hand"
+	payload.Txns[1].Description = "SPAR ruled"
+	payload.Txns[2].Description = "PETROL"
+
+	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	s.Require().NoError(err)
+
+	var txns []models.Transaction
+	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
+	s.Require().Len(txns, 3)
+	s.Equal(mappedCat, *txns[0].CategoryID)
+	s.Equal(ruleCat, *txns[1].CategoryID)
+
+	var uncategorized models.Category
+	s.Require().NoError(s.TC.DB.Where("classification = ?", "uncategorized").First(&uncategorized).Error)
+	s.Equal(uncategorized.ID, *txns[2].CategoryID)
+}
+
 func (s *ImportServiceSuite) TestParseBankStatementsRejectsMixedKinds() {
 	files := []models.BankStatementFile{
 		{Name: "a.csv", Reader: strings.NewReader("")},
