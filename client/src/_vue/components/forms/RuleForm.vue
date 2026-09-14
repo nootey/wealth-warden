@@ -3,17 +3,20 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
-import { required } from "@regle/rules";
+import { required, requiredIf } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
+import RuleConditionRow from "./RuleConditionRow.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
 import searchHelper from "../../../utils/search_helper.ts";
-import currencyHelper from "../../../utils/currency_helper.ts";
-import vueHelper from "../../../utils/vue_helper.ts";
-import { useSettingsStore } from "../../../services/stores/settings_store.ts";
-import type { Rule } from "../../../models/rules_models.ts";
+import type { Ref } from "vue";
+import type {
+  Rule,
+  RuleCondition,
+  RuleConditionReq,
+} from "../../../models/rules_models.ts";
 import type { Category } from "../../../models/transaction_models.ts";
 
 const props = defineProps<{
@@ -31,7 +34,6 @@ const apiPrefix = "rules";
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
-const settingsStore = useSettingsStore();
 const { hasPermission } = usePermissions();
 const confirm = useConfirm();
 
@@ -50,37 +52,17 @@ const submitting = ref(false);
 type RuleFormData = {
   name: string;
   is_active: boolean;
-  field: string;
-  operator: string;
-  value: string;
+  match_type: string;
+  conditions: RuleConditionReq[];
   category: Category | null;
 };
 
 const record = ref<RuleFormData>(initData());
 
-const amountRef = computed({
-  get: () => record.value.value,
-  set: (v) => (record.value.value = v ?? ""),
-});
-const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
-
-const fieldOptions = [
-  { label: "Description", value: "description" },
-  { label: "Amount", value: "amount" },
+const matchOptions = [
+  { label: "All", value: "all" },
+  { label: "Any", value: "any" },
 ];
-
-const operatorOptions = computed(() => {
-  if (record.value.field === "amount") {
-    return [
-      { label: "Equals", value: "equals" },
-      { label: "Greater than", value: "gt" },
-      { label: "Greater than or equal", value: "gte" },
-      { label: "Less than", value: "lt" },
-      { label: "Less than or equal", value: "lte" },
-    ];
-  }
-  return [{ label: "Contains", value: "contains" }];
-});
 
 const categories = computed<Category[]>(() =>
   transactionStore.categories.filter(
@@ -92,11 +74,24 @@ const categories = computed<Category[]>(() =>
 );
 const filteredCategories = ref<Category[]>([]);
 
-const rules = {
-  name: { required },
+const conditionRules = {
   field: { required },
   operator: { required },
   value: { required },
+};
+
+const rules = {
+  name: { required },
+  match_type: { required },
+  conditions: {
+    $each: (item: Ref<RuleConditionReq>) => ({
+      match_type: { required: requiredIf(() => item.value.is_group) },
+      field: { required: requiredIf(() => !item.value.is_group) },
+      operator: { required: requiredIf(() => !item.value.is_group) },
+      value: { required: requiredIf(() => !item.value.is_group) },
+      conditions: { $each: conditionRules },
+    }),
+  },
   category: {
     display_name: { required },
   },
@@ -108,32 +103,84 @@ function initData(): RuleFormData {
   return {
     name: "",
     is_active: true,
-    field: "description",
-    operator: "contains",
-    value: "",
+    match_type: "all",
+    conditions: [newCondition()],
     category: null,
   };
 }
 
-function onFieldChange() {
-  record.value.operator =
-    record.value.field === "amount" ? "equals" : "contains";
-  record.value.value = "";
+function newCondition(): RuleConditionReq {
+  return {
+    is_group: false,
+    match_type: "",
+    field: "description",
+    operator: "contains",
+    value: "",
+    conditions: [],
+  };
+}
+
+function newGroup(): RuleConditionReq {
+  return {
+    is_group: true,
+    match_type: "any",
+    field: "",
+    operator: "",
+    value: "",
+    conditions: [newCondition()],
+  };
+}
+
+function removeAt(list: RuleConditionReq[], index: number): void {
+  if (list.length > 1) list.splice(index, 1);
+}
+
+// The API returns a flat list with parent_id; rebuild one level of nesting from it.
+function toConditionReqs(conditions: RuleCondition[]): RuleConditionReq[] {
+  const children = (parentId: number | null): RuleCondition[] =>
+    conditions
+      .filter((c) => (c.parent_id ?? null) === parentId)
+      .sort((a, b) => a.position - b.position);
+  const plain = (c: RuleCondition): RuleConditionReq => ({
+    ...newCondition(),
+    field: c.field,
+    operator: c.operator,
+    value: c.value,
+  });
+  return children(null).map((c) =>
+    c.is_group
+      ? {
+          ...newGroup(),
+          match_type: c.match_type,
+          conditions: children(c.id!).map(plain),
+        }
+      : plain(c),
+  );
+}
+
+function toPayload(c: RuleConditionReq): object {
+  if (c.is_group) {
+    return {
+      is_group: true,
+      match_type: c.match_type,
+      conditions: c.conditions.map(toPayload),
+    };
+  }
+  return { field: c.field, operator: c.operator, value: c.value };
 }
 
 async function loadRecord(id: number) {
   try {
     loading.value = true;
     const data: Rule = await sharedStore.getRecordByID(apiPrefix, id);
-    const condition = data.conditions?.[0];
     const action = data.actions?.[0];
+    const conditions = toConditionReqs(data.conditions ?? []);
 
     record.value = {
       name: data.name,
       is_active: data.is_active,
-      field: condition?.field ?? "description",
-      operator: condition?.operator ?? "contains",
-      value: condition?.value ?? "",
+      match_type: data.match_type,
+      conditions: conditions.length > 0 ? conditions : [newCondition()],
       category:
         categories.value.find((c) => String(c.id) === action?.value) ?? null,
     };
@@ -165,13 +212,8 @@ async function manageRecord() {
   const recordData = {
     name: record.value.name,
     ...(props.mode === "update" && { is_active: record.value.is_active }),
-    conditions: [
-      {
-        field: record.value.field,
-        operator: record.value.operator,
-        value: record.value.value,
-      },
-    ],
+    match_type: record.value.match_type,
+    conditions: record.value.conditions.map(toPayload),
     actions: [
       {
         action_type: "set_category",
@@ -265,55 +307,102 @@ const searchCategory = (event: { query: string }) => {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col flex-1 gap-1">
-          <ValidationError :is-required="true" :message="r$.field.$errors[0]">
-            <label>Field</label>
-          </ValidationError>
-          <Select
-            v-model="record.field"
-            :options="fieldOptions"
-            option-label="label"
-            option-value="value"
-            placeholder="Select field"
-            size="small"
-            @update:model-value="onFieldChange"
-          />
-        </div>
-        <div class="flex flex-col flex-1 gap-1">
-          <ValidationError
-            :is-required="true"
-            :message="r$.operator.$errors[0]"
-          >
-            <label>Operator</label>
-          </ValidationError>
-          <Select
-            v-model="record.operator"
-            :options="operatorOptions"
-            option-label="label"
-            option-value="value"
-            placeholder="Select operator"
-            size="small"
-          />
-        </div>
+      <div class="flex flex-row w-full items-center gap-2">
+        <span>Match</span>
+        <Select
+          v-model="record.match_type"
+          :options="matchOptions"
+          option-label="label"
+          option-value="value"
+          size="small"
+          class="w-24"
+        />
+        <span>of the following</span>
       </div>
 
-      <div class="flex flex-row w-full">
-        <div class="flex flex-col w-full gap-1">
-          <ValidationError :is-required="true" :message="r$.value.$errors[0]">
-            <label>Value</label>
-          </ValidationError>
-          <InputNumber
-            v-if="record.field === 'amount'"
-            v-model="amountNumber"
-            size="small"
-            mode="currency"
-            :currency="settingsStore.defaultCurrency"
-            :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
-            :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
+      <template v-for="(item, i) in record.conditions" :key="i">
+        <div
+          v-if="item.is_group"
+          class="flex flex-col p-3 rounded-lg border border-surface gap-3"
+        >
+          <div class="flex flex-row w-full items-center gap-2">
+            <span>Match</span>
+            <Select
+              v-model="item.match_type"
+              :options="matchOptions"
+              option-label="label"
+              option-value="value"
+              size="small"
+              class="w-24"
+            />
+            <span>of the following</span>
+            <Button
+              icon="pi pi-times"
+              severity="secondary"
+              text
+              size="small"
+              class="ml-auto"
+              :disabled="record.conditions.length <= 1"
+              aria-label="Remove group"
+              @click="removeAt(record.conditions, i)"
+            />
+          </div>
+          <RuleConditionRow
+            v-for="(_, j) in item.conditions"
+            :key="j"
+            v-model="item.conditions[j]"
+            :errors="{
+              field:
+                r$.conditions.$each[i]?.conditions.$each[j]?.field.$errors[0],
+              operator:
+                r$.conditions.$each[i]?.conditions.$each[j]?.operator
+                  .$errors[0],
+              value:
+                r$.conditions.$each[i]?.conditions.$each[j]?.value.$errors[0],
+            }"
+            :removable="item.conditions.length > 1"
+            @remove="removeAt(item.conditions, j)"
           />
-          <InputText v-else v-model="record.value" size="small" />
+          <Button
+            label="Add condition"
+            icon="pi pi-plus"
+            severity="secondary"
+            text
+            size="small"
+            class="self-start"
+            @click="item.conditions.push(newCondition())"
+          />
         </div>
+        <RuleConditionRow
+          v-else
+          v-model="record.conditions[i]"
+          :errors="{
+            field: r$.conditions.$each[i]?.field.$errors[0],
+            operator: r$.conditions.$each[i]?.operator.$errors[0],
+            value: r$.conditions.$each[i]?.value.$errors[0],
+          }"
+          :removable="record.conditions.length > 1"
+          @remove="removeAt(record.conditions, i)"
+        />
+      </template>
+
+      <div class="flex flex-row gap-2">
+        <Button
+          label="Add condition"
+          icon="pi pi-plus"
+          severity="secondary"
+          text
+          size="small"
+          @click="record.conditions.push(newCondition())"
+        />
+        <Button
+          label="Add group"
+          icon="pi pi-plus"
+          severity="secondary"
+          text
+          size="small"
+          @click="record.conditions.push(newGroup())"
+        />
       </div>
 
       <div class="flex flex-row w-full">

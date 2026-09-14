@@ -58,33 +58,59 @@ func (s *RulesService) FetchRuleByID(ctx context.Context, userID, id int64) (*mo
 	return &record, nil
 }
 
+func (s *RulesService) buildConditions(reqs []models.RuleConditionReq, depth int) ([]models.RuleCondition, error) {
+	var out []models.RuleCondition
+	for i, c := range reqs {
+		if c.IsGroup {
+			if depth > 0 {
+				return nil, apperr.New(apperr.Validation, "A group cannot hold another group")
+			}
+			if c.MatchType == "" {
+				return nil, apperr.New(apperr.Validation, "A group needs a match type")
+			}
+			if len(c.Conditions) == 0 {
+				return nil, apperr.New(apperr.Validation, "A group needs at least one condition")
+			}
+			children, err := s.buildConditions(c.Conditions, depth+1)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, models.RuleCondition{IsGroup: true, MatchType: c.MatchType, Position: i, Children: children})
+			continue
+		}
+		if c.Field == "" || c.Operator == "" || c.Value == "" {
+			return nil, apperr.New(apperr.Validation, "A condition needs a field, an operator and a value")
+		}
+		switch c.Field {
+		case models.RuleFieldDescription:
+			if c.Operator != models.RuleOpContains {
+				return nil, apperr.New(apperr.Validation, "A description condition only supports the contains operator")
+			}
+		case models.RuleFieldAmount:
+			if c.Operator == models.RuleOpContains {
+				return nil, apperr.New(apperr.Validation, "An amount condition does not support the contains operator")
+			}
+			if _, err := decimal.NewFromString(c.Value); err != nil {
+				return nil, apperr.New(apperr.Validation, fmt.Sprintf("An amount condition needs a numeric value, got %q", c.Value))
+			}
+		}
+		out = append(out, models.RuleCondition{Field: c.Field, Operator: c.Operator, Value: c.Value, Position: i})
+	}
+	return out, nil
+}
+
 func (s *RulesService) buildRule(ctx context.Context, tx *gorm.DB, userID int64, req *models.RuleReq) (models.Rule, error) {
 	rule := models.Rule{UserID: userID, Name: req.Name, IsActive: true}
 	if req.IsActive != nil {
 		rule.IsActive = *req.IsActive
 	}
 
-	for i, c := range req.Conditions {
-		switch c.Field {
-		case models.RuleFieldDescription:
-			if c.Operator != models.RuleOpContains {
-				return rule, apperr.New(apperr.Validation, "A description condition only supports the contains operator")
-			}
-		case models.RuleFieldAmount:
-			if c.Operator == models.RuleOpContains {
-				return rule, apperr.New(apperr.Validation, "An amount condition does not support the contains operator")
-			}
-			if _, err := decimal.NewFromString(c.Value); err != nil {
-				return rule, apperr.New(apperr.Validation, fmt.Sprintf("An amount condition needs a numeric value, got %q", c.Value))
-			}
-		}
-		rule.Conditions = append(rule.Conditions, models.RuleCondition{
-			Field:    c.Field,
-			Operator: c.Operator,
-			Value:    c.Value,
-			Position: i,
-		})
+	conditions, err := s.buildConditions(req.Conditions, 0)
+	if err != nil {
+		return rule, err
 	}
+	rule.MatchType = req.MatchType
+	rule.Conditions = conditions
 
 	for i, a := range req.Actions {
 		categoryID, err := strconv.ParseInt(a.Value, 10, 64)

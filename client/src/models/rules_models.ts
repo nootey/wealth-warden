@@ -23,9 +23,19 @@ export interface Rule {
   user_id?: number | null;
   name: string;
   is_active: boolean;
+  match_type: string;
   effective_date: string | null;
   conditions: RuleCondition[];
   actions: RuleAction[];
   created_at?: string;
   updated_at?: string;
+}
+
+export interface RuleConditionReq {
+  is_group: boolean;
+  match_type: string;
+  field: string;
+  operator: string;
+  value: string;
+  conditions: RuleConditionReq[];
 }

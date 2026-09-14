@@ -19,6 +19,9 @@ const (
 	RuleOpLte      = "lte"
 
 	RuleActionSetCategory = "set_category"
+
+	RuleMatchAll = "all"
+	RuleMatchAny = "any"
 )
 
 type Rule struct {
@@ -26,6 +29,7 @@ type Rule struct {
 	UserID        int64           `gorm:"not null;index:idx_rules_user_id" json:"user_id"`
 	Name          string          `gorm:"type:varchar(100);not null" json:"name"`
 	IsActive      bool            `gorm:"not null" json:"is_active"`
+	MatchType     string          `gorm:"type:varchar(10);not null;default:all" json:"match_type"`
 	EffectiveDate *time.Time      `gorm:"type:date" json:"effective_date,omitempty"`
 	Conditions    []RuleCondition `gorm:"foreignKey:RuleID" json:"conditions"`
 	Actions       []RuleAction    `gorm:"foreignKey:RuleID" json:"actions"`
@@ -34,15 +38,16 @@ type Rule struct {
 }
 
 type RuleCondition struct {
-	ID        int64  `gorm:"primaryKey;autoIncrement" json:"id"`
-	RuleID    int64  `gorm:"not null;index:idx_rule_conditions_rule_id" json:"rule_id"`
-	ParentID  *int64 `json:"parent_id,omitempty"`
-	IsGroup   bool   `gorm:"not null;default:false" json:"is_group"`
-	MatchType string `gorm:"type:varchar(10);not null" json:"match_type"`
-	Field     string `gorm:"type:varchar(50);not null" json:"field"`
-	Operator  string `gorm:"type:varchar(20);not null" json:"operator"`
-	Value     string `gorm:"type:text;not null" json:"value"`
-	Position  int    `gorm:"not null;default:0" json:"position"`
+	ID        int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	RuleID    int64           `gorm:"not null;index:idx_rule_conditions_rule_id" json:"rule_id"`
+	ParentID  *int64          `json:"parent_id,omitempty"`
+	IsGroup   bool            `gorm:"not null;default:false" json:"is_group"`
+	MatchType string          `gorm:"type:varchar(10);not null" json:"match_type"`
+	Field     string          `gorm:"type:varchar(50);not null" json:"field"`
+	Operator  string          `gorm:"type:varchar(20);not null" json:"operator"`
+	Value     string          `gorm:"type:text;not null" json:"value"`
+	Position  int             `gorm:"not null;default:0" json:"position"`
+	Children  []RuleCondition `gorm:"-" json:"-"`
 }
 
 type RuleAction struct {
@@ -53,24 +58,40 @@ type RuleAction struct {
 	Position   int    `gorm:"not null;default:0" json:"position"`
 }
 
-// Matches reports whether every plain condition holds. Groups and unknown fields never match,
-// so a rule the current code cannot evaluate stays inert instead of mis-categorizing.
+// Matches evaluates the condition tree rooted at the rule. Unknown fields, operators and
+// match types never match, so a rule the current code cannot evaluate stays inert.
 func (r Rule) Matches(description string, amount decimal.Decimal) bool {
-	if len(r.Conditions) == 0 {
+	return r.matchesChildren(nil, r.MatchType, description, amount)
+}
+
+func (r Rule) matchesChildren(parentID *int64, matchType string, description string, amount decimal.Decimal) bool {
+	if matchType != RuleMatchAll && matchType != RuleMatchAny {
 		return false
 	}
+	found := false
 	for _, c := range r.Conditions {
-		if !c.matches(description, amount) {
+		if (c.ParentID == nil) != (parentID == nil) || (parentID != nil && *c.ParentID != *parentID) {
+			continue
+		}
+		found = true
+		var ok bool
+		if c.IsGroup {
+			id := c.ID
+			ok = r.matchesChildren(&id, c.MatchType, description, amount)
+		} else {
+			ok = c.matches(description, amount)
+		}
+		if ok && matchType == RuleMatchAny {
+			return true
+		}
+		if !ok && matchType == RuleMatchAll {
 			return false
 		}
 	}
-	return true
+	return found && matchType == RuleMatchAll
 }
 
 func (c RuleCondition) matches(description string, amount decimal.Decimal) bool {
-	if c.IsGroup {
-		return false
-	}
 	switch c.Field {
 	case RuleFieldDescription:
 		if c.Operator != RuleOpContains {
@@ -114,14 +135,20 @@ func (r Rule) CategoryID() (int64, bool) {
 type RuleReq struct {
 	Name       string             `json:"name" validate:"max=100"`
 	IsActive   *bool              `json:"is_active"`
-	Conditions []RuleConditionReq `json:"conditions" validate:"required,min=1,max=1,dive"`
+	MatchType  string             `json:"match_type" validate:"required,oneof=all any"`
+	Conditions []RuleConditionReq `json:"conditions" validate:"required,min=1,dive"`
 	Actions    []RuleActionReq    `json:"actions" validate:"required,min=1,max=1,dive"`
 }
 
+// A group carries match_type and conditions; a plain condition carries field, operator and value.
+// The service checks each shape, since the tags cannot depend on is_group.
 type RuleConditionReq struct {
-	Field    string `json:"field" validate:"required,oneof=description amount"`
-	Operator string `json:"operator" validate:"required,oneof=contains equals gt gte lt lte"`
-	Value    string `json:"value" validate:"required,max=255"`
+	IsGroup    bool               `json:"is_group"`
+	MatchType  string             `json:"match_type" validate:"omitempty,oneof=all any"`
+	Conditions []RuleConditionReq `json:"conditions" validate:"omitempty,dive"`
+	Field      string             `json:"field" validate:"omitempty,oneof=description amount"`
+	Operator   string             `json:"operator" validate:"omitempty,oneof=contains equals gt gte lt lte"`
+	Value      string             `json:"value" validate:"max=255"`
 }
 
 type RuleActionReq struct {

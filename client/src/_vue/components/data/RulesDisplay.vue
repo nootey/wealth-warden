@@ -27,6 +27,10 @@ const ruleColumns = computed<Column[]>(() => [
   { field: "effective_date", header: "Effective date" },
 ]);
 
+function conditionCount(rule: Rule): number {
+  return (rule.conditions ?? []).filter((c) => !c.is_group).length;
+}
+
 function openUpdate(id: number) {
   if (!hasPermission("manage_data")) return;
   updateModal.value = true;
@@ -111,13 +115,11 @@ function completeDelete() {
     <Column header="Conditions">
       <template #body="{ data }">
         <div
-          v-tooltip="
-            'This rule has ' + (data?.conditions?.length ?? 0) + ' conditions'
-          "
+          v-tooltip="'This rule has ' + conditionCount(data) + ' conditions'"
           class="flex flex-row items-center gap-2"
         >
           <i class="pi pi-eye" />
-          <span>{{ data?.conditions?.length ?? 0 }}</span>
+          <span>{{ conditionCount(data) }}</span>
         </div>
       </template>
     </Column>

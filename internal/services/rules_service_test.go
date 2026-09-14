@@ -30,6 +30,7 @@ func (s *RulesServiceSuite) assertValidation(err error) {
 func (s *RulesServiceSuite) ruleReq(field, op, value string, categoryID int64) *models.RuleReq {
 	return &models.RuleReq{
 		Name:       field + " " + op,
+		MatchType:  models.RuleMatchAll,
 		Conditions: []models.RuleConditionReq{{Field: field, Operator: op, Value: value}},
 		Actions:    []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(categoryID, 10)}},
 	}
@@ -60,6 +61,66 @@ func (s *RulesServiceSuite) TestInsertRuleRejectsBadPairsAndForeignCategory() {
 	s.True(rule.IsActive)
 	s.Len(rule.Conditions, 1)
 	s.Len(rule.Actions, 1)
+}
+
+func (s *RulesServiceSuite) TestInsertRuleWithGroupRoundTrips() {
+	svc := s.TC.App.RulesService
+	catID, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Rule Group Cat", Classification: "expense"})
+	s.Require().NoError(err)
+
+	group := models.RuleConditionReq{IsGroup: true, MatchType: models.RuleMatchAny, Conditions: []models.RuleConditionReq{
+		{Field: "amount", Operator: "equals", Value: "2.99"},
+		{Field: "amount", Operator: "equals", Value: "9.99"},
+	}}
+	req := &models.RuleReq{
+		Name:       "spotify",
+		MatchType:  models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{{Field: "description", Operator: "contains", Value: "spotify"}, group},
+		Actions:    []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(catID, 10)}},
+	}
+
+	id, err := svc.InsertRule(s.Ctx, seedUserID, req)
+	s.Require().NoError(err)
+
+	rule, err := svc.FetchRuleByID(s.Ctx, seedUserID, id)
+	s.Require().NoError(err)
+	s.Require().Len(rule.Conditions, 4)
+	var groupID int64
+	children := 0
+	for _, c := range rule.Conditions {
+		if c.IsGroup {
+			groupID = c.ID
+		}
+	}
+	for _, c := range rule.Conditions {
+		if c.ParentID != nil && *c.ParentID == groupID {
+			children++
+		}
+	}
+	s.NotZero(groupID)
+	s.Equal(2, children)
+	s.True(rule.Matches("Spotify AB", decimal.RequireFromString("9.99")))
+	s.False(rule.Matches("Spotify AB", decimal.RequireFromString("5.00")))
+
+	// update keeps the tree intact after the delete-and-recreate
+	req.MatchType = models.RuleMatchAny
+	_, err = svc.UpdateRule(s.Ctx, seedUserID, id, req)
+	s.Require().NoError(err)
+	rule, err = svc.FetchRuleByID(s.Ctx, seedUserID, id)
+	s.Require().NoError(err)
+	s.Require().Len(rule.Conditions, 4)
+	s.True(rule.Matches("Netflix", decimal.RequireFromString("2.99")))
+
+	// an empty group and a nested group are rejected
+	req.Conditions = []models.RuleConditionReq{{IsGroup: true, MatchType: models.RuleMatchAny}}
+	_, err = svc.InsertRule(s.Ctx, seedUserID, req)
+	s.Require().Error(err)
+	s.assertValidation(err)
+
+	req.Conditions = []models.RuleConditionReq{{IsGroup: true, MatchType: models.RuleMatchAny, Conditions: []models.RuleConditionReq{group}}}
+	_, err = svc.InsertRule(s.Ctx, seedUserID, req)
+	s.Require().Error(err)
+	s.assertValidation(err)
 }
 
 // A bank import must categorize rows through active rules and leave the rest uncategorized.

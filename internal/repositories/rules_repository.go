@@ -39,7 +39,7 @@ func (r *RulesRepository) FindRules(ctx context.Context, tx *gorm.DB, userID int
 	db = db.WithContext(ctx)
 
 	q := db.Model(&models.Rule{}).
-		Preload("Conditions", func(db *gorm.DB) *gorm.DB { return db.Order("position, id") }).
+		Preload("Conditions", func(db *gorm.DB) *gorm.DB { return db.Order("id") }).
 		Preload("Actions", func(db *gorm.DB) *gorm.DB { return db.Order("position, id") }).
 		Where("user_id = ?", userID)
 	if activeOnly {
@@ -62,7 +62,7 @@ func (r *RulesRepository) FindRuleByID(ctx context.Context, tx *gorm.DB, ID, use
 
 	var record models.Rule
 	q := db.
-		Preload("Conditions", func(db *gorm.DB) *gorm.DB { return db.Order("position, id") }).
+		Preload("Conditions", func(db *gorm.DB) *gorm.DB { return db.Order("id") }).
 		Preload("Actions", func(db *gorm.DB) *gorm.DB { return db.Order("position, id") }).
 		Where("id = ? AND user_id = ?", ID, userID).
 		First(&record)
@@ -77,10 +77,32 @@ func (r *RulesRepository) InsertRule(ctx context.Context, tx *gorm.DB, newRecord
 	}
 	db = db.WithContext(ctx)
 
+	conditions := newRecord.Conditions
+	newRecord.Conditions = nil
 	if err := db.Create(newRecord).Error; err != nil {
 		return 0, err
 	}
+	if err := insertConditions(db, newRecord.ID, nil, conditions); err != nil {
+		return 0, err
+	}
+	newRecord.Conditions = conditions
 	return newRecord.ID, nil
+}
+
+func insertConditions(db *gorm.DB, ruleID int64, parentID *int64, conditions []models.RuleCondition) error {
+	for i := range conditions {
+		c := &conditions[i]
+		c.ID = 0
+		c.RuleID = ruleID
+		c.ParentID = parentID
+		if err := db.Create(c).Error; err != nil {
+			return err
+		}
+		if err := insertConditions(db, ruleID, &c.ID, c.Children); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *RulesRepository) UpdateRule(ctx context.Context, tx *gorm.DB, record models.Rule) (int64, error) {
@@ -93,8 +115,9 @@ func (r *RulesRepository) UpdateRule(ctx context.Context, tx *gorm.DB, record mo
 	if err := db.Model(&models.Rule{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
-			"name":      record.Name,
-			"is_active": record.IsActive,
+			"name":       record.Name,
+			"is_active":  record.IsActive,
+			"match_type": record.MatchType,
 		}).Error; err != nil {
 		return 0, err
 	}
@@ -106,18 +129,12 @@ func (r *RulesRepository) UpdateRule(ctx context.Context, tx *gorm.DB, record mo
 		return 0, err
 	}
 
-	for i := range record.Conditions {
-		record.Conditions[i].ID = 0
-		record.Conditions[i].RuleID = record.ID
+	if err := insertConditions(db, record.ID, nil, record.Conditions); err != nil {
+		return 0, err
 	}
 	for i := range record.Actions {
 		record.Actions[i].ID = 0
 		record.Actions[i].RuleID = record.ID
-	}
-	if len(record.Conditions) > 0 {
-		if err := db.Create(&record.Conditions).Error; err != nil {
-			return 0, err
-		}
 	}
 	if len(record.Actions) > 0 {
 		if err := db.Create(&record.Actions).Error; err != nil {
