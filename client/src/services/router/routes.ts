@@ -14,6 +14,7 @@ import GeneralSettings from "../../_vue/pages/Settings/GeneralSettings.vue";
 import ProfileSettings from "../../_vue/pages/Settings/ProfileSettings.vue";
 import AccountsSettings from "../../_vue/pages/Settings/AccountsSettings.vue";
 import CategoriesSettings from "../../_vue/pages/Settings/CategoriesSettings.vue";
+import RulesSettings from "../../_vue/pages/Settings/RulesSettings.vue";
 import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 import DataSettings from "../../_vue/pages/Settings/DataSettings.vue";
 import SecuritySettings from "../../_vue/pages/Settings/SecuritySettings.vue";
@@ -146,6 +147,12 @@ const routes: RouteRecordRaw[] = [
         name: "settings.categories",
         component: CategoriesSettings,
         meta: { title: "Categories", permsAny: ["manage_data"] },
+      },
+      {
+        path: "rules",
+        name: "settings.rules",
+        component: RulesSettings,
+        meta: { title: "Rules", permsAny: ["manage_data"] },
       },
       {
         path: "roles",
