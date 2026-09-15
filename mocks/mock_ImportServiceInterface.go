@@ -38,6 +38,69 @@ func (_m *MockImportServiceInterface) EXPECT() *MockImportServiceInterface_Expec
 	return &MockImportServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// ApplyBankRowOverrides provides a mock function for the type MockImportServiceInterface
+func (_mock *MockImportServiceInterface) ApplyBankRowOverrides(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error {
+	ret := _mock.Called(payload, rowCategories, skipRows)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ApplyBankRowOverrides")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(*models.TxnImportPayload, []models.RowCategory, []int) error); ok {
+		r0 = returnFunc(payload, rowCategories, skipRows)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockImportServiceInterface_ApplyBankRowOverrides_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApplyBankRowOverrides'
+type MockImportServiceInterface_ApplyBankRowOverrides_Call struct {
+	*mock.Call
+}
+
+// ApplyBankRowOverrides is a helper method to define mock.On call
+//   - payload *models.TxnImportPayload
+//   - rowCategories []models.RowCategory
+//   - skipRows []int
+func (_e *MockImportServiceInterface_Expecter) ApplyBankRowOverrides(payload any, rowCategories any, skipRows any) *MockImportServiceInterface_ApplyBankRowOverrides_Call {
+	return &MockImportServiceInterface_ApplyBankRowOverrides_Call{Call: _e.mock.On("ApplyBankRowOverrides", payload, rowCategories, skipRows)}
+}
+
+func (_c *MockImportServiceInterface_ApplyBankRowOverrides_Call) Run(run func(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int)) *MockImportServiceInterface_ApplyBankRowOverrides_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *models.TxnImportPayload
+		if args[0] != nil {
+			arg0 = args[0].(*models.TxnImportPayload)
+		}
+		var arg1 []models.RowCategory
+		if args[1] != nil {
+			arg1 = args[1].([]models.RowCategory)
+		}
+		var arg2 []int
+		if args[2] != nil {
+			arg2 = args[2].([]int)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockImportServiceInterface_ApplyBankRowOverrides_Call) Return(err error) *MockImportServiceInterface_ApplyBankRowOverrides_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockImportServiceInterface_ApplyBankRowOverrides_Call) RunAndReturn(run func(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error) *MockImportServiceInterface_ApplyBankRowOverrides_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteImport provides a mock function for the type MockImportServiceInterface
 func (_mock *MockImportServiceInterface) DeleteImport(ctx context.Context, userID int64, id int64) error {
 	ret := _mock.Called(ctx, userID, id)

@@ -328,3 +328,34 @@ func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
 	}
 	s.Equal(2, leafCount)
 }
+
+// An imported rule with a malformed condition must fail the same validation the API
+// enforces on InsertRule, not silently persist a rule that can never match.
+func (s *ImportServiceSuite) TestImportRulesRejectsInvalidCondition() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	payload := models.RuleImportPayload{
+		GeneratedAt: time.Now().UTC(),
+		Rules: []models.RuleExport{
+			{
+				Name:      "bad amount rule",
+				IsActive:  true,
+				MatchType: models.RuleMatchAll,
+				Conditions: []models.RuleConditionExport{
+					{Field: models.RuleFieldAmount, Operator: models.RuleOpEquals, Value: "not-a-number"},
+				},
+			},
+		},
+	}
+
+	err := s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload)
+	s.Require().Error(err)
+	status, _ := apperr.Resolve(err)
+	s.Equal(http.StatusUnprocessableEntity, status)
+
+	var count int64
+	s.Require().NoError(s.TC.DB.Model(&models.Rule{}).
+		Where("user_id = ? AND name = ?", seedUserID, "bad amount rule").
+		Count(&count).Error)
+	s.Zero(count, "an invalid rule must not be persisted")
+}

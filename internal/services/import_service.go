@@ -42,6 +42,7 @@ type ImportServiceInterface interface {
 	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
 	ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error)
+	ApplyBankRowOverrides(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error
 }
 
 type ImportService struct {
@@ -354,6 +355,40 @@ func (s *ImportService) ParseBankStatements(bankName string, files []models.Bank
 		})
 	}
 	return payload, nil
+}
+
+func (s *ImportService) ApplyBankRowOverrides(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error {
+	for _, rc := range rowCategories {
+		if rc.Row < 0 || rc.Row >= len(payload.Txns) {
+			return apperr.New(apperr.Invalid, fmt.Sprintf("row_categories points at row %d, but the statements hold %d rows", rc.Row, len(payload.Txns)))
+		}
+		id := rc.CategoryID
+		payload.Txns[rc.Row].CategoryID = &id
+	}
+
+	if len(skipRows) == 0 {
+		return nil
+	}
+
+	drop := make(map[int]bool, len(skipRows))
+	for _, row := range skipRows {
+		if row < 0 || row >= len(payload.Txns) {
+			return apperr.New(apperr.Invalid, fmt.Sprintf("skip_rows points at row %d, but the statements hold %d rows", row, len(payload.Txns)))
+		}
+		drop[row] = true
+	}
+	kept := make([]models.JSONTxn, 0, len(payload.Txns)-len(drop))
+	for i, t := range payload.Txns {
+		if !drop[i] {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) == 0 {
+		return apperr.New(apperr.Invalid, "Every row was skipped, so there is nothing to import")
+	}
+	payload.Txns = kept
+
+	return nil
 }
 
 func (s *ImportService) FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error) {
@@ -1099,8 +1134,13 @@ func (s *ImportService) buildRuleFromImport(ctx context.Context, tx *gorm.DB, us
 		IsActive:      r.IsActive,
 		MatchType:     r.MatchType,
 		EffectiveDate: r.EffectiveDate,
-		Conditions:    buildRuleConditionsFromExport(r.Conditions),
 	}
+
+	conditions, err := buildRuleConditions(ruleConditionReqsFromExport(r.Conditions), 0)
+	if err != nil {
+		return rule, err
+	}
+	rule.Conditions = conditions
 
 	for _, a := range r.Actions {
 		value := a.Value
@@ -1120,21 +1160,17 @@ func (s *ImportService) buildRuleFromImport(ctx context.Context, tx *gorm.DB, us
 	return rule, nil
 }
 
-func buildRuleConditionsFromExport(conditions []models.RuleConditionExport) []models.RuleCondition {
-	out := make([]models.RuleCondition, 0, len(conditions))
-	for i, c := range conditions {
-		rc := models.RuleCondition{
-			IsGroup:   c.IsGroup,
-			MatchType: c.MatchType,
-			Field:     c.Field,
-			Operator:  c.Operator,
-			Value:     c.Value,
-			Position:  i,
-		}
-		if c.IsGroup {
-			rc.Children = buildRuleConditionsFromExport(c.Conditions)
-		}
-		out = append(out, rc)
+func ruleConditionReqsFromExport(conditions []models.RuleConditionExport) []models.RuleConditionReq {
+	out := make([]models.RuleConditionReq, 0, len(conditions))
+	for _, c := range conditions {
+		out = append(out, models.RuleConditionReq{
+			IsGroup:    c.IsGroup,
+			MatchType:  c.MatchType,
+			Conditions: ruleConditionReqsFromExport(c.Conditions),
+			Field:      c.Field,
+			Operator:   c.Operator,
+			Value:      c.Value,
+		})
 	}
 	return out
 }
@@ -1210,7 +1246,8 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 	}()
 
 	for i, r := range payload.Rules {
-		rule, err := s.buildRuleFromImport(ctx, tx, userID, r)
+		var rule models.Rule
+		rule, err = s.buildRuleFromImport(ctx, tx, userID, r)
 		if err != nil {
 			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("rule_name", r.Name))
 			tx.Rollback()

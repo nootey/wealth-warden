@@ -220,6 +220,10 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
 
+	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
+	}
+
 	if req.IdempotencyKey != nil && *req.IdempotencyKey != "" {
 		if existing, err := s.repo.FindTransactionByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); err == nil {
 			return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
@@ -673,6 +677,10 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 }
 
 func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error) {
+	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err

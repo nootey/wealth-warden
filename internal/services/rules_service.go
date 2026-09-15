@@ -58,7 +58,7 @@ func (s *RulesService) FetchRuleByID(ctx context.Context, userID, id int64) (*mo
 	return &record, nil
 }
 
-func (s *RulesService) buildConditions(reqs []models.RuleConditionReq, depth int) ([]models.RuleCondition, error) {
+func buildRuleConditions(reqs []models.RuleConditionReq, depth int) ([]models.RuleCondition, error) {
 	var out []models.RuleCondition
 	for i, c := range reqs {
 		if c.IsGroup {
@@ -71,7 +71,7 @@ func (s *RulesService) buildConditions(reqs []models.RuleConditionReq, depth int
 			if len(c.Conditions) == 0 {
 				return nil, apperr.New(apperr.Validation, "A group needs at least one condition")
 			}
-			children, err := s.buildConditions(c.Conditions, depth+1)
+			children, err := buildRuleConditions(c.Conditions, depth+1)
 			if err != nil {
 				return nil, err
 			}
@@ -112,7 +112,7 @@ func (s *RulesService) buildRule(ctx context.Context, tx *gorm.DB, userID int64,
 		rule.IsActive = *req.IsActive
 	}
 
-	conditions, err := s.buildConditions(req.Conditions, 0)
+	conditions, err := buildRuleConditions(req.Conditions, 0)
 	if err != nil {
 		return rule, err
 	}

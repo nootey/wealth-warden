@@ -494,47 +494,25 @@ func (h *ImportHandler) ImportBankTransactions(c *gin.Context) {
 		return
 	}
 
+	var rowCategories []models.RowCategory
 	if rcStr := c.PostForm("row_categories"); rcStr != "" {
-		var rows []models.RowCategory
-		if err := json.Unmarshal([]byte(rcStr), &rows); err != nil {
+		if err := json.Unmarshal([]byte(rcStr), &rowCategories); err != nil {
 			_ = c.Error(apperr.Wrap(apperr.Invalid, "row_categories is not valid JSON", err))
 			return
 		}
-		for _, rc := range rows {
-			if rc.Row < 0 || rc.Row >= len(payload.Txns) {
-				_ = c.Error(apperr.New(apperr.Invalid, fmt.Sprintf("row_categories points at row %d, but the statements hold %d rows", rc.Row, len(payload.Txns))))
-				return
-			}
-			id := rc.CategoryID
-			payload.Txns[rc.Row].CategoryID = &id
-		}
 	}
 
+	var skipRows []int
 	if skStr := c.PostForm("skip_rows"); skStr != "" {
-		var skip []int
-		if err := json.Unmarshal([]byte(skStr), &skip); err != nil {
+		if err := json.Unmarshal([]byte(skStr), &skipRows); err != nil {
 			_ = c.Error(apperr.Wrap(apperr.Invalid, "skip_rows is not valid JSON", err))
 			return
 		}
-		drop := make(map[int]bool, len(skip))
-		for _, row := range skip {
-			if row < 0 || row >= len(payload.Txns) {
-				_ = c.Error(apperr.New(apperr.Invalid, fmt.Sprintf("skip_rows points at row %d, but the statements hold %d rows", row, len(payload.Txns))))
-				return
-			}
-			drop[row] = true
-		}
-		kept := make([]models.JSONTxn, 0, len(payload.Txns)-len(drop))
-		for i, t := range payload.Txns {
-			if !drop[i] {
-				kept = append(kept, t)
-			}
-		}
-		if len(kept) == 0 {
-			_ = c.Error(apperr.New(apperr.Invalid, "Every row was skipped, so there is nothing to import"))
-			return
-		}
-		payload.Txns = kept
+	}
+
+	if err := h.Service.ApplyBankRowOverrides(&payload, rowCategories, skipRows); err != nil {
+		_ = c.Error(err)
+		return
 	}
 
 	skipped, err := h.Service.ImportTransactions(ctx, userID, checkAccID, models.ImportTypeBank, payload)

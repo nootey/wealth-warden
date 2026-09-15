@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,11 +130,11 @@ func (c RuleCondition) matches(description string, amount decimal.Decimal, direc
 func (r Rule) CategoryID() (int64, bool) {
 	for _, a := range r.Actions {
 		if a.ActionType == RuleActionSetCategory {
-			id, err := decimal.NewFromString(a.Value)
-			if err != nil || !id.IsInteger() {
+			id, err := strconv.ParseInt(a.Value, 10, 64)
+			if err != nil {
 				return 0, false
 			}
-			return id.IntPart(), true
+			return id, true
 		}
 	}
 	return 0, false

@@ -153,6 +153,15 @@ func (suite *ImportHandlerTestSuite) bankImport(fields map[string]string) *httpt
 }
 
 func (suite *ImportHandlerTestSuite) TestBankImport_SkipsRowsAfterSettingCategories() {
+	suite.mockService.On("ApplyBankRowOverrides", mock.Anything, []models.RowCategory{{Row: 1, CategoryID: 5}}, []int{0}).
+		Run(func(args mock.Arguments) {
+			payload := args.Get(0).(*models.TxnImportPayload)
+			categoryID := int64(5)
+			payload.Txns[1].CategoryID = &categoryID
+			payload.Txns = payload.Txns[1:]
+		}).
+		Return(nil).Once()
+
 	suite.mockService.On("ImportTransactions", mock.Anything, int64(123), int64(1), models.ImportTypeBank, mock.MatchedBy(func(p models.TxnImportPayload) bool {
 		return len(p.Txns) == 1 && *p.Txns[0].ExternalTxnID == "TX2" && p.Txns[0].CategoryID != nil && *p.Txns[0].CategoryID == 5
 	})).Return(0, nil).Once()
@@ -166,10 +175,14 @@ func (suite *ImportHandlerTestSuite) TestBankImport_SkipsRowsAfterSettingCategor
 }
 
 func (suite *ImportHandlerTestSuite) TestBankImport_AllRowsSkippedNeverReachesService() {
+	suite.mockService.On("ApplyBankRowOverrides", mock.Anything, []models.RowCategory(nil), []int{0, 1}).
+		Return(apperr.New(apperr.Invalid, "Every row was skipped, so there is nothing to import")).Once()
+
 	w := suite.bankImport(map[string]string{"skip_rows": `[0,1]`})
 
 	suite.Equal(http.StatusBadRequest, w.Code)
 	suite.Contains(decode(suite, w)["message"], "nothing to import")
+	suite.mockService.AssertNotCalled(suite.T(), "ImportTransactions", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (suite *ImportHandlerTestSuite) validate(returned error) *httptest.ResponseRecorder {
