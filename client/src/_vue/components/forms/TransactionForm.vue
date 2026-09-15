@@ -502,13 +502,25 @@ async function deleteRecord(id: number, tx_type: string) {
 
 <template>
   <div v-if="!loading" class="flex flex-col gap-4 p-1">
-    <span v-if="record.transaction_type=='adjustment'" class="text-sm" style="color: var(--text-secondary)">
+    <span
+      v-if="record.transaction_type == 'adjustment'"
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >
       Adjustments do not show up in analytics.
     </span>
-    <span v-if="isFormReadOnly" class="text-sm" style="color: var(--text-secondary)">
+    <span
+      v-if="isFormReadOnly"
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >
       Read-only mode.
     </span>
-    <span v-else-if="isRecordPartiallyEditable" class="text-sm" style="color: var(--text-secondary)">
+    <span
+      v-else-if="isRecordPartiallyEditable"
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >
       This transaction is partially editable.
     </span>
     <div v-else class="flex flex-row w-full justify-center">
@@ -525,7 +537,11 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
     </div>
 
-    <span v-if="defaultPreSelected" class="text-sm" style="color: var(--text-secondary)">
+    <span
+      v-if="defaultPreSelected"
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >
       Default checking account pre-selected.
     </span>
 

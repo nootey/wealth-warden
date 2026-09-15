@@ -127,6 +127,9 @@ async function deleteRecord(id: number) {
       scroll-height="50vh"
       column-resize-mode="fit"
       scroll-direction="both"
+      paginator
+      :rows="10"
+      :rows-per-page-options="[10, 25, 50]"
     >
       <template #empty>
         <div style="padding: 10px">No records found.</div>

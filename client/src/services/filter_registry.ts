@@ -51,8 +51,7 @@ export const defs = {
 
         if (date) return [{ source, field, operator: "=", value: ymd(date) }];
 
-        if (from)
-          out.push({ source, field, operator: ">=", value: ymd(from) });
+        if (from) out.push({ source, field, operator: ">=", value: ymd(from) });
         if (to) out.push({ source, field, operator: "<=", value: ymd(to) });
         return out;
       },
