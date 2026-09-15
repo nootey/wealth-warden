@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -26,11 +27,11 @@ type TransactionRepositoryInterface interface {
 	GetMonthlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, checkingAccountIDs []int64, year, month int) ([]models.Transfer, error)
 	CountTransactions(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error)
 	CountTransfers(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool, accountID *int64) (int64, error)
-	scopeCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) *gorm.DB
-	FindAllCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) ([]models.Category, error)
-	FindCategoryByID(ctx context.Context, tx *gorm.DB, ID int64, userID *int64, includeDeleted bool) (models.Category, error)
-	FindCategoryByClassification(ctx context.Context, tx *gorm.DB, classification string, userID *int64) (models.Category, error)
-	FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID *int64) (models.Category, error)
+	scopeCategories(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool) *gorm.DB
+	FindAllCategories(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool) ([]models.Category, error)
+	FindCategoryByID(ctx context.Context, tx *gorm.DB, ID int64, userID int64, includeDeleted bool) (models.Category, error)
+	FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID int64) (models.Category, error)
+	EnsureRootCategory(ctx context.Context, tx *gorm.DB, classification string, userID int64) (models.Category, error)
 	FindTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error)
 	FindTransactionsByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transaction, error)
 	FindTransactionByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transaction, error)
@@ -52,8 +53,8 @@ type TransactionRepositoryInterface interface {
 	DeleteCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RetimeOpeningTransactions(ctx context.Context, tx *gorm.DB, accountID int64, when time.Time) error
-	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error
-	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID *int64, name string) error
+	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID int64) error
+	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID int64, name string) error
 	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error)
 	CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool, templateType string) (int64, error)
 	FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
@@ -366,7 +367,7 @@ func (r *TransactionRepository) CountTransfers(ctx context.Context, tx *gorm.DB,
 	return totalRecords, nil
 }
 
-func (r *TransactionRepository) scopeCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) *gorm.DB {
+func (r *TransactionRepository) scopeCategories(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
 
 	db := tx
 	if db == nil {
@@ -380,13 +381,10 @@ func (r *TransactionRepository) scopeCategories(ctx context.Context, tx *gorm.DB
 		q = q.Where("deleted_at IS NULL")
 	}
 
-	if userID != nil {
-		return q.Where("(user_id IS NULL OR user_id = ?)", *userID)
-	}
-	return q.Where("user_id IS NULL")
+	return q.Where("user_id = ?", userID)
 }
 
-func (r *TransactionRepository) FindAllCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) ([]models.Category, error) {
+func (r *TransactionRepository) FindAllCategories(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool) ([]models.Category, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -400,7 +398,7 @@ func (r *TransactionRepository) FindAllCategories(ctx context.Context, tx *gorm.
 	return records, db.Error
 }
 
-func (r *TransactionRepository) FindCategoryByID(ctx context.Context, tx *gorm.DB, ID int64, userID *int64, includeDeleted bool) (models.Category, error) {
+func (r *TransactionRepository) FindCategoryByID(ctx context.Context, tx *gorm.DB, ID int64, userID int64, includeDeleted bool) (models.Category, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -414,22 +412,7 @@ func (r *TransactionRepository) FindCategoryByID(ctx context.Context, tx *gorm.D
 	return record, txn.Error
 }
 
-func (r *TransactionRepository) FindCategoryByClassification(ctx context.Context, tx *gorm.DB, classification string, userID *int64) (models.Category, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var record models.Category
-	txn := r.scopeCategories(ctx, db, userID, false).
-		Where("classification = ?", classification).
-		Order("name").
-		First(&record)
-	return record, txn.Error
-}
-
-func (r *TransactionRepository) FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID *int64) (models.Category, error) {
+func (r *TransactionRepository) FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID int64) (models.Category, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -442,6 +425,40 @@ func (r *TransactionRepository) FindCategoryByName(ctx context.Context, tx *gorm
 		Order("name").
 		First(&record)
 	return record, txn.Error
+}
+
+func (r *TransactionRepository) EnsureRootCategory(ctx context.Context, tx *gorm.DB, classification string, userID int64) (models.Category, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var existing models.Category
+	err := db.Where("user_id = ? AND classification = ? AND parent_id IS NULL", userID, classification).First(&existing).Error
+	if err == nil {
+		return existing, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.Category{}, err
+	}
+
+	def, ok := models.FindDefaultCategoryDef(classification)
+	if !ok {
+		return models.Category{}, fmt.Errorf("no default category definition for classification %q", classification)
+	}
+
+	rec := models.Category{
+		UserID:         &userID,
+		Name:           utils.NormalizeName(def.Name),
+		DisplayName:    def.Name,
+		Classification: classification,
+		IsDefault:      true,
+	}
+	if err := db.Create(&rec).Error; err != nil {
+		return models.Category{}, err
+	}
+	return rec, nil
 }
 
 func (r *TransactionRepository) FindTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error) {
@@ -728,7 +745,7 @@ func (r *TransactionRepository) ArchiveCategory(ctx context.Context, tx *gorm.DB
 
 	now := time.Now().UTC()
 	res := db.Model(&models.Category{}).
-		Where("id = ? AND (user_id = ? OR user_id IS NULL) AND deleted_at IS NULL", id, userID).
+		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
 		Updates(map[string]any{
 			"deleted_at": now,
 			"updated_at": now,
@@ -749,7 +766,7 @@ func (r *TransactionRepository) DeleteCategory(ctx context.Context, tx *gorm.DB,
 
 	var cat models.Category
 	if err := db.
-		Where("id = ? AND (user_id = ? OR user_id IS NULL)", id, userID).
+		Where("id = ? AND user_id = ?", id, userID).
 		First(&cat).Error; err != nil {
 		return err
 	}
@@ -761,7 +778,7 @@ func (r *TransactionRepository) DeleteCategory(ctx context.Context, tx *gorm.DB,
 		return fmt.Errorf("category must be soft-deleted before hard deletion")
 	}
 
-	if err := db.Where("id = ? AND (user_id = ? OR user_id IS NULL)", id, userID).
+	if err := db.Where("id = ? AND user_id = ?", id, userID).
 		Delete(&models.Category{}).Error; err != nil {
 		return err
 	}
@@ -801,7 +818,7 @@ func (r *TransactionRepository) RetimeOpeningTransactions(ctx context.Context, t
 		}).Error
 }
 
-func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error {
+func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID int64) error {
 
 	db := tx
 	if db == nil {
@@ -809,18 +826,9 @@ func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB
 	}
 	db = db.WithContext(ctx)
 
-	var owner *gorm.DB
-	if userID != nil {
-		owner = db.Where("user_id = ?", *userID).
-			Or("is_default = ? AND user_id IS NULL", true)
-	} else {
-		owner = db.Where("is_default = ? AND user_id IS NULL", true)
-	}
-
 	scope := db.Model(&models.Category{}).
 		Unscoped().
-		Where("id = ? AND deleted_at IS NOT NULL", id).
-		Where(owner)
+		Where("id = ? AND user_id = ? AND deleted_at IS NOT NULL", id, userID)
 
 	res := scope.Updates(map[string]any{
 		"deleted_at": gorm.Expr("NULL"),
@@ -830,21 +838,13 @@ func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB
 	return res.Error
 }
 
-func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID *int64, name string) error {
+func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID int64, name string) error {
 
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
-
-	var owner *gorm.DB
-	if userID != nil {
-		owner = db.Where("user_id = ?", *userID).
-			Or("is_default = ? AND user_id IS NULL", true)
-	} else {
-		owner = db.Where("is_default = ? AND user_id IS NULL", true)
-	}
 
 	s := strings.ReplaceAll(strings.ToLower(name), "_", " ")
 	if s != "" {
@@ -856,8 +856,7 @@ func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gor
 
 	scope := db.Model(&models.Category{}).
 		Unscoped().
-		Where("id = ?", id).
-		Where(owner)
+		Where("id = ? AND user_id = ?", id, userID)
 
 	res := scope.Updates(map[string]any{
 		"display_name": s,
@@ -1217,7 +1216,7 @@ func (r *TransactionRepository) FindAllCategoriesAndGroups(ctx context.Context, 
 
 	var categories []models.Category
 	if err := db.Model(&models.Category{}).
-		Where("(user_id = ? OR user_id IS NULL) AND deleted_at IS NULL AND parent_id IS NOT NULL", userID).
+		Where("user_id = ? AND deleted_at IS NULL AND parent_id IS NOT NULL", userID).
 		Order("classification, name").
 		Find(&categories).Error; err != nil {
 		return nil, nil, err
@@ -1226,7 +1225,7 @@ func (r *TransactionRepository) FindAllCategoriesAndGroups(ctx context.Context, 
 	var groups []models.CategoryGroup
 	if err := db.Model(&models.CategoryGroup{}).
 		Preload("Categories").
-		Where("user_id = ? OR user_id IS NULL", userID).
+		Where("user_id = ?", userID).
 		Order("classification, name").
 		Find(&groups).Error; err != nil {
 		return nil, nil, err

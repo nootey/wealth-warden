@@ -1559,7 +1559,7 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendExcluded
 	// Find the seeded income category
 	var incomeCat models.Category
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("classification = ? AND user_id IS NULL AND parent_id IS NULL", "income").
+		Where("classification = ? AND user_id = ? AND parent_id IS NULL", "income", userID).
 		First(&incomeCat).Error
 	s.Require().NoError(err)
 

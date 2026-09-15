@@ -124,7 +124,7 @@ func (s *RulesService) buildRule(ctx context.Context, tx *gorm.DB, userID int64,
 		if err != nil {
 			return rule, apperr.New(apperr.Validation, "The set_category action needs a category id")
 		}
-		if _, err := s.txnRepo.FindCategoryByID(ctx, tx, categoryID, &userID, false); err != nil {
+		if _, err := s.txnRepo.FindCategoryByID(ctx, tx, categoryID, userID, false); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return rule, ErrInvalidCategoryID
 			}

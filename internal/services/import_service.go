@@ -140,7 +140,7 @@ func (s *ImportService) applyRules(ctx context.Context, tx *gorm.DB, userID int6
 		if c, ok := cache[categoryID]; ok {
 			return c, true, nil
 		}
-		c, err := s.txnRepo.FindCategoryByID(ctx, tx, categoryID, &userID, false)
+		c, err := s.txnRepo.FindCategoryByID(ctx, tx, categoryID, userID, false)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				continue
@@ -552,7 +552,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		var found bool
 
 		if txn.CategoryID != nil {
-			category, err = s.txnRepo.FindCategoryByID(ctx, tx, *txn.CategoryID, &userID, false)
+			category, err = s.txnRepo.FindCategoryByID(ctx, tx, *txn.CategoryID, userID, false)
 			if err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *txn.CategoryID))
@@ -570,7 +570,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 			}
 			if strings.EqualFold(strings.TrimSpace(m.Name), strings.TrimSpace(txn.Category)) {
 				if m.CategoryID != nil {
-					category, err = s.txnRepo.FindCategoryByID(ctx, tx, *m.CategoryID, &userID, false)
+					category, err = s.txnRepo.FindCategoryByID(ctx, tx, *m.CategoryID, userID, false)
 					if err != nil {
 						tx.Rollback()
 						s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *m.CategoryID))
@@ -602,7 +602,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 
 		// Fallback if no manual choice or rule matched
 		if !found {
-			category, err = s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+			category, err = s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 			if err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))
@@ -810,7 +810,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	}
 
 	// The opening row is user editable, and the edit form needs a category on it.
-	openingCategory, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+	openingCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		tx.Rollback()
@@ -1018,7 +1018,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 
 		if cat.IsDefault {
 
-			exCat, err := s.txnRepo.FindCategoryByName(ctx, tx, cat.Name, nil)
+			exCat, err := s.txnRepo.FindCategoryByName(ctx, tx, cat.Name, userID)
 			if err != nil {
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("category_name", cat.Name))
 				tx.Rollback()
@@ -1040,7 +1040,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 			continue
 		}
 
-		parent, err := s.txnRepo.FindCategoryByName(ctx, tx, cat.Classification, &userID)
+		parent, err := s.txnRepo.EnsureRootCategory(ctx, tx, cat.Classification, userID)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -1058,6 +1058,9 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 
 		_, err = s.txnRepo.InsertCategory(ctx, tx, category)
 		if err != nil {
+			if utils.IsUniqueViolation(err) {
+				err = apperr.New(apperr.Conflict, fmt.Sprintf("a category named %q already exists", cat.DisplayName))
+			}
 			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("category_name", cat.Name))
 			tx.Rollback()
 			return err
@@ -1145,7 +1148,7 @@ func (s *ImportService) buildRuleFromImport(ctx context.Context, tx *gorm.DB, us
 	for _, a := range r.Actions {
 		value := a.Value
 		if a.ActionType == models.RuleActionSetCategory {
-			cat, err := s.txnRepo.FindCategoryByName(ctx, tx, a.Value, &userID)
+			cat, err := s.txnRepo.FindCategoryByName(ctx, tx, a.Value, userID)
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return rule, apperr.New(apperr.Validation, fmt.Sprintf("The category %q from the rule %q was not found", a.Value, r.Name))
@@ -2463,7 +2466,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			cashAmount = valueAtBuy.Add(fee).Mul(accCashRate)
 		}
 
-		cashCategory, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		cashCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 		if err != nil {
 			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("account_id", cAccID))
 			_ = tx.Rollback()
@@ -2901,15 +2904,18 @@ func (s *ImportService) deleteCatImport(ctx context.Context, userID int64, imp *
 		return err
 	}
 
-	// revert names for all default categories
-	categories, err := s.txnRepo.FindAllCategories(ctx, tx, nil, false)
+	// revert names for this user's default categories
+	categories, err := s.txnRepo.FindAllCategories(ctx, tx, userID, false)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	for _, cat := range categories {
-		if err := s.txnRepo.RestoreCategoryName(ctx, tx, cat.ID, &userID, cat.Name); err != nil {
+		if !cat.IsDefault {
+			continue
+		}
+		if err := s.txnRepo.RestoreCategoryName(ctx, tx, cat.ID, userID, cat.Name); err != nil {
 			tx.Rollback()
 			return err
 		}

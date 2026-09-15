@@ -159,6 +159,45 @@ type CategoryOrGroup struct {
 	CategoryIDs    []int64 `json:"category_ids"`
 }
 
+type DefaultCategoryDef struct {
+	Name           string
+	Classification string
+	Children       []string
+}
+
+var DefaultCategories = []DefaultCategoryDef{
+	{
+		Name:           "(Uncategorized)",
+		Classification: "uncategorized",
+		Children:       []string{},
+	},
+	{
+		Name:           "(Adjustment)",
+		Classification: "adjustment",
+		Children:       []string{},
+	},
+	{
+		Name:           "Income",
+		Classification: "income",
+		Children:       []string{"Salary", "Food and transport", "Bonus", "Side hustle", "Refunds", "Other"},
+	},
+	{
+		Name:           "Expense",
+		Classification: "expense",
+		Children: []string{"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
+			"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other"},
+	},
+}
+
+func FindDefaultCategoryDef(classification string) (*DefaultCategoryDef, bool) {
+	for i := range DefaultCategories {
+		if DefaultCategories[i].Classification == classification {
+			return &DefaultCategories[i], true
+		}
+	}
+	return nil, false
+}
+
 type InsertResult struct {
 	ID          int64
 	IsDuplicate bool

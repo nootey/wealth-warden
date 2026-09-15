@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,6 +44,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("categories", authz.RequireAllMW("view_data"), h.GetCategories)
 	ap.GET("categories/:id", authz.RequireAllMW("view_data"), h.GetCategoryByID)
 	ap.PUT("categories", authz.RequireAllMW("manage_data"), h.InsertCategory)
+	ap.POST("categories/seed-defaults", authz.RequireAllMW("manage_data"), h.SeedDefaultCategories)
 	ap.PUT("categories/:id", authz.RequireAllMW("manage_data"), h.UpdateCategory)
 	ap.DELETE("categories/:id", authz.RequireAllMW("manage_data"), h.DeleteCategory)
 	ap.GET("categories/groups", authz.RequireAllMW("view_data"), h.GetCategoryGroups)
@@ -315,6 +317,29 @@ func (h *TransactionHandler) InsertCategory(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) SeedDefaultCategories(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	created, err := h.Service.SeedDefaultCategories(ctx, userID)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	message := "No new default categories to add"
+	switch created {
+	case 0:
+	case 1:
+		message = "Added 1 default category"
+	default:
+		message = fmt.Sprintf("Added %d default categories", created)
+	}
+
+	utils.SuccessMessage(c, message, "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {

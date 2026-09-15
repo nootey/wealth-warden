@@ -44,6 +44,7 @@ type TransactionServiceInterface interface {
 	InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error)
 	InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (models.InsertResult, error)
 	InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error)
+	SeedDefaultCategories(ctx context.Context, userID int64) (int, error)
 	UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error)
 	UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error)
 	DeleteTransaction(ctx context.Context, userID int64, id int64) error
@@ -200,7 +201,7 @@ func (s *TransactionService) FetchTransactionByID(ctx context.Context, userID in
 
 func (s *TransactionService) FetchAllCategories(ctx context.Context, userID int64, includeDeleted bool) ([]models.Category, error) {
 
-	categories, err := s.repo.FindAllCategories(ctx, nil, &userID, includeDeleted)
+	categories, err := s.repo.FindAllCategories(ctx, nil, userID, includeDeleted)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +211,7 @@ func (s *TransactionService) FetchAllCategories(ctx context.Context, userID int6
 
 func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Category, error) {
 
-	record, err := s.repo.FindCategoryByID(ctx, nil, id, &userID, includeDeleted)
+	record, err := s.repo.FindCategoryByID(ctx, nil, id, userID, includeDeleted)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +352,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	var category models.Category
 	if req.CategoryID != nil {
-		category, err = s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
+		category, err = s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, userID, false)
 		if err != nil {
 			if ownsTx {
 				tx.Rollback()
@@ -362,7 +363,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 			return models.InsertResult{}, fmt.Errorf("can't find category with given id %w", err)
 		}
 	} else {
-		category, err = s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		category, err = s.repo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 		if err != nil {
 			if ownsTx {
 				tx.Rollback()
@@ -617,6 +618,10 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error) {
 
+	if _, ok := models.FindDefaultCategoryDef(req.Classification); !ok {
+		return 0, apperr.New(apperr.Validation, "invalid classification")
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -629,12 +634,9 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 		}
 	}()
 
-	cat, err := s.repo.FindCategoryByName(ctx, tx, req.Classification, &userID)
+	cat, err := s.repo.EnsureRootCategory(ctx, tx, req.Classification, userID)
 	if err != nil {
 		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, apperr.New(apperr.Validation, "invalid classification")
-		}
 		return 0, err
 	}
 
@@ -650,6 +652,9 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 	catID, err := s.repo.InsertCategory(ctx, tx, &rec)
 	if err != nil {
 		tx.Rollback()
+		if utils.IsUniqueViolation(err) {
+			return 0, apperr.New(apperr.Conflict, "a category with this name already exists")
+		}
 		return 0, err
 	}
 
@@ -674,6 +679,117 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 	}
 
 	return catID, nil
+}
+
+func (s *TransactionService) SeedDefaultCategories(ctx context.Context, userID int64) (int, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	created, err := s.seedDefaultCategoriesTx(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	if created > 0 {
+		changes := utils.InitChanges()
+		utils.CompareChanges("", strconv.Itoa(created), changes, "count")
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+			Event:       "seed",
+			Category:    "category",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return created, err
+		}
+	}
+
+	return created, nil
+}
+
+func (s *TransactionService) SeedDefaultCategoriesWithTx(ctx context.Context, tx *gorm.DB, userID int64) (int, error) {
+	return s.seedDefaultCategoriesTx(ctx, tx, userID)
+}
+
+func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *gorm.DB, userID int64) (int, error) {
+
+	existing, err := s.repo.FindAllCategories(ctx, tx, userID, true)
+	if err != nil {
+		return 0, err
+	}
+
+	type catKey struct {
+		name           string
+		classification string
+	}
+	byKey := make(map[catKey]int64, len(existing))
+	for _, c := range existing {
+		byKey[catKey{c.Name, c.Classification}] = c.ID
+	}
+
+	insert := func(name, classification string, parentID *int64) (int64, error) {
+		rec := models.Category{
+			UserID:         &userID,
+			Name:           utils.NormalizeName(name),
+			DisplayName:    name,
+			Classification: classification,
+			ParentID:       parentID,
+			IsDefault:      true,
+		}
+		id, err := s.repo.InsertCategory(ctx, tx, &rec)
+		if err != nil {
+			if utils.IsUniqueViolation(err) {
+				return 0, apperr.New(apperr.Conflict, "categories are already being seeded, please try again")
+			}
+			return 0, err
+		}
+		return id, nil
+	}
+
+	created := 0
+	for _, root := range models.DefaultCategories {
+		rootKey := catKey{utils.NormalizeName(root.Name), root.Classification}
+		rootID, ok := byKey[rootKey]
+		if !ok {
+			rootID, err = insert(root.Name, root.Classification, nil)
+			if err != nil {
+				return 0, err
+			}
+			byKey[rootKey] = rootID
+			created++
+		}
+
+		for _, childName := range root.Children {
+			childKey := catKey{utils.NormalizeName(childName), root.Classification}
+			if _, ok := byKey[childKey]; ok {
+				continue
+			}
+			parentID := rootID
+			childID, err := insert(childName, root.Classification, &parentID)
+			if err != nil {
+				return 0, err
+			}
+			byKey[childKey] = childID
+			created++
+		}
+	}
+
+	return created, nil
 }
 
 func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error) {
@@ -722,7 +838,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	}
 	var oldCategory models.Category
 	if exTr.CategoryID != nil {
-		oldCategory, err = s.repo.FindCategoryByID(ctx, tx, *exTr.CategoryID, &userID, true)
+		oldCategory, err = s.repo.FindCategoryByID(ctx, tx, *exTr.CategoryID, userID, true)
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -747,7 +863,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	}
 	var newCategory models.Category
 	if req.CategoryID != nil {
-		newCategory, err = s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
+		newCategory, err = s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -756,7 +872,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 			return 0, fmt.Errorf("can't find new category with given id %w", err)
 		}
 	} else {
-		newCategory, err = s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		newCategory, err = s.repo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, apperr.Wrap(apperr.Internal, "failed to find uncategorized category", err)
@@ -939,18 +1055,13 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 		}
 	}()
 
-	exCat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, false)
+	exCat, err := s.repo.FindCategoryByID(ctx, tx, id, userID, false)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, ErrCategoryNotFound
 		}
 		return 0, fmt.Errorf("can't find category with given id %w", err)
-	}
-
-	if exCat.IsDefault && (exCat.Classification != req.Classification) {
-		tx.Rollback()
-		return 0, apperr.New(apperr.Conflict, "can't edit some parts of a default category")
 	}
 
 	cat := models.Category{
@@ -1066,7 +1177,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 
 	var category models.Category
 	if tr.CategoryID != nil {
-		cat, err := s.repo.FindCategoryByID(ctx, tx, *tr.CategoryID, &userID, true)
+		cat, err := s.repo.FindCategoryByID(ctx, tx, *tr.CategoryID, userID, true)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find category with given id %w", err)
@@ -1442,7 +1553,7 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 		}
 	}()
 
-	cat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, true)
+	cat, err := s.repo.FindCategoryByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1695,7 +1806,7 @@ func (s *TransactionService) resolveCategoryMerge(ctx context.Context, tx *gorm.
 		return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "source and destination categories must be different")
 	}
 
-	src, err := s.repo.FindCategoryByID(ctx, tx, sourceID, &userID, false)
+	src, err := s.repo.FindCategoryByID(ctx, tx, sourceID, userID, false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "source category not found")
@@ -1703,7 +1814,7 @@ func (s *TransactionService) resolveCategoryMerge(ctx context.Context, tx *gorm.
 		return models.Category{}, models.Category{}, fmt.Errorf("source category not found: %w", err)
 	}
 
-	dst, err := s.repo.FindCategoryByID(ctx, tx, destinationID, &userID, false)
+	dst, err := s.repo.FindCategoryByID(ctx, tx, destinationID, userID, false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "destination category not found")
@@ -1713,10 +1824,6 @@ func (s *TransactionService) resolveCategoryMerge(ctx context.Context, tx *gorm.
 
 	if src.Classification != dst.Classification {
 		return models.Category{}, models.Category{}, apperr.New(apperr.Validation, fmt.Sprintf("categories must share a classification: %s cannot merge into %s", src.Classification, dst.Classification))
-	}
-
-	if src.IsDefault {
-		return models.Category{}, models.Category{}, apperr.New(apperr.Validation, "cannot merge a default category")
 	}
 
 	inGroup, err := s.repo.IsCategoryInGroup(ctx, tx, sourceID)
@@ -1745,7 +1852,7 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 	}()
 
 	// Load the record
-	cat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, true)
+	cat, err := s.repo.FindCategoryByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1759,7 +1866,7 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 	}
 
 	// Unmark as soft deleted
-	if err := s.repo.RestoreCategory(ctx, tx, cat.ID, &userID); err != nil {
+	if err := s.repo.RestoreCategory(ctx, tx, cat.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1802,7 +1909,7 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 	}()
 
 	// Load the record
-	cat, err := s.repo.FindCategoryByID(ctx, tx, id, &userID, true)
+	cat, err := s.repo.FindCategoryByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1815,7 +1922,7 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "id")
 	utils.CompareChanges(utils.NormalizeName(cat.DisplayName), cat.Name, changes, "name")
 
-	if err := s.repo.RestoreCategoryName(ctx, tx, cat.ID, &userID, cat.Name); err != nil {
+	if err := s.repo.RestoreCategoryName(ctx, tx, cat.ID, userID, cat.Name); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1920,7 +2027,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	var categoryID *int64
 	if templateType == "transaction" {
 		if req.CategoryID != nil {
-			cat, err := s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
+			cat, err := s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, userID, false)
 			if err != nil {
 				tx.Rollback()
 				if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2755,9 +2862,9 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		// Verify category still exists
 		var categoryID *int64
 		if currentTemplate.CategoryID != nil {
-			_, err = s.repo.FindCategoryByID(ctx, tx, *currentTemplate.CategoryID, &currentTemplate.UserID, false)
+			_, err = s.repo.FindCategoryByID(ctx, tx, *currentTemplate.CategoryID, currentTemplate.UserID, false)
 			if err != nil {
-				cat, err := s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &currentTemplate.UserID)
+				cat, err := s.repo.EnsureRootCategory(ctx, tx, "uncategorized", currentTemplate.UserID)
 				if err != nil {
 					tx.Rollback()
 					return 0, time.Time{}, fmt.Errorf("can't find default category %w", err)
@@ -2941,7 +3048,7 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 		categoryID, _ := strconv.ParseInt(fmt.Sprint(idVal), 10, 64)
 
 		// Validate category exists
-		_, err := s.repo.FindCategoryByID(ctx, tx, categoryID, &userID, false)
+		_, err := s.repo.FindCategoryByID(ctx, tx, categoryID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -3035,7 +3142,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 		categoryID, _ := strconv.ParseInt(fmt.Sprint(idVal), 10, 64)
 
 		// Validate category exists
-		_, err := s.repo.FindCategoryByID(ctx, tx, categoryID, &userID, false)
+		_, err := s.repo.FindCategoryByID(ctx, tx, categoryID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
