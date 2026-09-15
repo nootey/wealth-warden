@@ -74,11 +74,10 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 		perAcc := int(math.Max(1, float64(totalTxns)/float64(len(accounts))))
 
 		for _, acc := range accounts {
-			// fetch latest balance row for starting balance
+			// fetch the account's current balance row for starting balance
 			var bal models.Balance
 			if err := db.WithContext(ctx).
 				Where("account_id = ?", acc.ID).
-				Order("as_of DESC").
 				First(&bal).Error; err != nil {
 				return err
 			}

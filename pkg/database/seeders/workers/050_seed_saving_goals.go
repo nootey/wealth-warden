@@ -63,7 +63,6 @@ func SeedSavingGoals(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 		var bal models.Balance
 		if err := db.WithContext(ctx).
 			Where("account_id = ?", acc.ID).
-			Order("as_of DESC").
 			First(&bal).Error; err != nil {
 			return err
 		}
