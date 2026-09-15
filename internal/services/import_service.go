@@ -817,7 +817,18 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 		return fmt.Errorf("can't find uncategorized category: %w", err)
 	}
 
+	skipped := 0
 	for i, acc := range payload.Accounts {
+
+		if _, err := s.accRepo.FindAccountByName(ctx, tx, userID, acc.Name); err == nil {
+			skipped++
+			s.logger.Info("skipping duplicate account on import", zap.Int("row", i), zap.String("account_name", acc.Name))
+			continue
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("account_name", acc.Name))
+			tx.Rollback()
+			return err
+		}
 
 		openedAt := acc.OpenedAt
 		if openedAt.IsZero() {
@@ -929,7 +940,8 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	utils.CompareChanges("", "accounts", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
-	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)), changes, "accounts_count")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)-skipped), changes, "accounts_count")
+	utils.CompareChanges("", strconv.Itoa(skipped), changes, "accounts_skipped_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -1014,6 +1026,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 		}
 	}()
 
+	skipped := 0
 	for i, cat := range payload.Categories {
 
 		if cat.IsDefault {
@@ -1038,6 +1051,18 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 				return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to update category %d", exCat.ID), err)
 			}
 			continue
+		}
+
+		if existing, err := s.txnRepo.FindCategoryByName(ctx, tx, cat.Name, userID); err == nil {
+			if existing.Classification == cat.Classification {
+				skipped++
+				s.logger.Info("skipping duplicate category on import", zap.Int("row", i), zap.String("category_name", cat.Name))
+				continue
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("category_name", cat.Name))
+			tx.Rollback()
+			return err
 		}
 
 		parent, err := s.txnRepo.EnsureRootCategory(ctx, tx, cat.Classification, userID)
@@ -1115,7 +1140,8 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 	utils.CompareChanges("", "custom", changes, "type")
 	utils.CompareChanges("", "categories", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
-	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)), changes, "categories_count")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)-skipped), changes, "categories_count")
+	utils.CompareChanges("", strconv.Itoa(skipped), changes, "categories_skipped_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -1161,6 +1187,68 @@ func (s *ImportService) buildRuleFromImport(ctx context.Context, tx *gorm.DB, us
 	}
 
 	return rule, nil
+}
+
+// nestConditions rebuilds the group/child tree from a flat, DB-loaded condition list
+// (RuleCondition.Children is never populated by gorm) so it can be compared against a
+// freshly built rule's nested Conditions.
+func nestConditions(flat []models.RuleCondition) []models.RuleCondition {
+	byParent := map[int64][]models.RuleCondition{}
+	var roots []models.RuleCondition
+	for _, c := range flat {
+		if c.ParentID == nil {
+			roots = append(roots, c)
+		} else {
+			byParent[*c.ParentID] = append(byParent[*c.ParentID], c)
+		}
+	}
+
+	var attach func(nodes []models.RuleCondition) []models.RuleCondition
+	attach = func(nodes []models.RuleCondition) []models.RuleCondition {
+		out := make([]models.RuleCondition, len(nodes))
+		for i, n := range nodes {
+			n.Children = attach(byParent[n.ID])
+			out[i] = n
+		}
+		return out
+	}
+	return attach(roots)
+}
+
+func conditionSignature(c models.RuleCondition) string {
+	if c.IsGroup {
+		children := make([]string, 0, len(c.Children))
+		for _, ch := range c.Children {
+			children = append(children, conditionSignature(ch))
+		}
+		sort.Strings(children)
+		return fmt.Sprintf("group:%s[%s]", c.MatchType, strings.Join(children, ","))
+	}
+	return fmt.Sprintf("leaf:%s:%s:%s", c.Field, c.Operator, c.Value)
+}
+
+func conditionsSignature(conditions []models.RuleCondition) string {
+	sigs := make([]string, 0, len(conditions))
+	for _, c := range conditions {
+		sigs = append(sigs, conditionSignature(c))
+	}
+	sort.Strings(sigs)
+	return strings.Join(sigs, "|")
+}
+
+func actionsSignature(actions []models.RuleAction) string {
+	sigs := make([]string, 0, len(actions))
+	for _, a := range actions {
+		sigs = append(sigs, fmt.Sprintf("%s:%s", a.ActionType, a.Value))
+	}
+	sort.Strings(sigs)
+	return strings.Join(sigs, "|")
+}
+
+// ruleSignature defines a duplicate rule as one with the same match type and the same
+// set of conditions and actions, regardless of insertion order or row IDs.
+func ruleSignature(matchType string, conditions []models.RuleCondition, actions []models.RuleAction) string {
+	return fmt.Sprintf("%s|%s|%s", matchType, conditionsSignature(conditions), actionsSignature(actions))
 }
 
 func ruleConditionReqsFromExport(conditions []models.RuleConditionExport) []models.RuleConditionReq {
@@ -1248,6 +1336,18 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 		}
 	}()
 
+	existingRules, err := s.rulesRepo.FindRules(ctx, tx, userID, false)
+	if err != nil {
+		s.markImportFailed(ctx, userID, importID, err)
+		tx.Rollback()
+		return err
+	}
+	seenSignatures := make(map[string]bool, len(existingRules))
+	for _, er := range existingRules {
+		seenSignatures[ruleSignature(er.MatchType, nestConditions(er.Conditions), er.Actions)] = true
+	}
+
+	skipped := 0
 	for i, r := range payload.Rules {
 		var rule models.Rule
 		rule, err = s.buildRuleFromImport(ctx, tx, userID, r)
@@ -1256,6 +1356,14 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 			tx.Rollback()
 			return err
 		}
+
+		sig := ruleSignature(rule.MatchType, rule.Conditions, rule.Actions)
+		if seenSignatures[sig] {
+			skipped++
+			s.logger.Info("skipping duplicate rule on import", zap.Int("row", i), zap.String("rule_name", r.Name))
+			continue
+		}
+
 		rule.ImportID = &importID
 
 		if _, err := s.rulesRepo.InsertRule(ctx, tx, &rule); err != nil {
@@ -1263,6 +1371,7 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 			tx.Rollback()
 			return err
 		}
+		seenSignatures[sig] = true
 	}
 
 	// Write payload to the reserved temp file
@@ -1312,7 +1421,8 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 	utils.CompareChanges("", "custom", changes, "type")
 	utils.CompareChanges("", "rules", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
-	utils.CompareChanges("", strconv.Itoa(len(payload.Rules)), changes, "rules_count")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Rules)-skipped), changes, "rules_count")
+	utils.CompareChanges("", strconv.Itoa(skipped), changes, "rules_skipped_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
