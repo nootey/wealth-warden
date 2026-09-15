@@ -413,30 +413,26 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		return 0, err
 	}
 
-	openedYear := sourceAcc.OpenedAt.Year()
+	openedDate := sourceAcc.OpenedAt.Truncate(24 * time.Hour)
 
-	var first time.Time
+	var earliest time.Time
 	for _, t := range payload.Txns {
-		if !t.TxnDate.IsZero() {
-			first = t.TxnDate
-			break
+		if !t.TxnDate.IsZero() && (earliest.IsZero() || t.TxnDate.Before(earliest)) {
+			earliest = t.TxnDate
 		}
 	}
-	if first.IsZero() {
-		for _, t := range payload.InvestmentTransfers {
-			if !t.TxnDate.IsZero() {
-				first = t.TxnDate
-				break
-			}
+	for _, t := range payload.InvestmentTransfers {
+		if !t.TxnDate.IsZero() && (earliest.IsZero() || t.TxnDate.Before(earliest)) {
+			earliest = t.TxnDate
 		}
 	}
-	if first.IsZero() {
-		return 0, apperr.New(apperr.Validation, "No row carries a valid txn_date, so the import year cannot be read")
+	if earliest.IsZero() {
+		return 0, apperr.New(apperr.Validation, "No row carries a valid txn_date, so the import date range cannot be read")
 	}
-	importYear := first.Year()
+	importDate := earliest.Truncate(24 * time.Hour)
 
-	if openedYear >= importYear {
-		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("The account opened in %d, so it cannot take data for %d or earlier", openedYear, importYear))
+	if importDate.Before(openedDate) {
+		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("The account opened on %s, so it cannot take data before that date", openedDate.Format("2006-01-02")))
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")

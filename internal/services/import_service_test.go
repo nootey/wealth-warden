@@ -78,6 +78,84 @@ func (s *ImportServiceSuite) TestBankImportSkipsKnownExternalIDs() {
 	s.Equal(models.ImportTypeBank, imp.Type)
 }
 
+// A transaction dated on the account's opening day must be allowed, not just the day after.
+func (s *ImportServiceSuite) TestBankImportAllowsTxnOnAccountOpenDate() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	openedAt := time.Date(2016, 1, 1, 0, 0, 0, 0, time.UTC)
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	extID := "TX1"
+	payload := models.TxnImportPayload{
+		Identifier:  "nlb_open_day",
+		GeneratedAt: time.Now().UTC(),
+		Txns: []models.JSONTxn{{
+			TransactionType: "expense",
+			Amount:          "10.00",
+			Currency:        "EUR",
+			TxnDate:         openedAt,
+			Category:        "(uncategorized)",
+			Description:     "SHOP TX1",
+			ExternalTxnID:   &extID,
+		}},
+	}
+
+	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	s.Require().NoError(err, "a txn dated the same day the account opened must be allowed")
+}
+
+// The earliest txn_date must be found across all rows, not just the first one in the array,
+// since a bank export or a hand-edited custom import isn't guaranteed to arrive sorted.
+func (s *ImportServiceSuite) TestBankImportRejectsOutOfOrderTxnBeforeAccountOpen() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	openedAt := time.Date(2016, 1, 1, 0, 0, 0, 0, time.UTC)
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	extID1, extID2 := "TX1", "TX2"
+	payload := models.TxnImportPayload{
+		Identifier:  "nlb_unsorted",
+		GeneratedAt: time.Now().UTC(),
+		Txns: []models.JSONTxn{
+			{
+				TransactionType: "expense",
+				Amount:          "10.00",
+				Currency:        "EUR",
+				TxnDate:         openedAt.AddDate(0, 0, 5),
+				Description:     "SHOP TX1",
+				ExternalTxnID:   &extID1,
+			},
+			{
+				TransactionType: "expense",
+				Amount:          "10.00",
+				Currency:        "EUR",
+				TxnDate:         openedAt.AddDate(0, 0, -1),
+				Description:     "SHOP TX2",
+				ExternalTxnID:   &extID2,
+			},
+		},
+	}
+
+	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	s.Require().Error(err, "a later row dated before the account opened must still be caught")
+	status, _ := apperr.Resolve(err)
+	s.Equal(http.StatusConflict, status)
+}
+
 // Re-importing the custom accounts export must not re-create an account the user already has.
 func (s *ImportServiceSuite) TestImportAccountsSkipsDuplicateName() {
 	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
