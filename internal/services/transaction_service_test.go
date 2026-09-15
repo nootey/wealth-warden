@@ -3744,6 +3744,204 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_RejectsNonEditableTy
 	s.Require().NoError(err, "the account row should not still be locked by the rejected update")
 }
 
+// A manual balance adjustment may have its amount and date corrected, and the
+// account's balance history must reflect the corrected value.
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_AdjustmentAllowsAmountAndDateChange() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	openDate := time.Now().AddDate(0, 0, -5)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(10000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Adjustment Edit Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      openDate,
+	})
+	s.Require().NoError(err)
+
+	// Manual balance adjustment: bump balance from 10,000 to 11,000
+	newBalance := decimal.NewFromInt(11000)
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Adjustment Edit Account",
+		AccountTypeID: 5,
+		Balance:       &newBalance,
+		OpenedAt:      openDate,
+	})
+	s.Require().NoError(err)
+
+	var adj models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
+		First(&adj).Error
+	s.Require().NoError(err)
+
+	newAmt := decimal.NewFromInt(1500)
+	newDate := today.AddDate(0, 0, -2)
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, adj.ID, &models.TransactionReq{
+		AccountID:  adj.AccountID,
+		CategoryID: adj.CategoryID,
+		Direction:  adj.Direction,
+		Amount:     newAmt,
+		TxnDate:    newDate,
+	})
+	s.Require().NoError(err, "should allow changing amount and date on an adjustment transaction")
+
+	var updated models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", adj.ID).First(&updated).Error
+	s.Require().NoError(err)
+	s.Assert().True(newAmt.Equal(updated.Amount), "amount should be updated to %s", newAmt.String())
+	s.Assert().Equal(newDate.UTC().Truncate(24*time.Hour), updated.TxnDate.UTC().Truncate(24*time.Hour))
+
+	var snapshot models.BalanceSnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, newDate.UTC().Truncate(24*time.Hour)).
+		First(&snapshot).Error
+	s.Require().NoError(err)
+	expected := initialBalance.Add(newAmt)
+	s.Assert().True(expected.Equal(snapshot.EndBalance),
+		"balance at the new date should be %s, got %s", expected.String(), snapshot.EndBalance.String())
+}
+
+// An adjustment is tied to the account and category it reconciled, so account,
+// category, and direction must stay fixed even though amount and date can change.
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_AdjustmentRejectsAccountCategoryOrDirectionChange() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(10000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Adjustment Guard Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	otherAccID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Other Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	newBalance := decimal.NewFromInt(11000)
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Adjustment Guard Account",
+		AccountTypeID: 5,
+		Balance:       &newBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	var adj models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
+		First(&adj).Error
+	s.Require().NoError(err)
+
+	var otherCategory models.Category
+	err = s.TC.DB.WithContext(s.Ctx).Where("classification = ?", "uncategorized").First(&otherCategory).Error
+	s.Require().NoError(err)
+
+	otherDirection := models.TxnDirectionExpense
+	if adj.Direction == models.TxnDirectionExpense {
+		otherDirection = models.TxnDirectionIncome
+	}
+
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, adj.ID, &models.TransactionReq{
+		AccountID:  otherAccID,
+		CategoryID: adj.CategoryID,
+		Direction:  adj.Direction,
+		Amount:     adj.Amount,
+		TxnDate:    adj.TxnDate,
+	})
+	s.Require().Error(err, "should block changing the account on an adjustment transaction")
+
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, adj.ID, &models.TransactionReq{
+		AccountID:  adj.AccountID,
+		CategoryID: &otherCategory.ID,
+		Direction:  adj.Direction,
+		Amount:     adj.Amount,
+		TxnDate:    adj.TxnDate,
+	})
+	s.Require().Error(err, "should block changing the category on an adjustment transaction")
+
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, adj.ID, &models.TransactionReq{
+		AccountID:  adj.AccountID,
+		CategoryID: adj.CategoryID,
+		Direction:  otherDirection,
+		Amount:     adj.Amount,
+		TxnDate:    adj.TxnDate,
+	})
+	s.Require().Error(err, "should block changing the direction on an adjustment transaction")
+
+	var unchanged models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", adj.ID).First(&unchanged).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(adj.AccountID, unchanged.AccountID)
+	s.Assert().Equal(*adj.CategoryID, *unchanged.CategoryID)
+	s.Assert().Equal(adj.Direction, unchanged.Direction)
+}
+
+// Deleting an adjustment must be allowed and must reverse its effect on the
+// account's balance history, the same as deleting any other user transaction.
+func (s *TransactionServiceTestSuite) TestDeleteTransaction_AdjustmentAllowed() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(10000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Adjustment Delete Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	newBalance := decimal.NewFromInt(11000)
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Adjustment Delete Account",
+		AccountTypeID: 5,
+		Balance:       &newBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	var adj models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
+		First(&adj).Error
+	s.Require().NoError(err)
+
+	err = txnSvc.DeleteTransaction(s.Ctx, userID, adj.ID)
+	s.Require().NoError(err, "should allow deleting an adjustment transaction")
+
+	var deleted models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Unscoped().Where("id = ?", adj.ID).First(&deleted).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(deleted.DeletedAt)
+
+	var snapshot models.BalanceSnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, today).
+		First(&snapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(initialBalance.Equal(snapshot.EndBalance),
+		"balance should revert to %s after deleting the adjustment, got %s",
+		initialBalance.String(), snapshot.EndBalance.String())
+}
+
 // Regression test: FindCategoryGroupByID used to build its query without
 // reassigning the chained gorm calls, so it read .Error off a handle that
 // was never executed and could never return an error. A miss silently came

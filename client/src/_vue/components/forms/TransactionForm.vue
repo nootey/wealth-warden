@@ -9,6 +9,7 @@ import type {
   Transfer,
 } from "../../../models/transaction_models.ts";
 import {
+  isPartiallyEditable,
   isTransactionDeletable,
   isTransactionEditable,
 } from "../../../models/transaction_models.ts";
@@ -83,7 +84,13 @@ const isFormReadOnly = computed<boolean>(
   () => isGlobalReadOnly.value || isAccountRestricted.value,
 );
 
-const isAccountPickerDisabled = computed<boolean>(() => isGlobalReadOnly.value);
+const isRecordPartiallyEditable = computed(() =>
+  isPartiallyEditable(record.value.transaction_type),
+);
+
+const isFieldLocked = computed<boolean>(
+  () => isFormReadOnly.value || isRecordPartiallyEditable.value,
+);
 
 const isTxnDeleted = computed(() => !!record.value.deleted_at);
 const isAccountDeleted = computed(() => !!record.value.account?.closed_at);
@@ -495,7 +502,16 @@ async function deleteRecord(id: number, tx_type: string) {
 
 <template>
   <div v-if="!loading" class="flex flex-col gap-4 p-1">
-    <div v-if="!isFormReadOnly" class="flex flex-row w-full justify-center">
+    <span v-if="record.transaction_type=='adjustment'" class="text-sm" style="color: var(--text-secondary)">
+      Adjustments do not show up in analytics.
+    </span>
+    <span v-if="isFormReadOnly" class="text-sm" style="color: var(--text-secondary)">
+      Read-only mode.
+    </span>
+    <span v-else-if="isRecordPartiallyEditable" class="text-sm" style="color: var(--text-secondary)">
+      This transaction is partially editable.
+    </span>
+    <div v-else class="flex flex-row w-full justify-center">
       <div class="flex flex-col">
         <SelectButton
           v-model="selectedParentCategory"
@@ -508,13 +524,10 @@ async function deleteRecord(id: number, tx_type: string) {
         />
       </div>
     </div>
-    <div v-else>
-      <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
-    </div>
 
-    <h5 v-if="defaultPreSelected" style="color: var(--text-secondary)">
+    <span v-if="defaultPreSelected" class="text-sm" style="color: var(--text-secondary)">
       Default checking account pre-selected.
-    </h5>
+    </span>
 
     <div
       v-if="isTransferSelected && !isFormReadOnly"
@@ -538,8 +551,8 @@ async function deleteRecord(id: number, tx_type: string) {
           </ValidationError>
           <AutoComplete
             v-model="record.account"
-            :readonly="isAccountPickerDisabled || isFormReadOnly"
-            :disabled="isAccountPickerDisabled || isFormReadOnly"
+            :readonly="isFieldLocked"
+            :disabled="isFieldLocked"
             size="small"
             :suggestions="filteredAccounts"
             option-label="name"
@@ -580,8 +593,8 @@ async function deleteRecord(id: number, tx_type: string) {
           </ValidationError>
           <AutoComplete
             v-model="record.category"
-            :readonly="isFormReadOnly"
-            :disabled="isFormReadOnly"
+            :readonly="isFieldLocked"
+            :disabled="isFieldLocked"
             size="small"
             :suggestions="filteredCategories"
             option-label="display_name"
@@ -624,8 +637,8 @@ async function deleteRecord(id: number, tx_type: string) {
           </ValidationError>
           <InputText
             v-model="record.description"
-            :readonly="isFormReadOnly"
-            :disabled="isFormReadOnly"
+            :readonly="isFieldLocked"
+            :disabled="isFieldLocked"
             size="small"
             placeholder="Describe transaction"
           />

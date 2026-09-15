@@ -9,11 +9,20 @@ export type TransactionType =
   | "opening";
 
 export function isTransactionEditable(type: TransactionType): boolean {
-  return type === "ledger" || type === "transfer" || type === "opening";
+  return (
+    type === "ledger" ||
+    type === "transfer" ||
+    type === "opening" ||
+    type === "adjustment"
+  );
+}
+
+export function isPartiallyEditable(type: TransactionType): boolean {
+  return type === "adjustment";
 }
 
 export function isTransactionDeletable(type: TransactionType): boolean {
-  return type === "ledger" || type === "transfer";
+  return type === "ledger" || type === "transfer" || type === "adjustment";
 }
 
 export interface Transaction {

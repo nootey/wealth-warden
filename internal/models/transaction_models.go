@@ -30,11 +30,15 @@ func (d TransactionDirection) IsValid() bool {
 }
 
 func (t TransactionType) IsUserEditable() bool {
-	return t == TxnTypeLedger || t == TxnTypeTransfer || t == TxnTypeOpening
+	return t == TxnTypeLedger || t == TxnTypeTransfer || t == TxnTypeOpening || t == TxnTypeAdjustment
+}
+
+func (t TransactionType) IsPartiallyEditable() bool {
+	return t == TxnTypeAdjustment
 }
 
 func (t TransactionType) IsUserDeletable() bool {
-	return t == TxnTypeLedger || t == TxnTypeTransfer
+	return t == TxnTypeLedger || t == TxnTypeTransfer || t == TxnTypeAdjustment
 }
 
 type Transaction struct {
