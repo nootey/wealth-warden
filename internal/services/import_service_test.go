@@ -78,6 +78,70 @@ func (s *ImportServiceSuite) TestBankImportSkipsKnownExternalIDs() {
 	s.Equal(models.ImportTypeBank, imp.Type)
 }
 
+// Re-importing the custom accounts export must not re-create an account the user already has.
+func (s *ImportServiceSuite) TestImportAccountsSkipsDuplicateName() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	balance := decimal.NewFromInt(500)
+	_, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-1, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	payload := models.AccImportPayload{
+		GeneratedAt: time.Now().UTC(),
+		Accounts: []models.AccountExport{
+			{Name: "Checking", Balance: decimal.NewFromInt(999), Currency: "EUR", OpenedAt: time.Now().UTC()},
+			{Name: "Savings", Balance: decimal.NewFromInt(200), Currency: "EUR", OpenedAt: time.Now().UTC()},
+		},
+	}
+	payload.Accounts[0].AccountType.Type, payload.Accounts[0].AccountType.SubType = "cash", "checking"
+	payload.Accounts[1].AccountType.Type, payload.Accounts[1].AccountType.SubType = "cash", "checking"
+
+	s.Require().NoError(s.TC.App.ImportService.ImportAccounts(s.Ctx, seedUserID, payload, true))
+
+	var checkingCount int64
+	s.Require().NoError(s.TC.DB.Model(&models.Account{}).Where("user_id = ? AND name = ?", seedUserID, "Checking").Count(&checkingCount).Error)
+	s.Equal(int64(1), checkingCount, "the duplicate account must not be re-created")
+
+	var savingsCount int64
+	s.Require().NoError(s.TC.DB.Model(&models.Account{}).Where("user_id = ? AND name = ?", seedUserID, "Savings").Count(&savingsCount).Error)
+	s.Equal(int64(1), savingsCount, "the new account must still be created")
+}
+
+// Re-importing the custom categories export must not re-create, or touch, a category the user already has.
+func (s *ImportServiceSuite) TestImportCategoriesSkipsDuplicateNameAndClassification() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	_, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Household", Classification: "expense"})
+	s.Require().NoError(err)
+
+	payload := models.CategoryImportPayload{
+		GeneratedAt: time.Now().UTC(),
+		Categories: []models.CategoryExport{
+			{Name: "household", DisplayName: "Household Renamed", Classification: "expense"},
+			{Name: "utilities", DisplayName: "Utilities", Classification: "expense"},
+		},
+	}
+
+	s.Require().NoError(s.TC.App.ImportService.ImportCategories(s.Ctx, seedUserID, payload))
+
+	var household models.Category
+	s.Require().NoError(s.TC.DB.Where("user_id = ? AND name = ?", seedUserID, "household").First(&household).Error)
+	s.Equal("Household", household.DisplayName, "the existing category must not be overwritten by the duplicate import row")
+
+	var householdCount int64
+	s.Require().NoError(s.TC.DB.Model(&models.Category{}).Where("user_id = ? AND name = ?", seedUserID, "household").Count(&householdCount).Error)
+	s.Equal(int64(1), householdCount, "no duplicate household category must be created")
+
+	var utilCount int64
+	s.Require().NoError(s.TC.DB.Model(&models.Category{}).Where("user_id = ? AND name = ?", seedUserID, "utilities").Count(&utilCount).Error)
+	s.Equal(int64(1), utilCount, "the new category must still be created")
+}
+
 const nlbCSVHeader = "Opis/Description;Kategorija/Category;+/-;Znesek/Amount;Valuta/Currency;Datum placila/Value date;Naziv/Counter party name;Racun/Counter party Account;Status/Status;BIC koda/BIC Code;Tecaj/Foreign Exchange rate;Referenca/Creditor Reference;Datum poravnave/Settlement date;Stroski/Additional Charges;Naslov/Counter party Address;ID transakcije/Transaction ID;Namen/Purpose"
 
 func nlbCSV(rows ...string) *strings.Reader {
@@ -247,7 +311,7 @@ func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
 	s.Require().NoError(err)
 
 	isActive := true
-	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
+	originalRuleID, err := s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
 		Name:      "grocery stores",
 		IsActive:  &isActive,
 		MatchType: models.RuleMatchAll,
@@ -299,6 +363,10 @@ func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
 	s.Require().Len(exported.Actions, 1)
 	s.Equal("groceries", exported.Actions[0].Value) // category name, not id
 
+	// The dedup guard skips a rule with the same conditions and actions as one that already
+	// exists, so drop the original before importing its export back in.
+	s.Require().NoError(s.TC.App.RulesService.DeleteRule(s.Ctx, seedUserID, originalRuleID))
+
 	importPayload := models.RuleImportPayload{GeneratedAt: payload.GeneratedAt, Rules: []models.RuleExport{*exported}}
 	s.Require().NoError(s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, importPayload))
 
@@ -327,6 +395,53 @@ func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
 		}
 	}
 	s.Equal(2, leafCount)
+}
+
+// A rule with the same conditions and actions as an existing one must be skipped on import,
+// even under a different name; a genuinely different rule must still be imported.
+func (s *ImportServiceSuite) TestImportRulesSkipsDuplicateConditionsAndActions() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	fuelCat, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Fuel", Classification: "expense"})
+	s.Require().NoError(err)
+
+	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
+		Name:       "spar rule",
+		MatchType:  models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "spar"}},
+		Actions:    []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(fuelCat, 10)}},
+	})
+	s.Require().NoError(err)
+
+	payload := models.RuleImportPayload{
+		GeneratedAt: time.Now().UTC(),
+		Rules: []models.RuleExport{
+			{
+				Name:       "duplicate spar rule",
+				IsActive:   true,
+				MatchType:  models.RuleMatchAll,
+				Conditions: []models.RuleConditionExport{{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "spar"}},
+				Actions:    []models.RuleActionExport{{ActionType: models.RuleActionSetCategory, Value: "fuel"}},
+			},
+			{
+				Name:       "petrol rule",
+				IsActive:   true,
+				MatchType:  models.RuleMatchAll,
+				Conditions: []models.RuleConditionExport{{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "petrol"}},
+				Actions:    []models.RuleActionExport{{ActionType: models.RuleActionSetCategory, Value: "fuel"}},
+			},
+		},
+	}
+
+	s.Require().NoError(s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload))
+
+	var dupCount int64
+	s.Require().NoError(s.TC.DB.Model(&models.Rule{}).Where("user_id = ? AND name = ?", seedUserID, "duplicate spar rule").Count(&dupCount).Error)
+	s.Zero(dupCount, "a rule with the same conditions and actions must not be imported again")
+
+	var newCount int64
+	s.Require().NoError(s.TC.DB.Model(&models.Rule{}).Where("user_id = ? AND name = ?", seedUserID, "petrol rule").Count(&newCount).Error)
+	s.Equal(int64(1), newCount, "a genuinely new rule must still be imported")
 }
 
 // An imported rule with a malformed condition must fail the same validation the API

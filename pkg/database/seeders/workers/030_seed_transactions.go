@@ -37,24 +37,24 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	savingsRepo := repositories.NewSavingsRepository(db)
 	accService := services.NewAccountService(zap.NewNop(), accRepo, balanceRepo, txnRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, nil)
 
-	var incCats, expCats []models.Category
-	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error
-	_ = db.WithContext(ctx).Where("classification = ?", "expense").Find(&expCats).Error
-	var uncategorized models.Category
-	_ = db.WithContext(ctx).Where("classification = ?", "uncategorized").First(&uncategorized).Error
-
-	pick := func(cs []models.Category) *int64 {
-		if len(cs) == 0 {
-			if uncategorized.ID == 0 {
-				return nil
-			}
-			return &uncategorized.ID
-		}
-		id := cs[rng.Intn(len(cs))].ID
-		return &id
-	}
-
 	for _, u := range users {
+
+		var incCats, expCats []models.Category
+		_ = db.WithContext(ctx).Where("user_id = ? AND classification = ?", u.ID, "income").Find(&incCats).Error
+		_ = db.WithContext(ctx).Where("user_id = ? AND classification = ?", u.ID, "expense").Find(&expCats).Error
+		var uncategorized models.Category
+		_ = db.WithContext(ctx).Where("user_id = ? AND classification = ?", u.ID, "uncategorized").First(&uncategorized).Error
+
+		pick := func(cs []models.Category) *int64 {
+			if len(cs) == 0 {
+				if uncategorized.ID == 0 {
+					return nil
+				}
+				return &uncategorized.ID
+			}
+			id := cs[rng.Intn(len(cs))].ID
+			return &id
+		}
 
 		var accounts []models.Account
 		if err := db.WithContext(ctx).
@@ -74,11 +74,10 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 		perAcc := int(math.Max(1, float64(totalTxns)/float64(len(accounts))))
 
 		for _, acc := range accounts {
-			// fetch latest balance row for starting balance
+			// fetch the account's current balance row for starting balance
 			var bal models.Balance
 			if err := db.WithContext(ctx).
 				Where("account_id = ?", acc.ID).
-				Order("as_of DESC").
 				First(&bal).Error; err != nil {
 				return err
 			}

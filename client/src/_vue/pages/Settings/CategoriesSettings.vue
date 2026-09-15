@@ -26,15 +26,31 @@ onMounted(async () => {
 const createCatModal = ref(false);
 const createGroupModal = ref(false);
 
-const categories = computed<Category[]>(() => transactionStore.categories);
+const allCategories = computed<Category[]>(() => transactionStore.categories);
+
+const hasActiveCategory = computed(() =>
+  allCategories.value.some(
+    (c) =>
+      !c.deleted_at &&
+      !c.name.startsWith("(") &&
+      c.display_name !== "Expense" &&
+      c.display_name !== "Income",
+  ),
+);
+
+const includeDeleted = ref(false);
+const categories = computed<Category[]>(() =>
+  includeDeleted.value
+    ? allCategories.value
+    : allCategories.value.filter((c) => !c.deleted_at),
+);
+
 const categoryGroups = computed<CategoryGroup[]>(
   () => transactionStore.category_groups,
 );
 
-const includeDeleted = ref(false);
-
 async function getCategories() {
-  await transactionStore.getCategories(includeDeleted.value);
+  await transactionStore.getCategories(true);
 }
 
 async function getCategoryGroups() {
@@ -142,7 +158,6 @@ async function handleEmit(type: string) {
             <ToggleSwitch
               v-model="includeDeleted"
               style="transform: scale(0.75)"
-              @update:model-value="getCategories()"
             />
           </div>
           <Button
@@ -156,7 +171,7 @@ async function handleEmit(type: string) {
           </Button>
         </div>
 
-        <div v-if="categories" class="w-full flex flex-col gap-2 w-full">
+        <div class="w-full flex flex-col gap-2 w-full">
           <CategoriesDisplay
             :categories="categories"
             @complete-operation="handleEmit('completeCatOperation')"
@@ -166,7 +181,7 @@ async function handleEmit(type: string) {
       </div>
     </SettingsSkeleton>
 
-    <SettingsSkeleton class="w-full">
+    <SettingsSkeleton v-if="hasActiveCategory" class="w-full">
       <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <div class="w-full flex flex-col gap-4 p-2">
           <div class="flex flex-row justify-between items-center gap-4">
@@ -198,7 +213,7 @@ async function handleEmit(type: string) {
       </div>
     </SettingsSkeleton>
 
-    <SettingsSkeleton class="w-full">
+    <SettingsSkeleton v-if="hasActiveCategory" class="w-full">
       <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <MergeCategories
           :categories="categories"

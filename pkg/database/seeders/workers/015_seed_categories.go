@@ -2,89 +2,36 @@ package workers
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
 	"wealth-warden/internal/config"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/utils"
+	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/services"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
+// SeedCategories gives every seeded demo user their own copy of the preset default
+// categories. Categories are per-user, so there's no longer a single shared set to seed.
 func SeedCategories(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
-	// Top-level categories
-	mainCategories := []struct {
-		Name           string
-		Classification string
-		Children       []string
-	}{
-		{
-			Name:           "(Uncategorized)",
-			Classification: "uncategorized",
-			Children:       []string{},
-		},
-		{
-			Name:           "(Adjustment)",
-			Classification: "adjustment",
-			Children:       []string{},
-		},
-		{
-			Name:           "Income",
-			Classification: "income",
-			Children:       []string{"Salary", "Food and transport", "Bonus", "Side hustle", "Refunds", "Other"},
-		},
-		{
-			Name:           "Expense",
-			Classification: "expense",
-			Children: []string{"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
-				"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other"},
-		},
+	var users []models.User
+	if err := db.WithContext(ctx).Where("display_name IN ?", seededUsernames).Find(&users).Error; err != nil {
+		return err
 	}
 
-	for _, mainCat := range mainCategories {
-		mainCategory, err := ensureDefaultCategory(ctx, db, mainCat.Name, mainCat.Classification, nil)
-		if err != nil {
-			return fmt.Errorf("failed to create main category %w", err)
-		}
+	txnRepo := repositories.NewTransactionRepository(db)
+	accRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
+	settingsRepo := repositories.NewSettingsRepository(db)
+	savingsRepo := repositories.NewSavingsRepository(db)
+	txnService := services.NewTransactionService(zap.NewNop(), txnRepo, accRepo, balanceRepo, settingsRepo, savingsRepo, jobqueue.NoopDispatcher{})
 
-		// Subcategories
-		for _, childName := range mainCat.Children {
-			if _, err := ensureDefaultCategory(ctx, db, childName, mainCat.Classification, &mainCategory.ID); err != nil {
-				return fmt.Errorf("failed to create sub category %w", err)
-			}
+	for _, u := range users {
+		if _, err := txnService.SeedDefaultCategoriesWithTx(ctx, db, u.ID); err != nil {
+			return fmt.Errorf("failed to seed default categories for user %d: %w", u.ID, err)
 		}
 	}
 	return nil
-}
-
-// Get-or-create, so the seeder can run again on a populated database.
-func ensureDefaultCategory(ctx context.Context, db *gorm.DB, displayName, classification string, parentID *int64) (models.Category, error) {
-	name := utils.NormalizeName(displayName)
-
-	var existing models.Category
-	err := db.WithContext(ctx).
-		Where("name = ? AND classification = ?", name, classification).
-		First(&existing).Error
-	if err == nil {
-		return existing, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return models.Category{}, err
-	}
-
-	category := models.Category{
-		UserID:         nil,
-		Name:           name,
-		DisplayName:    displayName,
-		Classification: classification,
-		ParentID:       parentID,
-		IsDefault:      true,
-		CreatedAt:      time.Now().UTC(),
-		UpdatedAt:      time.Now().UTC(),
-	}
-	if err := db.WithContext(ctx).Create(&category).Error; err != nil {
-		return models.Category{}, err
-	}
-	return category, nil
 }

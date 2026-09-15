@@ -317,7 +317,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		return nil, err
 	}
 
-	categories, err := s.txnRepo.FindAllCategories(ctx, tx, &userID, false)
+	categories, err := s.txnRepo.FindAllCategories(ctx, tx, userID, false)
 	if err != nil {
 		tx.Rollback()
 		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())

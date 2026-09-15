@@ -201,14 +201,6 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 
-	incCats, expCats, err := bulkCategoryIDs(ctx, db)
-	if err != nil {
-		return err
-	}
-	if len(incCats) == 0 || len(expCats) == 0 {
-		return fmt.Errorf("no income or expense categories found, please seed categories first")
-	}
-
 	invTypeID, cryptoTypeID, err := bulkInvestmentAccountTypeIDs(ctx, db)
 	if err != nil {
 		return err
@@ -256,7 +248,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			return seedBulkChunk(ctx, tx, balanceRepo, txnRepo, rng, today, b, chunk,
-				hashedPassword, roleID, accountTypeIDs, incCats, expCats,
+				hashedPassword, roleID, accountTypeIDs,
 				pricePool, fx, invTypeID, cryptoTypeID)
 		})
 		if err != nil {
@@ -298,20 +290,79 @@ func bulkAccountTypeIDs(ctx context.Context, db *gorm.DB) (map[string]int64, err
 	return ids, nil
 }
 
-func bulkCategoryIDs(ctx context.Context, db *gorm.DB) (inc, exp []int64, err error) {
-	q := func(classification string) ([]int64, error) {
-		var ids []int64
-		e := db.WithContext(ctx).
-			Model(&models.Category{}).
-			Where("classification = ? AND user_id IS NULL", classification).
-			Pluck("id", &ids).Error
-		return ids, e
+// seedBulkDefaultCategories gives every user in the chunk their own copy of the preset
+// default categories, batch-inserted (roots, then children parented to the matching
+// root), and returns per-user lookups for the category kinds the bulk seeder needs.
+func seedBulkDefaultCategories(ctx context.Context, tx *gorm.DB, userIDs []int64) (incByUser, expByUser map[int64][]int64, uncategorizedByUser map[int64]int64, err error) {
+	type rootKey struct {
+		userID         int64
+		classification string
 	}
-	if inc, err = q("income"); err != nil {
-		return nil, nil, err
+
+	roots := make([]models.Category, 0, len(userIDs)*len(models.DefaultCategories))
+	for _, uid := range userIDs {
+		for _, def := range models.DefaultCategories {
+			uid := uid
+			roots = append(roots, models.Category{
+				UserID:         &uid,
+				Name:           utils.NormalizeName(def.Name),
+				DisplayName:    def.Name,
+				Classification: def.Classification,
+				IsDefault:      true,
+			})
+		}
 	}
-	exp, err = q("expense")
-	return inc, exp, err
+	if err := tx.WithContext(ctx).CreateInBatches(&roots, bulkInsertBatch).Error; err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to insert default root categories: %w", err)
+	}
+
+	rootID := make(map[rootKey]int64, len(roots))
+	for _, r := range roots {
+		rootID[rootKey{*r.UserID, r.Classification}] = r.ID
+	}
+
+	children := make([]models.Category, 0, len(roots)*4)
+	for _, uid := range userIDs {
+		for _, def := range models.DefaultCategories {
+			parentID := rootID[rootKey{uid, def.Classification}]
+			for _, childName := range def.Children {
+				uid, parentID := uid, parentID
+				children = append(children, models.Category{
+					UserID:         &uid,
+					Name:           utils.NormalizeName(childName),
+					DisplayName:    childName,
+					Classification: def.Classification,
+					ParentID:       &parentID,
+					IsDefault:      true,
+				})
+			}
+		}
+	}
+	if len(children) > 0 {
+		if err := tx.WithContext(ctx).CreateInBatches(&children, bulkInsertBatch).Error; err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to insert default child categories: %w", err)
+		}
+	}
+
+	incByUser = make(map[int64][]int64, len(userIDs))
+	expByUser = make(map[int64][]int64, len(userIDs))
+	for _, c := range children {
+		switch c.Classification {
+		case "income":
+			incByUser[*c.UserID] = append(incByUser[*c.UserID], c.ID)
+		case "expense":
+			expByUser[*c.UserID] = append(expByUser[*c.UserID], c.ID)
+		}
+	}
+
+	uncategorizedByUser = make(map[int64]int64, len(userIDs))
+	for _, r := range roots {
+		if r.Classification == "uncategorized" {
+			uncategorizedByUser[*r.UserID] = r.ID
+		}
+	}
+
+	return incByUser, expByUser, uncategorizedByUser, nil
 }
 
 func seedBulkChunk(
@@ -326,7 +377,6 @@ func seedBulkChunk(
 	hashedPassword string,
 	roleID int64,
 	accountTypeIDs map[string]int64,
-	incCats, expCats []int64,
 	pricePool map[string]*bulkAssetPrices,
 	fx *bulkFX,
 	invTypeID, cryptoTypeID int64,
@@ -368,6 +418,15 @@ func seedBulkChunk(
 		return fmt.Errorf("failed to insert user settings: %w", err)
 	}
 
+	userIDs := make([]int64, len(users))
+	for i, u := range users {
+		userIDs[i] = u.ID
+	}
+	incByUser, expByUser, uncategorizedByUser, err := seedBulkDefaultCategories(ctx, tx, userIDs)
+	if err != nil {
+		return err
+	}
+
 	// The opening balance row anchors the frontfill, so it has to exist before
 	// any cash delta lands on the account
 	accounts := make([]models.Account, 0, len(users)*len(bulkAccountSeeds))
@@ -392,14 +451,14 @@ func seedBulkChunk(
 		return fmt.Errorf("failed to insert accounts: %w", err)
 	}
 
-	uncategorizedID, err := uncategorizedCategoryID(ctx, tx)
-	if err != nil {
-		return err
-	}
-
 	balances := make([]models.Balance, 0, len(accounts))
 	openings := make([]models.Transaction, 0, len(accounts))
 	for i, acc := range accounts {
+		var uncategorizedID *int64
+		if id, ok := uncategorizedByUser[acc.UserID]; ok {
+			id := id
+			uncategorizedID = &id
+		}
 		txn, bal := seedOpeningRows(acc, openedAt[i], uncategorizedID, bulkAccountSeeds[i%len(bulkAccountSeeds)].StartBalance)
 		balances = append(balances, bal)
 		openings = append(openings, txn)
@@ -417,7 +476,7 @@ func seedBulkChunk(
 	for i, acc := range accounts {
 		seed := bulkAccountSeeds[i%len(bulkAccountSeeds)]
 		txns = append(txns, bulkTransactionsForAccount(
-			rng, today, openedAt[i], acc, seed, perAcc, incCats, expCats)...)
+			rng, today, openedAt[i], acc, seed, perAcc, incByUser[acc.UserID], expByUser[acc.UserID])...)
 	}
 
 	if err := txnRepo.InsertTransactionsBatch(ctx, tx, txns, bulkInsertBatch); err != nil {
@@ -435,7 +494,7 @@ func seedBulkChunk(
 		return err
 	}
 
-	return seedBulkInvestments(ctx, tx, balanceRepo, rng, today, users, pricePool, fx, invTypeID, cryptoTypeID)
+	return seedBulkInvestments(ctx, tx, balanceRepo, rng, today, users, uncategorizedByUser, pricePool, fx, invTypeID, cryptoTypeID)
 }
 
 func bulkDisplayName(rng *rand.Rand) string {
@@ -803,6 +862,7 @@ func seedBulkInvestments(
 	rng *rand.Rand,
 	today time.Time,
 	users []models.User,
+	uncategorizedByUser map[int64]int64,
 	pricePool map[string]*bulkAssetPrices,
 	fx *bulkFX,
 	invTypeID, cryptoTypeID int64,
@@ -835,11 +895,6 @@ func seedBulkInvestments(
 		return fmt.Errorf("failed to insert investment accounts: %w", err)
 	}
 
-	uncategorizedID, err := uncategorizedCategoryID(ctx, tx)
-	if err != nil {
-		return err
-	}
-
 	balances := make([]models.Balance, 0, len(accounts))
 	openings := make([]models.Transaction, 0, len(accounts))
 	meta := make(map[int64]accMeta, len(accounts))
@@ -847,6 +902,11 @@ func seedBulkInvestments(
 		start := bulkInvOpeningCash
 		if acc.Currency == "USD" {
 			start = bulkCryptoOpeningCash
+		}
+		var uncategorizedID *int64
+		if id, ok := uncategorizedByUser[acc.UserID]; ok {
+			id := id
+			uncategorizedID = &id
 		}
 		txn, bal := seedOpeningRows(acc, openedAt, uncategorizedID, start)
 		balances = append(balances, bal)
@@ -862,11 +922,6 @@ func seedBulkInvestments(
 
 	var assetRows []models.InvestmentAsset
 	var pend []bulkPendingTrade
-
-	var uncategorized models.Category
-	if err := tx.WithContext(ctx).Where("classification = ?", "uncategorized").First(&uncategorized).Error; err != nil {
-		return fmt.Errorf("failed to find uncategorized category: %w", err)
-	}
 
 	for ui, u := range users {
 		invAccID := accounts[ui*2].ID
@@ -909,8 +964,13 @@ func seedBulkInvestments(
 		cashTxns := make([]models.Transaction, 0, len(pend))
 		for _, p := range pend {
 			a := assetRows[p.assetIdx]
+			var catID *int64
+			if id, ok := uncategorizedByUser[a.UserID]; ok {
+				id := id
+				catID = &id
+			}
 			cashTxns = append(cashTxns, models.NewTradeCashTransaction(
-				a.UserID, a.AccountID, &uncategorized.ID, a.Ticker,
+				a.UserID, a.AccountID, catID, a.Ticker,
 				meta[a.AccountID].currency, models.InvestmentBuy, p.date, p.cost,
 			))
 		}

@@ -9,6 +9,7 @@ import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 
 const props = defineProps<{
   categories: Category[];
@@ -21,9 +22,33 @@ const emit = defineEmits<{
 
 const toastStore = useToastStore();
 const sharedStore = useSharedStore();
+const transactionStore = useTransactionStore();
 
 const { hasPermission } = usePermissions();
 const confirm = useConfirm();
+
+const seeding = ref(false);
+
+async function seedDefaultCategories() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  seeding.value = true;
+  try {
+    const res = await transactionStore.seedDefaultCategories();
+    toastStore.successResponseToast(res);
+    emit("completeOperation");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    seeding.value = false;
+  }
+}
 
 const localCategories = computed(() => {
   return props.categories.filter(
@@ -145,7 +170,19 @@ async function deleteRecord(id: number) {
     :row-class="vueHelper.deletedRowClass"
   >
     <template #empty>
-      <div style="padding: 10px">No records found.</div>
+      <div class="w-full flex flex-col gap-3 items-center justify-center p-4">
+        <span>No records found.</span>
+        <Button
+          class="main-button"
+          :loading="seeding"
+          @click="seedDefaultCategories"
+        >
+          <div class="flex flex-row gap-1 items-center">
+            <i class="pi pi-sparkles" />
+            <span> Seed default categories </span>
+          </div>
+        </Button>
+      </div>
     </template>
     <template #loading>
       <LoadingSpinner />
@@ -168,7 +205,7 @@ async function deleteRecord(id: number) {
     >
       <template #body="{ data }">
         <template v-if="col.field === 'is_default'">
-          {{ data.user_id ? "Custom" : "Default" }}
+          {{ data.is_default ? "Default" : "Custom" }}
         </template>
         <template v-else>
           {{ data[col.field] }}

@@ -69,6 +69,12 @@ export const useTransactionStore = defineStore("transaction", {
       });
       return response.data;
     },
+    async seedDefaultCategories() {
+      const response = await apiClient.post(
+        `${this.apiPrefix}/categories/seed-defaults`,
+      );
+      return response.data;
+    },
     async mergeCategories(sourceID: number, destinationID: number) {
       const response = await apiClient.post(
         `${this.apiPrefix}/categories/merge`,

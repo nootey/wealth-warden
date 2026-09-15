@@ -490,7 +490,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
 
-	category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+	category, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to find uncategorized category: %w", err)
@@ -775,7 +775,7 @@ func (s *InvestmentService) ensureTradeTransactions(
 	}
 
 	if len(unlinked) > 0 {
-		category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		category, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 		if err != nil {
 			return fmt.Errorf("failed to find uncategorized category: %w", err)
 		}
@@ -1533,7 +1533,7 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 	}
 
 	if req.IncomeType == models.IncomeTypeDividend {
-		category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		category, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to find uncategorized category: %w", err)
@@ -1885,7 +1885,7 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 
 	var uncategorizedCatID *int64
 	if incomeType == models.IncomeTypeDividend {
-		cat, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		cat, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to find uncategorized category: %w", err)

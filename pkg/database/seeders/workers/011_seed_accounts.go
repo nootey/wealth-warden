@@ -48,11 +48,6 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		usersByName[u.DisplayName] = u
 	}
 
-	uncategorizedID, err := uncategorizedCategoryID(ctx, db)
-	if err != nil {
-		return err
-	}
-
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
@@ -64,6 +59,11 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		if !ok {
 			fmt.Println("user not found, skipping")
 			continue
+		}
+
+		uncategorizedID, err := uncategorizedCategoryID(ctx, db, u.ID)
+		if err != nil {
+			return err
 		}
 
 		for _, s := range seeds {
@@ -154,11 +154,6 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 		usersByName[u.DisplayName] = u
 	}
 
-	uncategorizedID, err := uncategorizedCategoryID(ctx, db)
-	if err != nil {
-		return err
-	}
-
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
@@ -170,6 +165,11 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 		if !ok {
 			logger.Warn("user not found, skipping", zap.String("username", uname))
 			continue
+		}
+
+		uncategorizedID, err := uncategorizedCategoryID(ctx, db, u.ID)
+		if err != nil {
+			return err
 		}
 
 		for _, s := range seeds {
@@ -252,10 +252,10 @@ func seedOpeningRows(acc models.Account, asOf time.Time, categoryID *int64, amou
 }
 
 // uncategorizedCategoryID returns the category every seeded opening row carries, so
-// the row can be edited like any other. Nil before SeedCategories has run.
-func uncategorizedCategoryID(ctx context.Context, db *gorm.DB) (*int64, error) {
+// the row can be edited like any other. Nil before that user's categories are seeded.
+func uncategorizedCategoryID(ctx context.Context, db *gorm.DB, userID int64) (*int64, error) {
 	var category models.Category
-	err := db.WithContext(ctx).Where("classification = ?", "uncategorized").First(&category).Error
+	err := db.WithContext(ctx).Where("user_id = ? AND classification = ?", userID, "uncategorized").First(&category).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
