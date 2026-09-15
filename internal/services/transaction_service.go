@@ -823,6 +823,19 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("can't edit a %s transaction", exTr.TransactionType))
 	}
 
+	if exTr.TransactionType.IsPartiallyEditable() {
+		sameCategory := (req.CategoryID == nil && exTr.CategoryID == nil) ||
+			(req.CategoryID != nil && exTr.CategoryID != nil && *req.CategoryID == *exTr.CategoryID)
+		newDirection := models.TransactionDirection(strings.ToLower(string(req.Direction)))
+
+		if req.AccountID != exTr.AccountID || !sameCategory || newDirection != exTr.Direction {
+			tx.Rollback()
+			return 0, apperr.New(apperr.Validation, fmt.Sprintf(
+				"only amount and date can be changed on a %s transaction", exTr.TransactionType,
+			))
+		}
+	}
+
 	// Load old account & category (for logs)
 	oldAccount, err := s.accRepo.FindAccountByID(ctx, tx, exTr.AccountID, userID, false)
 	if err != nil {
