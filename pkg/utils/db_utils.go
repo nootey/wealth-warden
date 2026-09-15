@@ -282,9 +282,17 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			query = query.Where(fmt.Sprintf("%s < ?", column), f.Value)
 
 		case ">=":
+			if s := f.Value; reDateOnly.MatchString(s) {
+				query = query.Where(fmt.Sprintf("%s >= ?::date", column), s)
+				break
+			}
 			query = query.Where(fmt.Sprintf("%s >= ?", column), f.Value)
 
 		case "<=":
+			if s := f.Value; reDateOnly.MatchString(s) {
+				query = query.Where(fmt.Sprintf("%s <= ?::date", column), s)
+				break
+			}
 			query = query.Where(fmt.Sprintf("%s <= ?", column), f.Value)
 
 		default:
