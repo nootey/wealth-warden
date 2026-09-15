@@ -1,8 +1,19 @@
 package models
 
 import (
+	"io"
 	"time"
 )
+
+const (
+	ImportTypeCustom = "custom"
+	ImportTypeBank   = "bank"
+)
+
+type BankStatementFile struct {
+	Name   string
+	Reader io.Reader
+}
 
 type Import struct {
 	ID                     int64      `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -30,6 +41,11 @@ type AccImportPayload struct {
 type CategoryImportPayload struct {
 	GeneratedAt time.Time        `json:"generated_at" validate:"required"`
 	Categories  []CategoryExport `json:"categories" validate:"required"`
+}
+
+type RuleImportPayload struct {
+	GeneratedAt time.Time    `json:"generated_at" validate:"required"`
+	Rules       []RuleExport `json:"rules" validate:"required"`
 }
 
 type TxnImportPayload struct {
@@ -73,8 +89,15 @@ type JSONTxn struct {
 	TxnDate         time.Time `json:"txn_date"`
 	Category        string    `json:"category"`
 	Description     string    `json:"description"`
+	CategoryID      *int64    `json:"category_id,omitempty"` // set by hand on a bank row; skips mappings and rules
+	ExternalTxnID   *string   `json:"external_txn_id,omitempty"`
 	Fee             *string   `json:"fee,omitempty"`
 	TradePrice      *string   `json:"trade_price,omitempty"`
+}
+
+type RowCategory struct {
+	Row        int   `json:"row"`
+	CategoryID int64 `json:"category_id"`
 }
 
 type CategoryMapping struct {

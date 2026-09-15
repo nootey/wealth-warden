@@ -6,6 +6,23 @@ type TxnSample = {
   description: string;
 };
 
+export type BankTxn = {
+  transaction_type: string;
+  amount: string;
+  currency: string;
+  txn_date: string;
+  category: string;
+  description: string;
+  external_txn_id: string;
+};
+
+export type BankParseResponse = {
+  bank: string;
+  identifier: string;
+  count: number;
+  transactions: BankTxn[];
+};
+
 export type CustomImportValidationResponse = {
   count: number;
   filtered_count: number;

@@ -115,9 +115,9 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 				daysAgo := rng.Intn(maxBack)
 				date := today.AddDate(0, 0, -daysAgo)
 
-				ttype := "expense"
+				ttype := models.TxnDirectionExpense
 				if rng.Float64() < incomeProb {
-					ttype = "income"
+					ttype = models.TxnDirectionIncome
 				}
 
 				amt := decimal.NewFromFloat(10 + rng.Float64()*5000).Round(2)
@@ -134,7 +134,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 				// prevent asset accounts from going negative
 				if class == "asset" && ttype == "expense" {
 					if currBal.LessThanOrEqual(decimal.Zero) {
-						ttype = "income" // force inflow if nothing left
+						ttype = models.TxnDirectionIncome // force inflow if nothing left
 					} else if amt.GreaterThan(currBal) {
 						amt = currBal // shrink expense to available balance
 					}
@@ -145,7 +145,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 					if next.GreaterThan(decimal.Zero) {
 						capAmt := currBal.Abs().Mul(decimal.NewFromFloat(0.8)).Round(2)
 						if capAmt.LessThan(decimal.NewFromInt(1)) {
-							ttype = "expense"
+							ttype = models.TxnDirectionExpense
 						} else {
 							amt = capAmt
 						}

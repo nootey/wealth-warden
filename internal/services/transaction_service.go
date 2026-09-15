@@ -220,6 +220,10 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
 
+	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
+	}
+
 	if req.IdempotencyKey != nil && *req.IdempotencyKey != "" {
 		if existing, err := s.repo.FindTransactionByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); err == nil {
 			return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
@@ -371,7 +375,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		UserID:         userID,
 		AccountID:      account.ID,
 		CategoryID:     &category.ID,
-		Direction:      strings.ToLower(req.Direction),
+		Direction:      models.TransactionDirection(strings.ToLower(string(req.Direction))),
 		Amount:         req.Amount,
 		Currency:       account.Currency,
 		TxnDate:        txDay,
@@ -413,7 +417,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
-	utils.CompareChanges("", tr.Direction, changes, "type")
+	utils.CompareChanges("", string(tr.Direction), changes, "type")
 	utils.CompareChanges("", dateStr, changes, "date")
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
@@ -673,6 +677,10 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 }
 
 func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error) {
+	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -846,7 +854,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		UserID:      userID,
 		AccountID:   newAccount.ID,
 		CategoryID:  &newCategory.ID,
-		Direction:   strings.ToLower(req.Direction),
+		Direction:   models.TransactionDirection(strings.ToLower(string(req.Direction))),
 		Amount:      req.Amount,
 		Currency:    exTr.Currency,
 		TxnDate:     newDay,
@@ -893,7 +901,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
-	utils.CompareChanges(exTr.Direction, tr.Direction, changes, "type")
+	utils.CompareChanges(string(exTr.Direction), string(tr.Direction), changes, "type")
 	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
 	utils.CompareDecimalChange(&exTr.Amount, &tr.Amount, changes, "amount", 2)
 	utils.CompareChanges(exTr.Currency, tr.Currency, changes, "currency")
@@ -1082,7 +1090,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 
 	utils.CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
 	utils.CompareChanges(account.Name, "", changes, "account")
-	utils.CompareChanges(tr.Direction, "", changes, "type")
+	utils.CompareChanges(string(tr.Direction), "", changes, "type")
 	utils.CompareDateChange(&tr.TxnDate, nil, changes, "date")
 	utils.CompareDecimalChange(&tr.Amount, nil, changes, "amount", 2)
 	utils.CompareChanges(tr.Currency, "", changes, "currency")
@@ -1989,9 +1997,9 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		endDate = &e
 	}
 
-	var txnType *string
+	var txnType *models.TransactionDirection
 	if req.Direction != nil {
-		v := strings.ToLower(*req.Direction)
+		v := models.TransactionDirection(strings.ToLower(string(*req.Direction)))
 		txnType = &v
 	}
 
@@ -2036,7 +2044,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	}
 	var txnTypeStr string
 	if tp.Direction != nil {
-		txnTypeStr = *tp.Direction
+		txnTypeStr = string(*tp.Direction)
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(tpID, 10), changes, "id")
@@ -2391,7 +2399,7 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 	}
 	var deleteTypeStr string
 	if tp.Direction != nil {
-		deleteTypeStr = *tp.Direction
+		deleteTypeStr = string(*tp.Direction)
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
@@ -2760,7 +2768,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			}
 		}
 
-		txnType := ""
+		var txnType models.TransactionDirection
 		if currentTemplate.Direction != nil {
 			txnType = *currentTemplate.Direction
 		}

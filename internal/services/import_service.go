@@ -19,6 +19,10 @@ import (
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
+	"github.com/nootey/wealth-warden-prepper/pkg/bank"
+	"github.com/nootey/wealth-warden-prepper/pkg/format"
+	"github.com/nootey/wealth-warden-prepper/pkg/pdftext"
+	"github.com/nootey/wealth-warden-prepper/pkg/statement"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -28,14 +32,17 @@ type ImportServiceInterface interface {
 	ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error)
 	FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error)
 	FetchImportByID(ctx context.Context, id, userID int64, importType string) (*models.Import, error)
-	ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error
+	ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int, error)
 	ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error
 	ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) error
+	ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) error
 	TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error
 	TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
 	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
+	ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error)
+	ApplyBankRowOverrides(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error
 }
 
 type ImportService struct {
@@ -46,6 +53,7 @@ type ImportService struct {
 	balanceRepo    repositories.BalanceRepositoryInterface
 	investmentRepo repositories.InvestmentRepositoryInterface
 	settingsRepo   repositories.SettingsRepositoryInterface
+	rulesRepo      repositories.RulesRepositoryInterface
 	jobDispatcher  jobqueue.Dispatcher
 }
 
@@ -57,6 +65,7 @@ func NewImportService(
 	balanceRepo *repositories.BalanceRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
+	rulesRepo *repositories.RulesRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *ImportService {
 	return &ImportService{
@@ -67,6 +76,7 @@ func NewImportService(
 		balanceRepo:    balanceRepo,
 		investmentRepo: investmentRepo,
 		settingsRepo:   settingsRepo,
+		rulesRepo:      rulesRepo,
 		jobDispatcher:  jobDispatcher,
 	}
 }
@@ -80,9 +90,9 @@ var (
 	ErrRepaymentsTransferred  = apperr.New(apperr.Conflict, "Debt repayments have already been transferred for this import")
 )
 
-func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal, snapshot bool) error {
+func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, direction models.TransactionDirection, amt decimal.Decimal, snapshot bool) error {
 	amt = amt.Round(4)
-	if strings.ToLower(txnType) == "expense" {
+	if direction == models.TxnDirectionExpense {
 		amt = amt.Neg()
 	}
 
@@ -116,6 +126,31 @@ func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, user
 	}
 
 	return nil
+}
+
+func (s *ImportService) applyRules(ctx context.Context, tx *gorm.DB, userID int64, rules []models.Rule, cache map[int64]models.Category, desc string, amount decimal.Decimal, direction models.TransactionDirection) (models.Category, bool, error) {
+	for _, rule := range rules {
+		if !rule.Matches(desc, amount, direction) {
+			continue
+		}
+		categoryID, ok := rule.CategoryID()
+		if !ok {
+			continue
+		}
+		if c, ok := cache[categoryID]; ok {
+			return c, true, nil
+		}
+		c, err := s.txnRepo.FindCategoryByID(ctx, tx, categoryID, &userID, false)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return models.Category{}, false, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find rule category %d", categoryID), err)
+		}
+		cache[categoryID] = c
+		return c, true, nil
+	}
+	return models.Category{}, false, nil
 }
 
 func (s *ImportService) markImportFailed(ctx context.Context, userID, importID int64, cause error, extra ...zap.Field) {
@@ -230,6 +265,132 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 	return categories, len(set), nil
 }
 
+func (s *ImportService) ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error) {
+	auto := bankName == "auto"
+	var parser statement.Parser
+	if !auto {
+		p, ok := bank.Get(bankName)
+		if !ok {
+			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported bank %q", bankName))
+		}
+		parser = p
+	}
+	if len(files) == 0 {
+		return models.TxnImportPayload{}, apperr.New(apperr.Invalid, "At least one statement file is required")
+	}
+
+	kind := ""
+	for _, f := range files {
+		ext := strings.ToLower(filepath.Ext(f.Name))
+		if ext != ".csv" && ext != ".pdf" {
+			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("%s: only CSV and PDF statements are supported", f.Name))
+		}
+		if kind == "" {
+			kind = ext
+		} else if kind != ext {
+			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, "Upload either CSV exports or PDF statements in one import, not both")
+		}
+	}
+
+	label := bankName
+	var txns []statement.Transaction
+	for _, f := range files {
+		var parsed []statement.Transaction
+		var err error
+		if auto {
+			var detected string
+			parsed, detected, err = bank.ParseAuto(f.Reader, kind)
+			if detected != "" {
+				label = detected
+			}
+		} else if kind == ".csv" {
+			parsed, err = parser.ParseCSV(f.Reader)
+		} else {
+			parsed, err = parser.ParsePDF(f.Reader)
+		}
+		if err != nil {
+			if errors.Is(err, pdftext.ErrNotInstalled) {
+				return models.TxnImportPayload{}, apperr.Wrap(apperr.Internal, "PDF parsing is not available on this server", err)
+			}
+			return models.TxnImportPayload{}, apperr.Wrap(apperr.Validation, fmt.Sprintf("%s could not be parsed", f.Name), err)
+		}
+		txns = append(txns, parsed...)
+	}
+
+	txns = statement.Dedupe(txns)
+	sort.SliceStable(txns, func(i, j int) bool { return txns[i].Date.Before(txns[j].Date) })
+	if len(txns) == 0 {
+		return models.TxnImportPayload{}, apperr.New(apperr.Validation, "No transactions were found in the statements")
+	}
+
+	// Month granularity so two ranges from one year can be imported on the same day.
+	first, last := txns[0].Date.Format("2006-01"), txns[len(txns)-1].Date.Format("2006-01")
+	identifier := fmt.Sprintf("%s_%s", label, first)
+	if first != last {
+		identifier = fmt.Sprintf("%s_%s_%s", label, first, last)
+	}
+
+	now := time.Now().UTC()
+	built := format.Build(identifier, txns, now)
+
+	payload := models.TxnImportPayload{
+		Identifier:  built.Identifier,
+		GeneratedAt: now,
+		Txns:        make([]models.JSONTxn, 0, len(built.Transactions)),
+	}
+	for i, t := range built.Transactions {
+		var externalID *string
+		if t.ExternalID != "" {
+			id := t.ExternalID
+			externalID = &id
+		}
+		payload.Txns = append(payload.Txns, models.JSONTxn{
+			TransactionType: t.TransactionType,
+			Amount:          t.Amount,
+			Currency:        t.Currency,
+			TxnDate:         txns[i].Date,
+			Category:        t.Category,
+			Description:     t.Description,
+			ExternalTxnID:   externalID,
+		})
+	}
+	return payload, nil
+}
+
+func (s *ImportService) ApplyBankRowOverrides(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error {
+	for _, rc := range rowCategories {
+		if rc.Row < 0 || rc.Row >= len(payload.Txns) {
+			return apperr.New(apperr.Invalid, fmt.Sprintf("row_categories points at row %d, but the statements hold %d rows", rc.Row, len(payload.Txns)))
+		}
+		id := rc.CategoryID
+		payload.Txns[rc.Row].CategoryID = &id
+	}
+
+	if len(skipRows) == 0 {
+		return nil
+	}
+
+	drop := make(map[int]bool, len(skipRows))
+	for _, row := range skipRows {
+		if row < 0 || row >= len(payload.Txns) {
+			return apperr.New(apperr.Invalid, fmt.Sprintf("skip_rows points at row %d, but the statements hold %d rows", row, len(payload.Txns)))
+		}
+		drop[row] = true
+	}
+	kept := make([]models.JSONTxn, 0, len(payload.Txns)-len(drop))
+	for i, t := range payload.Txns {
+		if !drop[i] {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) == 0 {
+		return apperr.New(apperr.Invalid, "Every row was skipped, so there is nothing to import")
+	}
+	payload.Txns = kept
+
+	return nil
+}
+
 func (s *ImportService) FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error) {
 	return s.repo.FindImportsByImportType(ctx, nil, userID, importType)
 }
@@ -238,14 +399,18 @@ func (s *ImportService) FetchImportByID(ctx context.Context, id, userID int64, i
 	return s.repo.FindImportByID(ctx, nil, id, userID, importType)
 }
 
-func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error {
+func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int, error) {
+
+	if source != models.ImportTypeCustom && source != models.ImportTypeBank {
+		return 0, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported import source %q", source))
+	}
 
 	sourceAcc, err := s.accRepo.FindAccountByID(ctx, nil, checkID, userID, false)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := utils.ValidateAccount(sourceAcc, ""); err != nil {
-		return err
+		return 0, err
 	}
 
 	openedYear := sourceAcc.OpenedAt.Year()
@@ -266,12 +431,12 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		}
 	}
 	if first.IsZero() {
-		return apperr.New(apperr.Validation, "No row carries a valid txn_date, so the import year cannot be read")
+		return 0, apperr.New(apperr.Validation, "No row carries a valid txn_date, so the import year cannot be read")
 	}
 	importYear := first.Year()
 
 	if openedYear >= importYear {
-		return apperr.New(apperr.Conflict, fmt.Sprintf("The account opened in %d, so it cannot take data for %d or earlier", openedYear, importYear))
+		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("The account opened in %d, so it cannot take data for %d or earlier", openedYear, importYear))
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
@@ -282,23 +447,23 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	tmpPath := filepath.Join(dir, importName+".json.tmp")
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+		return 0, err
 	}
 
 	// Hard duplicate check
 	if _, err := os.Stat(finalPath); err == nil {
-		return ErrImportFileExists
+		return 0, ErrImportFileExists
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+		return 0, err
 	}
 
 	// Reserve the name with an exclusive temp file (prevents races)
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return ErrImportFileExists
+			return 0, ErrImportFileExists
 		}
-		return err
+		return 0, err
 	}
 	reserved := true
 	defer func() {
@@ -309,7 +474,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	loc, _ := time.LoadLocation(settings.Timezone)
 
@@ -319,7 +484,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
 		Name:      importName,
 		UserID:    userID,
-		Type:      "custom",
+		Type:      source,
 		SubType:   "transactions",
 		Status:    "pending",
 		Step:      "cash",
@@ -327,12 +492,12 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		StartedAt: &started,
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer func() {
@@ -350,13 +515,35 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
 
+	rules, err := s.rulesRepo.FindRules(ctx, tx, userID, true)
+	if err != nil {
+		tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return 0, err
+	}
+	ruleCategories := map[int64]models.Category{}
+
+	skipped := 0
 	for i, txn := range payload.Txns {
+
+		if source == models.ImportTypeBank && txn.ExternalTxnID != nil && *txn.ExternalTxnID != "" {
+			_, err := s.txnRepo.FindTransactionByExternalID(ctx, tx, sourceAcc.ID, *txn.ExternalTxnID)
+			if err == nil {
+				skipped++
+				continue
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				tx.Rollback()
+				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("external_txn_id", *txn.ExternalTxnID))
+				return 0, err
+			}
+		}
 
 		amount, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
 			tx.Rollback()
 			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))
-			return apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
+			return 0, apperr.Wrap(apperr.Validation, fmt.Sprintf("A row has an invalid amount: %q", txn.Amount), err)
 		}
 
 		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
@@ -364,7 +551,23 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		var category models.Category
 		var found bool
 
+		if txn.CategoryID != nil {
+			category, err = s.txnRepo.FindCategoryByID(ctx, tx, *txn.CategoryID, &userID, false)
+			if err != nil {
+				tx.Rollback()
+				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *txn.CategoryID))
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return 0, ErrInvalidCategoryID
+				}
+				return 0, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find row category %d", *txn.CategoryID), err)
+			}
+			found = true
+		}
+
 		for _, m := range payload.CategoryMappings {
+			if found {
+				break
+			}
 			if strings.EqualFold(strings.TrimSpace(m.Name), strings.TrimSpace(txn.Category)) {
 				if m.CategoryID != nil {
 					category, err = s.txnRepo.FindCategoryByID(ctx, tx, *m.CategoryID, &userID, false)
@@ -372,9 +575,9 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 						tx.Rollback()
 						s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *m.CategoryID))
 						if errors.Is(err, gorm.ErrRecordNotFound) {
-							return ErrInvalidCategoryID
+							return 0, ErrInvalidCategoryID
 						}
-						return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find mapped category %d", *m.CategoryID), err)
+						return 0, apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find mapped category %d", *m.CategoryID), err)
 					}
 					found = true
 				}
@@ -382,40 +585,56 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 			}
 		}
 
-		// Fallback if no mapping or category_id is nil
+		// Custom files carry the bank's category text as the only label; bank statements carry a real description.
+		desc := txn.Category
+		if source == models.ImportTypeBank && txn.Description != "" {
+			desc = txn.Description
+		}
+
+		if !found {
+			category, found, err = s.applyRules(ctx, tx, userID, rules, ruleCategories, desc, amount, models.TransactionDirection(txn.TransactionType))
+			if err != nil {
+				tx.Rollback()
+				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))
+				return 0, err
+			}
+		}
+
+		// Fallback if no manual choice or rule matched
 		if !found {
 			category, err = s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 			if err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i))
-				return apperr.Wrap(apperr.Internal, "failed to find uncategorized category", err)
+				return 0, apperr.Wrap(apperr.Internal, "failed to find uncategorized category", err)
 			}
 		}
 
 		if txn.TransactionType == "income" || txn.TransactionType == "expense" {
 
 			t := models.Transaction{
-				UserID:      userID,
-				AccountID:   sourceAcc.ID,
-				CategoryID:  &category.ID,
-				Direction:   txn.TransactionType,
-				Amount:      amount,
-				Currency:    sourceAcc.Currency,
-				TxnDate:     txDay,
-				Description: &txn.Category,
-				ImportID:    &importID,
+				UserID:        userID,
+				AccountID:     sourceAcc.ID,
+				CategoryID:    &category.ID,
+				Direction:     models.TransactionDirection(txn.TransactionType),
+				Amount:        amount,
+				Currency:      sourceAcc.Currency,
+				TxnDate:       txDay,
+				Description:   &desc,
+				ExternalTxnID: txn.ExternalTxnID,
+				ImportID:      &importID,
 			}
 
 			if _, err := s.txnRepo.InsertTransaction(ctx, tx, &t); err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("account_id", sourceAcc.ID), zap.Int64("category_id", category.ID))
-				return err
+				return 0, err
 			}
 
 			if err := s.updateDailyCash(ctx, tx, sourceAcc, t.TxnDate, t.Direction, t.Amount, true); err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("account_id", sourceAcc.ID))
-				return err
+				return 0, err
 			}
 
 		}
@@ -433,7 +652,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	); err != nil {
 		tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err, zap.Int64("account_id", sourceAcc.ID))
-		return err
+		return 0, err
 	}
 
 	// Write payload to the reserved temp file
@@ -441,32 +660,32 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	if err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 	if _, err := tmpFile.Write(data); err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 	if err := tmpFile.Sync(); err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 	if err := tmpFile.Close(); err != nil {
 		_ = tx.Rollback()
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return err
+		return 0, err
 	}
 
 	// Promote the temp file to final
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
-		return err
+		return 0, err
 	}
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
@@ -475,17 +694,18 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {
-		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+		return 0, fmt.Errorf("marking import %d successful failed: %w", importID, err)
 	}
 
 	// Log
 	changes := utils.InitChanges()
-	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", source, changes, "type")
 	utils.CompareChanges("", "transactions", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", sourceAcc.Name, changes, "source_account")
 	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
-	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)-skipped), changes, "transactions_count")
+	utils.CompareChanges("", strconv.Itoa(skipped), changes, "skipped_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -494,10 +714,10 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return skipped, nil
 }
 
 func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error {
@@ -893,6 +1113,203 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 	utils.CompareChanges("", "categories", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)), changes, "categories_count")
+
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+		Event:       "create",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) buildRuleFromImport(ctx context.Context, tx *gorm.DB, userID int64, r models.RuleExport) (models.Rule, error) {
+	rule := models.Rule{
+		UserID:        userID,
+		Name:          r.Name,
+		IsActive:      r.IsActive,
+		MatchType:     r.MatchType,
+		EffectiveDate: r.EffectiveDate,
+	}
+
+	conditions, err := buildRuleConditions(ruleConditionReqsFromExport(r.Conditions), 0)
+	if err != nil {
+		return rule, err
+	}
+	rule.Conditions = conditions
+
+	for _, a := range r.Actions {
+		value := a.Value
+		if a.ActionType == models.RuleActionSetCategory {
+			cat, err := s.txnRepo.FindCategoryByName(ctx, tx, a.Value, &userID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return rule, apperr.New(apperr.Validation, fmt.Sprintf("The category %q from the rule %q was not found", a.Value, r.Name))
+				}
+				return rule, err
+			}
+			value = strconv.FormatInt(cat.ID, 10)
+		}
+		rule.Actions = append(rule.Actions, models.RuleAction{ActionType: a.ActionType, Value: value})
+	}
+
+	return rule, nil
+}
+
+func ruleConditionReqsFromExport(conditions []models.RuleConditionExport) []models.RuleConditionReq {
+	out := make([]models.RuleConditionReq, 0, len(conditions))
+	for _, c := range conditions {
+		out = append(out, models.RuleConditionReq{
+			IsGroup:    c.IsGroup,
+			MatchType:  c.MatchType,
+			Conditions: ruleConditionReqsFromExport(c.Conditions),
+			Field:      c.Field,
+			Operator:   c.Operator,
+			Value:      c.Value,
+		})
+	}
+	return out
+}
+
+func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) error {
+
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	importName := fmt.Sprintf("custom_rules_generated_%s", todayStr)
+
+	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
+	finalPath := filepath.Join(dir, importName+".json")
+	tmpPath := filepath.Join(dir, importName+".json.tmp")
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	// Hard duplicate check
+	if _, err := os.Stat(finalPath); err == nil {
+		return ErrImportFileExists
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Reserve the name with an exclusive temp file
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return ErrImportFileExists
+		}
+		return err
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	ruleSettings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	// create the import as PENDING
+	started := time.Now().UTC()
+
+	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
+		Name:      importName,
+		UserID:    userID,
+		Type:      "custom",
+		SubType:   "rules",
+		Status:    "pending",
+		Step:      "rules",
+		Currency:  ruleSettings.DefaultCurrency,
+		StartedAt: &started,
+	})
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			s.markImportFailed(ctx, userID, importID, err)
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	for i, r := range payload.Rules {
+		var rule models.Rule
+		rule, err = s.buildRuleFromImport(ctx, tx, userID, r)
+		if err != nil {
+			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("rule_name", r.Name))
+			tx.Rollback()
+			return err
+		}
+		rule.ImportID = &importID
+
+		if _, err := s.rulesRepo.InsertRule(ctx, tx, &rule); err != nil {
+			s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.String("rule_name", r.Name))
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Write payload to the reserved temp file
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Promote the temp file to final
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		s.markImportFailed(ctx, userID, importID, err)
+		return err
+	}
+
+	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
+		"status":       "success",
+		"step":         "end",
+		"completed_at": time.Now().UTC(),
+		"error":        "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+	}
+
+	// Log
+	changes := utils.InitChanges()
+	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", "rules", changes, "sub_type")
+	utils.CompareChanges("", importName, changes, "name")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Rules)), changes, "rules_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -2146,8 +2563,12 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) error {
 
-	imp, err := s.FetchImportByID(ctx, id, userID, "custom")
+	// Both custom and bank imports are listed for deletion, so no type filter here.
+	imp, err := s.FetchImportByID(ctx, id, userID, "")
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.New(apperr.NotFound, "Import not found")
+		}
 		return err
 	}
 
@@ -2164,6 +2585,11 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 		}
 	case "categories":
 		err = s.deleteCatImport(ctx, userID, imp)
+		if err != nil {
+			return err
+		}
+	case "rules":
+		err = s.deleteRulesImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
@@ -2311,11 +2737,7 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 
 		// Reverse cash
 		amt := t.Amount.Neg()
-		kind := "income"
-		if strings.ToLower(t.Direction) == "expense" {
-			kind = "expense"
-		}
-		if err := s.updateDailyCash(ctx, tx, acc, t.TxnDate, kind, amt, false); err != nil {
+		if err := s.updateDailyCash(ctx, tx, acc, t.TxnDate, t.Direction, amt, false); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -2391,6 +2813,48 @@ func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *
 
 	// hard delete the data
 	if err := s.accRepo.PurgeImportedAccounts(ctx, tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete import row
+	if err := s.repo.DeleteImport(ctx, tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete import files
+	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
+	tmpPath := finalPath + ".tmp"
+	for _, p := range []string{tmpPath, finalPath} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			tx.Rollback()
+			return fmt.Errorf("failed to remove file %s: %w", p, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) deleteRulesImport(ctx context.Context, userID int64, imp *models.Import) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// hard delete the data
+	if _, err := s.rulesRepo.PurgeImportedRules(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}

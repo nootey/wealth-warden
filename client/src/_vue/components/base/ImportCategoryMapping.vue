@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import type { SelectChangeEvent } from "primevue/select";
 import type { Category } from "../../../models/transaction_models.ts";
 import Select from "primevue/select";
+import { useRouter } from "vue-router";
 
 const props = defineProps<{
   importedCategories: string[];
@@ -14,6 +15,8 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: Record<string, number | null>): void;
   (e: "save", value: Record<string, number | null>): void;
 }>();
+
+const router = useRouter();
 
 const tableData = computed(() =>
   props.importedCategories.map((name) => ({ name })),
@@ -69,30 +72,18 @@ const prefill = () => {
   for (const raw of props.importedCategories) {
     const key = raw;
     const n = normalize(raw);
-    const exact = byNormalizedName.value.get(n);
-
-    if (exact) {
-      next[key] = exact.id ?? null;
-      continue;
-    }
-
-    let picked: Category | undefined;
+    let picked: Category | undefined = byNormalizedName.value.get(n);
     for (const c of props.appCategories) {
-      if (
-        normalize(c.name) === n ||
-        normalize(c.display_name || c.name) === n
-      ) {
-        picked = c;
-        break;
-      }
-      if (!picked && normalize(c.name).includes(n)) picked = c;
+      if (picked) break;
+      if (normalize(c.name).includes(n)) picked = c;
       if (!picked && n.includes(normalize(c.name))) picked = c;
     }
 
-    if (picked) {
+    // A prefilled default is not a manual choice; leave it unset so rules can run on the server.
+    if (picked && picked.id !== defaultCategory.value?.id) {
       next[key] = picked.id ?? null;
     } else {
-      next[key] = defaultCategory.value?.id ?? null;
+      next[key] = null;
     }
   }
   mapping.value = next;
@@ -130,10 +121,19 @@ function clearAll() {
 <template>
   <div class="flex flex-col gap-1 w-full">
     <div class="flex flex-col items-center w-full">
-      <div class="flex flex-row">
+      <div class="flex flex-col items-center text-center">
         <span style="color: var(--text-secondary)">
-          These are the distinct categories. Map them to existing ones. If none
-          selected, default will be used.
+          These are the distinct categories. Map them to existing ones. A mapped
+          category always wins.
+        </span>
+        <span class="text-xs" style="color: var(--text-secondary)">
+          <i class="pi pi-info-circle text-xs" />
+          Rows left on Auto get their category from your active
+          <span
+            class="hover-icon font-bold"
+            @click="router.push({ name: 'settings.rules' })"
+            >rules</span
+          >. If no rule matches, they stay uncategorized.
         </span>
       </div>
       <div class="flex flex-row gap-4">
@@ -196,13 +196,7 @@ function clearAll() {
                   "Select category"
                 }}
               </span>
-              <span v-else class="text-muted-color">
-                {{
-                  defaultCategory
-                    ? `Default: ${defaultCategory.display_name || defaultCategory.name}`
-                    : "Select category"
-                }}
-              </span>
+              <span v-else class="text-muted-color">Auto (rules)</span>
             </template>
 
             <template #option="opt">

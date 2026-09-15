@@ -12,6 +12,7 @@ packages:
       AuthServiceInterface:
       SessionsServiceInterface:
       NotesServiceInterface:
+      RulesServiceInterface:
       RolePermissionServiceInterface:
       UserServiceInterface:
       BackofficeServiceInterface:

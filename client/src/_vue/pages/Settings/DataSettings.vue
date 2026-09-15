@@ -73,9 +73,11 @@ async function manipulateDialog(modal: string, value: any) {
   <Dialog
     v-model:visible="addImportModal"
     class="rounded-dialog"
-    :breakpoints="{ '751px': '90vw' }"
+    :breakpoints="{ '751px': '95vw' }"
     :modal="true"
-    :style="{ width: '750px' }"
+    :closable="!importModuleRef?.isBusy"
+    :close-on-escape="!importModuleRef?.isBusy"
+    :style="{ width: '70vw' }"
     header="New Import"
   >
     <ImportModule ref="importModuleRef" @refresh-data="(e) => refreshData(e)" />

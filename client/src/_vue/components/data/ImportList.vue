@@ -28,7 +28,11 @@ onMounted(async () => {
 
 async function getData() {
   try {
-    imports.value = await dataStore.getImports("custom");
+    const [custom, bank] = await Promise.all([
+      dataStore.getImports("custom"),
+      dataStore.getImports("bank"),
+    ]);
+    imports.value = [...custom, ...bank];
   } catch (e) {
     toastStore.errorResponseToast(e);
   }
