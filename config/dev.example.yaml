@@ -36,10 +36,10 @@ cors:
   allowed_schemes: ["http"]
 
 mailer:
-  host: "smtp.email.com"
+  host: ""
   port: 587
-  username: "email@email.com"
-  password: "aaaa bbbb cccc dddd"
+  username: ""
+  password: ""
 
 seed:
   super_admin_email: "support@wealth.warden"

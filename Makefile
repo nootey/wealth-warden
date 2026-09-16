@@ -1,4 +1,4 @@
-.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push observe observe-local
+.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-seed docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push observe observe-local
 
 COMPOSE_OBS       := -f ./docker-compose.observability.yaml
 COMPOSE_OBS_LOCAL := -f ./docker-compose.observability.local.yaml
@@ -64,6 +64,9 @@ docker-restart:
 
 docker-migrate:
 	docker compose $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
+
+docker-seed:
+	docker compose $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate seed $(type) $(name) $(if $(users),--users $(users))
 
 docker-rpi-up:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) $(RPI_BUILD) -p wealth-warden up -d $(if $(build),--build)

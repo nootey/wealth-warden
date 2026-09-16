@@ -127,6 +127,8 @@ func (s *AuthServiceTestSuite) TestSignUp_Success() {
 	s.NoError(err)
 	s.Equal(form.Email, user.Email)
 	s.Equal(form.DisplayName, user.DisplayName)
+	// Dev defaults have no mailer, so the user is auto-confirmed on signup.
+	s.NotNil(user.EmailConfirmed)
 }
 
 func (s *AuthServiceTestSuite) TestSignUp_PasswordMismatch() {

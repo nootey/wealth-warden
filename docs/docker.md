@@ -35,9 +35,38 @@ docker compose -f ./docker-compose.yaml up db -d
 For the first time setup, you must run migrations!
 
 ```sh
-# Run migrations (append arguments like 'migrate fresh-seed-basic' to run them)
+# Run migrations. Without an argument the migrate service runs `migrate up`.
 docker compose -f ./docker-compose.yaml run --rm migrate
 ```
+
+#### Seed the database
+
+The seed data is generated in Go code. There are no SQL seed files. Both flows below use
+the `migrate` service, because that service holds the app binary.
+
+To drop the database, run migrations, and seed in one step, override the migrate command:
+
+```sh
+# Types: fresh-seed-basic (minimal), fresh-seed-full (more data)
+docker compose -f ./docker-compose.yaml run --rm migrate migrate fresh-seed-basic
+```
+
+To seed a database that already has the schema, run the `seed` subcommand:
+
+```sh
+# Types: basic, full, bulk, individual
+docker compose -f ./docker-compose.yaml run --rm migrate seed basic
+```
+
+The Makefile wraps both flows:
+
+```sh
+make docker-migrate type=fresh-seed-basic   # drop + migrate + seed
+make docker-seed type=basic                 # seed an existing schema
+make docker-seed type=bulk users=1000       # bulk seed with N users
+```
+
+Seed credentials come from the `seed:` block in the config file (see `config/dev.example.yaml`).
 
 To run the app, which will run all docker services including the observability stack, use:
 

@@ -39,6 +39,7 @@ type AuthService struct {
 	jobDispatcher jobqueue.Dispatcher
 	mailer        *mailer.Mailer
 	sessionStore  *sessions.Store
+	release       bool
 }
 
 func NewAuthService(
@@ -49,6 +50,7 @@ func NewAuthService(
 	jobDispatcher jobqueue.Dispatcher,
 	mailer *mailer.Mailer,
 	sessionStore *sessions.Store,
+	release bool,
 ) *AuthService {
 	return &AuthService{
 		logger:        logger,
@@ -58,6 +60,7 @@ func NewAuthService(
 		jobDispatcher: jobDispatcher,
 		mailer:        mailer,
 		sessionStore:  sessionStore,
+		release:       release,
 	}
 }
 
@@ -349,6 +352,15 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			RoleID:      role.ID,
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
+		}
+
+		// In dev without a mailer, no confirmation email can be sent, so
+		// auto-confirm the user to keep local signup usable.
+		if !s.release && s.mailer == nil {
+			now := time.Now().UTC()
+			user.EmailConfirmed = &now
+			s.logger.Info("auto-confirming user email: mailer disabled in dev mode",
+				zap.String("email", user.Email))
 		}
 
 		userID, err = s.userRepo.InsertUser(ctx, tx, user)
