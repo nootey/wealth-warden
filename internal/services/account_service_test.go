@@ -1600,6 +1600,52 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_RemoveCreditLimit_WithNegati
 	s.Assert().Contains(err.Error(), "cannot remove credit limit")
 }
 
+// Tests that creating an account with a zero credit limit stores it as none
+func (s *AccountServiceTestSuite) TestInsertAccount_ZeroCreditLimit_StoredAsNil() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	zero := decimal.Zero
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Zero Limit Account",
+		AccountTypeID: 1,
+		CreditLimit:   &zero,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	acc, err := svc.FetchAccountByID(s.Ctx, userID, accID)
+	s.Require().NoError(err)
+	s.Assert().Nil(acc.CreditLimit)
+}
+
+// Tests that a credit limit can be removed when the account balance is zero
+func (s *AccountServiceTestSuite) TestUpdateAccount_RemoveCreditLimit_WithZeroBalance() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	zero := decimal.Zero
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		CreditLimit:   &creditLimit,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	// Removing the credit limit at a zero balance is safe: the floor becomes 0.
+	_, err = svc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+}
+
 // Tests that reducing a credit limit below the current negative balance is rejected
 func (s *AccountServiceTestSuite) TestUpdateAccount_ReduceCreditLimit_BelowCurrentBalance() {
 	svc := s.TC.App.AccountService

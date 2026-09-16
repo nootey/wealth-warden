@@ -238,6 +238,11 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 
 	changes := utils.InitChanges()
 
+	// A zero credit limit is the same as none; store it as none.
+	if req.CreditLimit != nil && req.CreditLimit.IsZero() {
+		req.CreditLimit = nil
+	}
+
 	if req.Classification == "asset" {
 		if req.CreditLimit != nil {
 			if req.Balance.LessThan(req.CreditLimit.Neg()) {
@@ -486,15 +491,15 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	}
 
 	if (exAcc.CreditLimit != nil && req.CreditLimit == nil) || req.CreditLimit != nil {
-		latestBal, err := s.balanceRepo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
+		bal, err := s.balanceRepo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
 		}
-		if req.CreditLimit == nil && !latestBal.IsPositive() {
+		if req.CreditLimit == nil && bal.IsNegative() {
 			tx.Rollback()
-			return 0, apperr.New(apperr.Conflict, "cannot remove credit limit while account balance is not positive")
-		} else if req.CreditLimit != nil && latestBal.IsNegative() && req.CreditLimit.LessThanOrEqual(latestBal.Neg()) {
+			return 0, apperr.New(apperr.Conflict, "cannot remove credit limit while account balance is negative")
+		} else if req.CreditLimit != nil && bal.IsNegative() && req.CreditLimit.LessThanOrEqual(bal.Neg()) {
 			tx.Rollback()
 			return 0, apperr.New(apperr.Validation, "credit limit must exceed current negative balance")
 		}
