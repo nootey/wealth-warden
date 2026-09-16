@@ -806,11 +806,11 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	}
 
 	// The opening row is user editable, and the edit form needs a category on it.
-	openingCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	openingCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "adjustment", userID)
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		tx.Rollback()
-		return fmt.Errorf("can't find uncategorized category: %w", err)
+		return fmt.Errorf("can't find adjustment category: %w", err)
 	}
 
 	skipped := 0

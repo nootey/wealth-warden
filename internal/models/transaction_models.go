@@ -34,7 +34,14 @@ func (t TransactionType) IsUserEditable() bool {
 }
 
 func (t TransactionType) IsPartiallyEditable() bool {
-	return t == TxnTypeAdjustment
+	return t == TxnTypeAdjustment || t == TxnTypeOpening
+}
+
+func (t TransactionType) PartiallyEditableFields() string {
+	if t == TxnTypeOpening {
+		return "amount"
+	}
+	return "amount and date"
 }
 
 func (t TransactionType) IsUserDeletable() bool {

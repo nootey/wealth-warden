@@ -88,8 +88,16 @@ const isRecordPartiallyEditable = computed(() =>
   isPartiallyEditable(record.value.transaction_type),
 );
 
+const isOpeningTransaction = computed(
+  () => record.value.transaction_type === "opening",
+);
+
 const isFieldLocked = computed<boolean>(
   () => isFormReadOnly.value || isRecordPartiallyEditable.value,
+);
+
+const isDateLocked = computed<boolean>(
+  () => isFormReadOnly.value || isOpeningTransaction.value,
 );
 
 const isTxnDeleted = computed(() => !!record.value.deleted_at);
@@ -517,6 +525,14 @@ async function deleteRecord(id: number, tx_type: string) {
       Read-only mode.
     </span>
     <span
+      v-else-if="isRecordPartiallyEditable && isOpeningTransaction"
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >
+      Only the amount can be edited. Change the account's opening date to move
+      this transaction.
+    </span>
+    <span
       v-else-if="isRecordPartiallyEditable"
       class="text-sm"
       style="color: var(--text-secondary)"
@@ -636,8 +652,8 @@ async function deleteRecord(id: number, tx_type: string) {
             fluid
             icon-display="input"
             size="small"
-            :readonly="isFormReadOnly"
-            :disabled="isFormReadOnly"
+            :readonly="isDateLocked"
+            :disabled="isDateLocked"
             :max-date="todayInUserTimezone"
           />
         </div>

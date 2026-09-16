@@ -337,10 +337,10 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	}
 
 	// The opening row is user editable, and the edit form needs a category on it.
-	openingCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	openingCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "adjustment", userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find uncategorized category: %w", err)
+		return 0, fmt.Errorf("can't find adjustment category: %w", err)
 	}
 
 	openingTxn := models.NewOpeningTransaction(userID, accountID, &openingCategory.ID, account.Currency, openedDay, amount)

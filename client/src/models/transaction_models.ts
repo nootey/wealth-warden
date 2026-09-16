@@ -18,7 +18,7 @@ export function isTransactionEditable(type: TransactionType): boolean {
 }
 
 export function isPartiallyEditable(type: TransactionType): boolean {
-  return type === "adjustment";
+  return type === "adjustment" || type === "opening";
 }
 
 export function isTransactionDeletable(type: TransactionType): boolean {
