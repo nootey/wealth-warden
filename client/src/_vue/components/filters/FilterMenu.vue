@@ -130,14 +130,18 @@ function onCommit() {
 <template>
   <div
     id="mobile-row"
-    class="flex flex-row w-full gap-1 p-2"
-    style="height: 250px"
+    class="flex flex-row w-full gap-3 p-3"
+    style="height: 280px"
   >
-    <div class="flex flex-col w-4/12 gap-1" style="overflow-y: auto">
-      <button
+    <div
+      id="filter-fields"
+      class="flex flex-col w-4/12 gap-1"
+      style="overflow-y: auto"
+    >
+      <div
         v-for="i in items"
         :key="i.key"
-        class="flex items-center gap-2 w-full menu-button"
+        class="flex items-center gap-1 w-full align-center hover-icon"
         :class="{ active: i.key === selectedKey }"
         style="
           padding: 5px;
@@ -147,11 +151,10 @@ function onCommit() {
         "
         @click="selectedKey = i.key"
       >
-        <i :class="i.icon" />
+        <i :class="i.icon" class="text-sm" />
         <span
           style="
             display: inline-block;
-            max-width: 120px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -159,7 +162,7 @@ function onCommit() {
         >
           {{ i.label }}
         </span>
-      </button>
+      </div>
     </div>
     <div class="flex flex-col w-8/12">
       <component
@@ -176,19 +179,29 @@ function onCommit() {
 
   <div
     id="mobile-row"
-    class="flex flex-row w-full justify-end items-center gap-4 p-1"
+    class="flex flex-row w-full justify-end items-center gap-4 p-2"
   >
-    <div class="hover-icon" style="margin-right: auto" @click="clear">
-      Clear filters
-    </div>
+    <Button
+      text
+      severity="danger"
+      size="small"
+      icon="pi pi-filter-slash"
+      label="Clear filters"
+      class="mr-auto"
+      @click="clear"
+    />
     <div class="hover-icon" @click="$emit('cancel')">Cancel</div>
     <Button size="small" label="Apply" class="main-button" @click="apply" />
   </div>
 </template>
 
 <style scoped>
-.menu-button:hover {
-  cursor: pointer;
-  background-color: var(--background-secondary) !important;
+@media (max-width: 768px) {
+  #mobile-row i {
+    display: none;
+  }
+  #filter-fields > div {
+    justify-content: center;
+  }
 }
 </style>

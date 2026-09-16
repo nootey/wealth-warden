@@ -11,6 +11,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import type { InvestmentTrade } from "../../../models/investment_models.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
+import FilterPopover from "../filters/FilterPopover.vue";
 import ActionRow from "../layout/ActionRow.vue";
 import ActiveFilters from "../filters/ActiveFilters.vue";
 import type {
@@ -191,12 +192,7 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <Popover
-    ref="filterOverlayRef"
-    class="rounded-popover"
-    :style="{ width: '420px' }"
-    :breakpoints="{ '775px': '90vw' }"
-  >
+  <FilterPopover ref="filterOverlayRef">
     <FilterMenu
       v-model:value="filters"
       :columns="activeColumns"
@@ -205,7 +201,7 @@ defineExpose({ refresh });
       @clear="clearFilters"
       @cancel="cancelFilters"
     />
-  </Popover>
+  </FilterPopover>
 
   <div class="flex flex-col w-full">
     <div class="flex flex-row w-full">

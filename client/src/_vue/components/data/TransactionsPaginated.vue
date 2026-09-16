@@ -19,6 +19,7 @@ import type {
   PaginatorState,
 } from "../../../models/shared_models.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
+import FilterPopover from "../filters/FilterPopover.vue";
 import ActiveFilters from "../filters/ActiveFilters.vue";
 import ActionRow from "../layout/ActionRow.vue";
 import type { UserSettings } from "../../../models/settings_models.ts";
@@ -184,12 +185,7 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <Popover
-    ref="filterOverlayRef"
-    class="rounded-popover"
-    :style="{ width: '420px' }"
-    :breakpoints="{ '775px': '90vw' }"
-  >
+  <FilterPopover ref="filterOverlayRef">
     <FilterMenu
       v-model:value="filters"
       :columns="props.columns"
@@ -198,7 +194,7 @@ defineExpose({ refresh });
       @clear="clearFilters"
       @cancel="cancelFilters"
     />
-  </Popover>
+  </FilterPopover>
 
   <div class="flex flex-col w-full gap-4">
     <div

@@ -6,9 +6,10 @@ const emit = defineEmits<{ (e: "commit"): void }>();
 
 <template>
   <div class="flex flex-col gap-2 w-full">
-    <label class="text-sm">{{ "Field search" }}</label>
+    <label class="text-sm">{{ label }}</label>
     <InputNumber
       v-model="model"
+      class="w-full"
       :use-grouping="false"
       :placeholder="`Filter by ${label}`"
       style="border-radius: 8px"
