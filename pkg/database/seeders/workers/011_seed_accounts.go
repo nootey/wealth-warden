@@ -61,7 +61,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 			continue
 		}
 
-		uncategorizedID, err := uncategorizedCategoryID(ctx, db, u.ID)
+		openingCatID, err := openingCategoryID(ctx, db, u.ID)
 		if err != nil {
 			return err
 		}
@@ -109,7 +109,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 				return err
 			}
 
-			txn, bal := seedOpeningRows(acc, asOf, uncategorizedID, s.StartBalance)
+			txn, bal := seedOpeningRows(acc, asOf, openingCatID, s.StartBalance)
 			if err := db.WithContext(ctx).Create(&bal).Error; err != nil {
 				return err
 			}
@@ -167,7 +167,7 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 			continue
 		}
 
-		uncategorizedID, err := uncategorizedCategoryID(ctx, db, u.ID)
+		openingCatID, err := openingCategoryID(ctx, db, u.ID)
 		if err != nil {
 			return err
 		}
@@ -215,7 +215,7 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 				return err
 			}
 
-			txn, bal := seedOpeningRows(acc, asOf, uncategorizedID, s.StartBalance)
+			txn, bal := seedOpeningRows(acc, asOf, openingCatID, s.StartBalance)
 			if err := db.WithContext(ctx).Create(&bal).Error; err != nil {
 				return err
 			}
@@ -251,11 +251,11 @@ func seedOpeningRows(acc models.Account, asOf time.Time, categoryID *int64, amou
 	return txn, bal
 }
 
-// uncategorizedCategoryID returns the category every seeded opening row carries, so
+// openingCategoryID returns the category every seeded opening row carries, so
 // the row can be edited like any other. Nil before that user's categories are seeded.
-func uncategorizedCategoryID(ctx context.Context, db *gorm.DB, userID int64) (*int64, error) {
+func openingCategoryID(ctx context.Context, db *gorm.DB, userID int64) (*int64, error) {
 	var category models.Category
-	err := db.WithContext(ctx).Where("user_id = ? AND classification = ?", userID, "uncategorized").First(&category).Error
+	err := db.WithContext(ctx).Where("user_id = ? AND classification = ?", userID, "adjustment").First(&category).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}

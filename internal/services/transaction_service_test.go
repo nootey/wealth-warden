@@ -3891,6 +3891,78 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_AdjustmentRejectsAcc
 	s.Assert().Equal(adj.Direction, unchanged.Direction)
 }
 
+// An opening transaction may have its amount corrected, but its date, account,
+// category and direction are all locked - the date moves only when the account's
+// own opened-at date is changed instead.
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_OpeningAllowsAmountOnly() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	openDate := time.Now().AddDate(0, 0, -10)
+	initialBalance := decimal.NewFromInt(5000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Opening Edit Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      openDate,
+	})
+	s.Require().NoError(err)
+
+	otherAccID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Other Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      openDate,
+	})
+	s.Require().NoError(err)
+
+	var opening models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeOpening).
+		First(&opening).Error
+	s.Require().NoError(err)
+
+	// Amount can be corrected.
+	newAmt := decimal.NewFromInt(6000)
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, opening.ID, &models.TransactionReq{
+		AccountID:  opening.AccountID,
+		CategoryID: opening.CategoryID,
+		Direction:  opening.Direction,
+		Amount:     newAmt,
+		TxnDate:    opening.TxnDate,
+	})
+	s.Require().NoError(err, "should allow changing the amount on an opening transaction")
+
+	// Date is locked - only the account's own opened-at date can move it.
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, opening.ID, &models.TransactionReq{
+		AccountID:  opening.AccountID,
+		CategoryID: opening.CategoryID,
+		Direction:  opening.Direction,
+		Amount:     newAmt,
+		TxnDate:    opening.TxnDate.AddDate(0, 0, -1),
+	})
+	s.Require().Error(err, "should block changing the date on an opening transaction")
+
+	// Account stays fixed, like any other partially-editable transaction.
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, opening.ID, &models.TransactionReq{
+		AccountID:  otherAccID,
+		CategoryID: opening.CategoryID,
+		Direction:  opening.Direction,
+		Amount:     newAmt,
+		TxnDate:    opening.TxnDate,
+	})
+	s.Require().Error(err, "should block changing the account on an opening transaction")
+
+	var unchanged models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", opening.ID).First(&unchanged).Error
+	s.Require().NoError(err)
+	s.Assert().True(newAmt.Equal(unchanged.Amount))
+	s.Assert().Equal(opening.AccountID, unchanged.AccountID)
+	s.Assert().Equal(opening.TxnDate.UTC().Truncate(24*time.Hour), unchanged.TxnDate.UTC().Truncate(24*time.Hour))
+}
+
 // Deleting an adjustment must be allowed and must reverse its effect on the
 // account's balance history, the same as deleting any other user transaction.
 func (s *TransactionServiceTestSuite) TestDeleteTransaction_AdjustmentAllowed() {

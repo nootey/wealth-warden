@@ -1690,3 +1690,30 @@ func (s *AccountServiceTestSuite) TestMergeAccount_LiabilityToLiability_OK() {
 	s.Require().NoError(err)
 	s.Assert().NotNil(src.ClosedAt)
 }
+
+// The opening transaction created alongside a new account must be filed under the
+// adjustment category, not uncategorized.
+func (s *AccountServiceTestSuite) TestInsertAccount_OpeningTransactionUsesAdjustmentCategory() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(2500)
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Opening Category Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	var opening models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeOpening).
+		First(&opening).Error
+	s.Require().NoError(err, "opening transaction should exist")
+
+	var category models.Category
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", *opening.CategoryID).First(&category).Error
+	s.Require().NoError(err)
+	s.Assert().Equal("adjustment", category.Classification)
+}

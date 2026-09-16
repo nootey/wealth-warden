@@ -831,7 +831,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		if req.AccountID != exTr.AccountID || !sameCategory || newDirection != exTr.Direction {
 			tx.Rollback()
 			return 0, apperr.New(apperr.Validation, fmt.Sprintf(
-				"only amount and date can be changed on a %s transaction", exTr.TransactionType,
+				"only %s can be changed on a %s transaction", exTr.TransactionType.PartiallyEditableFields(), exTr.TransactionType,
 			))
 		}
 	}
@@ -960,6 +960,12 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	oldDay := utils.LocalMidnightUTC(exTr.TxnDate, loc)
 	openDay := utils.LocalMidnightUTC(openAsOf, loc)
 	todayDay := utils.LocalMidnightUTC(time.Now(), loc)
+
+	if exTr.TransactionType == models.TxnTypeOpening && !newDay.Equal(oldDay) {
+		tx.Rollback()
+		return 0, apperr.New(apperr.Validation,
+			"an opening transaction's date can't be changed here; change the account's opening date instead")
+	}
 
 	if newDay.Before(openDay) {
 		tx.Rollback()
