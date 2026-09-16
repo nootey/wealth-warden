@@ -78,6 +78,7 @@ function toDate(v: unknown): Date | null {
 
 <template>
   <div class="flex flex-col gap-2 w-full">
+    <label class="text-sm">{{ label }}</label>
     <div class="flex flex-row w-full">
       <IftaLabel class="w-full">
         <DatePicker

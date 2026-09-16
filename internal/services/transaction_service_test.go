@@ -4036,3 +4036,65 @@ func (s *TransactionServiceTestSuite) TestCategoryGroup_UpdateAndDelete_NotFound
 	s.Require().Error(err)
 	s.Require().ErrorIs(err, services.ErrCategoryGroupNotFound)
 }
+
+// Amount is stored as a positive magnitude with the sign held in direction.
+// The amount filter matches by magnitude, so a single value returns both the
+// income and the expense of that size, and excludes other amounts.
+func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_AmountFilterMatchesByMagnitude() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accReq := &models.AccountReq{
+		Name:           "Amount Filter Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now(),
+	}
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
+	s.Require().NoError(err, "failed to create account")
+
+	target := decimal.NewFromFloat(42.50)
+	other := decimal.NewFromFloat(99.99)
+	now := time.Now()
+
+	insert := func(direction models.TransactionDirection, amount decimal.Decimal) {
+		_, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accID,
+			Direction: direction,
+			Amount:    amount,
+			TxnDate:   now,
+		})
+		s.Require().NoError(err)
+	}
+
+	insert(models.TxnDirectionIncome, target)
+	insert(models.TxnDirectionExpense, target)
+	insert(models.TxnDirectionExpense, other)
+
+	params := utils.PaginationParams{
+		PageNumber:  1,
+		RowsPerPage: 10,
+		SortField:   "created_at",
+		SortOrder:   "desc",
+		Filters: []utils.Filter{
+			{Source: "transactions", Field: "amount", Operator: "=", Value: "42.5000"},
+		},
+	}
+
+	txns, _, _, err := svc.FetchTransactionsPaginated(s.Ctx, userID, params, false, &accID)
+	s.Require().NoError(err)
+
+	s.Require().Len(txns, 2, "positive value should match both income and expense of that magnitude")
+	directions := map[models.TransactionDirection]bool{}
+	for _, t := range txns {
+		s.Assert().True(target.Equal(t.Amount), "matched rows must have the filtered magnitude")
+		directions[t.Direction] = true
+	}
+	s.Assert().True(directions[models.TxnDirectionIncome], "income row should match")
+	s.Assert().True(directions[models.TxnDirectionExpense], "expense row should match")
+}

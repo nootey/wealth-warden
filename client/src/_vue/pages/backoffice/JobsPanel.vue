@@ -10,6 +10,7 @@ import LoadingSpinner from "../../components/base/LoadingSpinner.vue";
 import CustomPaginator from "../../components/base/CustomPaginator.vue";
 import ColumnHeader from "../../components/base/ColumnHeader.vue";
 import FilterMenu from "../../components/filters/FilterMenu.vue";
+import FilterPopover from "../../components/filters/FilterPopover.vue";
 import ActiveFilters from "../../components/filters/ActiveFilters.vue";
 import { JOB_KINDS, JOB_STATES } from "../../../models/job_models.ts";
 import type { Column } from "../../../services/filter_registry.ts";
@@ -412,12 +413,7 @@ function prettyJson(value: unknown): string {
         </ActionRow>
       </div>
 
-      <Popover
-        ref="filterOverlayRef"
-        class="rounded-popover"
-        :style="{ width: '420px' }"
-        :breakpoints="{ '775px': '90vw' }"
-      >
+      <FilterPopover ref="filterOverlayRef">
         <FilterMenu
           v-model:value="filters"
           :columns="columns"
@@ -426,7 +422,7 @@ function prettyJson(value: unknown): string {
           @clear="clearFilters"
           @cancel="filterOverlayRef?.hide()"
         />
-      </Popover>
+      </FilterPopover>
 
       <DataTable
         class="w-full enhanced-table"

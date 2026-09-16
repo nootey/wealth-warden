@@ -16,6 +16,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useUserStore } from "../../../services/stores/user_store.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
+import FilterPopover from "../filters/FilterPopover.vue";
 import dateHelper from "../../../utils/date_helper.ts";
 
 const props = defineProps<{
@@ -180,12 +181,7 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <Popover
-    ref="filterOverlayRef"
-    class="rounded-popover"
-    :style="{ width: '420px' }"
-    :breakpoints="{ '775px': '90vw' }"
-  >
+  <FilterPopover ref="filterOverlayRef">
     <FilterMenu
       v-model:value="filters"
       :columns="activeColumns"
@@ -194,7 +190,7 @@ defineExpose({ refresh });
       @clear="clearFilters"
       @cancel="cancelFilters"
     />
-  </Popover>
+  </FilterPopover>
 
   <div class="flex flex-col w-full gap-4">
     <div

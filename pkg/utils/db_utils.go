@@ -186,23 +186,24 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			column = meta.Column
 		}
 
-		// Special case 1: amount filters on transactions
+		// Special case 1: amount filters on transactions.
+		// amount is stored as a positive magnitude; direction holds the sign.
+		// Filter by magnitude so the value matches what the grid shows,
+		// regardless of income/expense.
 		if f.Source == "transactions" && f.Field == "amount" {
-			signedAmount := "CASE WHEN direction = 'expense' THEN -amount ELSE amount END"
-
 			switch f.Operator {
 			case "equals", "=":
-				query = query.Where(fmt.Sprintf("%s = ?", signedAmount), f.Value)
+				query = query.Where("amount = ?", f.Value)
 			case "not equals", "<>", "!=":
-				query = query.Where(fmt.Sprintf("%s <> ?", signedAmount), f.Value)
+				query = query.Where("amount <> ?", f.Value)
 			case "more than", ">":
-				query = query.Where(fmt.Sprintf("%s > ?", signedAmount), f.Value)
+				query = query.Where("amount > ?", f.Value)
 			case "less than", "<":
-				query = query.Where(fmt.Sprintf("%s < ?", signedAmount), f.Value)
+				query = query.Where("amount < ?", f.Value)
 			case ">=":
-				query = query.Where(fmt.Sprintf("%s >= ?", signedAmount), f.Value)
+				query = query.Where("amount >= ?", f.Value)
 			case "<=":
-				query = query.Where(fmt.Sprintf("%s <= ?", signedAmount), f.Value)
+				query = query.Where("amount <= ?", f.Value)
 			}
 			continue
 		}

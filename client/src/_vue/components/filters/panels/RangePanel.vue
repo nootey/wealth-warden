@@ -92,6 +92,7 @@ const searchOperator = (event: { query: string }) => {
 
 <template>
   <div class="flex flex-col gap-2 w-full">
+    <label class="text-sm">{{ label }}</label>
     <div v-if="!useRange" class="flex flex-row w-full">
       <AutoComplete
         size="small"

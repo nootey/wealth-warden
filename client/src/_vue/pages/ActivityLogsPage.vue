@@ -15,6 +15,7 @@ import { useConfirm } from "primevue/useconfirm";
 import type { Column } from "../../services/filter_registry.ts";
 import type { FilterObj, PaginatorState } from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
+import FilterPopover from "../components/filters/FilterPopover.vue";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import { usePermissions } from "../../utils/use_permissions.ts";
@@ -223,12 +224,7 @@ provide("removeFilter", removeFilter);
 </script>
 
 <template>
-  <Popover
-    ref="filterOverlayRef"
-    class="rounded-popover"
-    :style="{ width: '420px' }"
-    :breakpoints="{ '775px': '90vw' }"
-  >
+  <FilterPopover ref="filterOverlayRef">
     <FilterMenu
       v-model:value="filters"
       :columns="activeColumns"
@@ -237,7 +233,7 @@ provide("removeFilter", removeFilter);
       @clear="clearFilters"
       @cancel="cancelFilters"
     />
-  </Popover>
+  </FilterPopover>
 
   <main class="flex flex-col w-full p-2 items-center">
     <div
