@@ -74,11 +74,11 @@ const chartData = computed(() => {
         },
         colorTo: (c: any) => {
           if (!c?.raw?.to) return colors.value.neg;
-          if (c.raw.to === "Savings") return "#3b82f6";
-          if (c.raw.to === "Investments") return "#8b5cf6";
-          if (c.raw.to === "Debt Repayments") return "#f97316";
+          if (c.raw.to === "Savings") return colors.value.flow.savings;
+          if (c.raw.to === "Investments") return colors.value.flow.investments;
+          if (c.raw.to === "Debt Repayments") return colors.value.flow.debt;
           if (c.raw.to === "Expenses") return colors.value.neg;
-          if (c.raw.to === "Unallocated") return "#6b7280";
+          if (c.raw.to === "Unallocated") return colors.value.flow.unallocated;
           return colors.value.neg;
         },
         borderWidth: 0,

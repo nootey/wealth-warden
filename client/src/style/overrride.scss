@@ -17,7 +17,7 @@
 }
 
 .p-button.delete-button {
-  background-color: #ef5350;
+  background-color: var(--p-red-500);
   color: white;
   border: none;
   border-radius: 10px;
@@ -44,7 +44,7 @@ button.p-button.outline-button:hover {
 }
 
 button.p-button.delete-button:hover {
-  background-color: #e57373;
+  background-color: var(--p-red-400);
   color: white;
   border: none;
   border-radius: 10px;

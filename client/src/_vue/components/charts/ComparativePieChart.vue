@@ -9,7 +9,7 @@ import {
   PieController,
   type ChartOptions,
 } from "chart.js";
-import { CATEGORY_PALETTE } from "../../../style/theme/chartColors.ts";
+import { categoryPalette } from "../../../style/theme/chartColors.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 
 ChartJS.register(PieController, ArcElement, Tooltip, Legend);
@@ -34,9 +34,10 @@ onUnmounted(() => {
 });
 
 const chartData = computed(() => {
+  const palette = categoryPalette();
   const colors = Array.from(
     { length: props.labels.length },
-    (_, i) => CATEGORY_PALETTE[i % CATEGORY_PALETTE.length],
+    (_, i) => palette[i % palette.length],
   );
   return {
     labels: props.labels,
