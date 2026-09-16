@@ -13,7 +13,7 @@ import (
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("host", "0.0.0.0")
 	v.SetDefault("release", false)
-	v.SetDefault("finance_api_base_url", "")
+	v.SetDefault("finance_api_base_url", "https://query1.finance.yahoo.com")
 
 	v.SetDefault("http_server.port", "2000")
 	v.SetDefault("http_server.request_timeout", 60)
@@ -45,7 +45,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("mailer.username", "")
 	v.SetDefault("mailer.password", "")
 
-	v.SetDefault("seed.super_admin_email", "admin@wealth.warden")
+	v.SetDefault("seed.super_admin_email", "support@wealth.warden")
 	v.SetDefault("seed.super_admin_password", "password")
 	v.SetDefault("seed.member_user_email", "")
 	v.SetDefault("seed.member_user_password", "")
