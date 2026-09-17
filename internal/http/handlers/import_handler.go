@@ -625,7 +625,7 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Import deletion started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) TransferInvestmentTrades(c *gin.Context) {

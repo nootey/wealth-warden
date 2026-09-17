@@ -6,7 +6,18 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 )
+
+// River's default set also holds `completed`, which would block a re-run while
+// the finished row is still in the table.
+var InFlightStates = []rivertype.JobState{
+	rivertype.JobStateAvailable,
+	rivertype.JobStatePending,
+	rivertype.JobStateRetryable,
+	rivertype.JobStateRunning,
+	rivertype.JobStateScheduled,
+}
 
 type ActivityLogArgs struct {
 	Event       string
@@ -148,3 +159,44 @@ func (RecurringTransactionsArgs) Kind() string { return TypeRecurringTransaction
 type AssetPriceSyncArgs struct{}
 
 func (AssetPriceSyncArgs) Kind() string { return TypeAssetPriceSync }
+
+type ImportArgs struct {
+	ImportID int64 `river:"unique"`
+	UserID   int64
+	SubType  string
+	Source   string
+}
+
+func (ImportArgs) Kind() string { return TypeImport }
+
+// Rebuild queue and no retry: it mutates balances and must not replay a partial apply.
+func (ImportArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{
+		Queue:       QueueRebuild,
+		MaxAttempts: 1,
+		UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: InFlightStates},
+	}
+}
+
+type ImportDeleteArgs struct {
+	ImportID int64 `river:"unique"`
+	UserID   int64
+}
+
+func (ImportDeleteArgs) Kind() string { return TypeImportDelete }
+
+// Rebuild queue and no retry: it reverses balances and must not replay a partial apply.
+func (ImportDeleteArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{
+		Queue:       QueueRebuild,
+		MaxAttempts: 1,
+		UniqueOpts:  river.UniqueOpts{ByArgs: true, ByState: InFlightStates},
+	}
+}
+
+type ExportArgs struct {
+	ExportID int64
+	UserID   int64
+}
+
+func (ExportArgs) Kind() string { return TypeExport }

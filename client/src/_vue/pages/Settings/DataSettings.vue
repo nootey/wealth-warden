@@ -1,19 +1,34 @@
 <script setup lang="ts">
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import ImportList from "../../components/data/ImportList.vue";
-import { ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useWsStore } from "../../../services/stores/ws_store.ts";
 import ExportModule from "../../features/imports/ExportModule.vue";
 import ExportList from "../../components/data/ExportList.vue";
 import ImportModule from "../../components/data/ImportModule.vue";
+import type { UserJobPayload } from "../../../models/ws_models.ts";
 
 const toastStore = useToastStore();
+const wsStore = useWsStore();
 const { hasPermission } = usePermissions();
 
 const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
 const exportListRef = ref<InstanceType<typeof ExportList> | null>(null);
 const importModuleRef = ref<InstanceType<typeof ImportModule> | null>(null);
+
+let unsubscribe: (() => void) | null = null;
+
+onMounted(() => {
+  unsubscribe = wsStore.on("user_job.updated", (payload) => {
+    const kind = (payload as UserJobPayload | undefined)?.kind;
+    if (kind === "export") refreshData("export");
+    else if (kind?.startsWith("import")) refreshData("import");
+  });
+});
+
+onBeforeUnmount(() => unsubscribe?.());
 
 const addImportModal = ref(false);
 const addExportModal = ref(false);

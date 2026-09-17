@@ -267,6 +267,7 @@ func (s *ImportServiceSuite) TestDeleteBankImport() {
 	s.Require().NoError(s.TC.DB.Where("name LIKE ?", "txns_nlb_del%").First(&imp).Error)
 
 	s.Require().NoError(s.TC.App.ImportService.DeleteImport(s.Ctx, seedUserID, imp.ID))
+	s.Require().NoError(s.TC.App.ImportService.RunImportDelete(s.Ctx, seedUserID, imp.ID))
 
 	var count int64
 	s.Require().NoError(s.TC.DB.Model(&models.Transaction{}).Where("import_id = ?", imp.ID).Count(&count).Error)
@@ -406,6 +407,8 @@ func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
 	s.Require().NoError(err)
 
 	export, err := s.TC.App.ExportService.CreateExport(s.Ctx, seedUserID)
+	s.Require().NoError(err)
+	err = s.TC.App.ExportService.RunExport(s.Ctx, export.ID, seedUserID)
 	s.Require().NoError(err)
 	zipData, err := s.TC.App.ExportService.DownloadExport(s.Ctx, export.ID, seedUserID)
 	s.Require().NoError(err)

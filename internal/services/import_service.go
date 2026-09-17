@@ -2681,6 +2681,40 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 		return err
 	}
 
+	// Surface a blocked delete now, not as a failed background job.
+	if err := s.assertImportDeletable(ctx, userID, imp); err != nil {
+		return err
+	}
+
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.ImportDeleteArgs{ImportID: id, UserID: userID})
+}
+
+func (s *ImportService) assertImportDeletable(ctx context.Context, userID int64, imp *models.Import) error {
+	if imp.SubType != "accounts" {
+		return nil
+	}
+
+	txnCount, err := s.repo.CountTransactionsForImport(ctx, userID, imp.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check transactions: %w", err)
+	}
+	if txnCount > 0 {
+		return apperr.New(apperr.Conflict, "account import cannot be deleted, transactions linked to same import")
+	}
+	return nil
+}
+
+func (s *ImportService) RunImportDelete(ctx context.Context, userID, id int64) error {
+
+	// Both custom and bank imports are listed for deletion, so no type filter here.
+	imp, err := s.FetchImportByID(ctx, id, userID, "")
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.New(apperr.NotFound, "Import not found")
+		}
+		return err
+	}
+
 	switch imp.SubType {
 	case "transactions":
 		err = s.deleteTxnImport(ctx, userID, imp)
@@ -2899,14 +2933,9 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 
 func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
 
-	// Check if any transactions exist for accounts linked to this import
-	txnCount, err := s.repo.CountTransactionsForImport(ctx, userID, imp.ID)
-	if err != nil {
-		return fmt.Errorf("failed to check transactions: %w", err)
-	}
-
-	if txnCount > 0 {
-		return apperr.New(apperr.Conflict, "account import cannot be deleted, transactions linked to same import")
+	// Re-check under the worker: a transaction may have linked since staging.
+	if err := s.assertImportDeletable(ctx, userID, imp); err != nil {
+		return err
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
