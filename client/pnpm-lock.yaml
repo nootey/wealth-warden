@@ -26,6 +26,12 @@ importers:
       chartjs-chart-sankey:
         specifier: ^0.15.0
         version: 0.15.0(chart.js@4.5.0)
+      countries-and-timezones:
+        specifier: ^3.10.0
+        version: 3.10.0
+      country-to-currency:
+        specifier: ^3.0.1
+        version: 3.0.1
       dayjs:
         specifier: ^1.11.21
         version: 1.11.21
@@ -908,6 +914,13 @@ packages:
   copy-anything@4.0.5:
     resolution: {integrity: sha512-7Vv6asjS4gMOuILabD3l739tsaxFQmC+a7pLZm02zyvs8p977bL3zEgq3yDk5rn9B0PbYgIv++jmHcuUab4RhA==}
     engines: {node: '>=18'}
+
+  countries-and-timezones@3.10.0:
+    resolution: {integrity: sha512-HQ1GtXWNZy0r5MnZMLF9xmBmFNmtDVBeKQgX/5DY+RVmcZTODA+EPN/JLPCYRNP86nHG0QQrb1yJwGzXeqCCXw==}
+    engines: {node: '>=8.x', npm: '>=5.x'}
+
+  country-to-currency@3.0.1:
+    resolution: {integrity: sha512-FAo2ga8296d0Ra6vj9TB4Kax36AmqrGEc0aoLflCx5ijMtifNwA8lCqQsFfTLP2lRVKHWh/DedSpqI6v9VHyjw==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -2533,6 +2546,10 @@ snapshots:
   copy-anything@4.0.5:
     dependencies:
       is-what: 5.5.0
+
+  countries-and-timezones@3.10.0: {}
+
+  country-to-currency@3.0.1: {}
 
   cross-spawn@7.0.6:
     dependencies:
