@@ -7,6 +7,7 @@ import { required, requiredIf } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import RuleConditionRow from "./RuleConditionRow.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
@@ -290,7 +291,12 @@ const searchCategory = (event: { query: string }) => {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting"
+    @submit="manageRecord"
+  >
     <div class="flex flex-col gap-4 p-1">
       <div class="flex flex-row w-full gap-4">
         <div class="flex flex-col flex-1 gap-1">
@@ -459,7 +465,7 @@ const searchCategory = (event: { query: string }) => {
         />
       </div>
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="5" />
 </template>
 

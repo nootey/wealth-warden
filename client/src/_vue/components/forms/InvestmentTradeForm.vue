@@ -20,6 +20,7 @@ import dateHelper from "../../../utils/date_helper.ts";
 import { useInvestmentStore } from "../../../services/stores/investment_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
@@ -290,7 +291,12 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="isReadOnly || loading"
+    @submit="manageRecord"
+  >
     <div v-if="!isReadOnly" class="flex flex-row w-full justify-center">
       <div class="flex flex-col">
         <SelectButton
@@ -597,7 +603,7 @@ async function deleteRecord(id: number) {
         :categories="['investment_trade']"
       />
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="5" />
 
   <div class="flex flex-col w-full gap-4 mt-4">

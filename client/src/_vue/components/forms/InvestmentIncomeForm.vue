@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { required, requiredIf } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
+import BaseForm from "../base/BaseForm.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useInvestmentStore } from "../../../services/stores/investment_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
@@ -127,12 +128,14 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div
+  <BaseForm
     class="flex flex-col gap-4 p-4 rounded-xl"
     style="
       background-color: var(--background-secondary);
       border: 1px solid var(--border-color);
     "
+    :disabled="loading"
+    @submit="submit"
   >
     <div class="flex flex-row w-full gap-4">
       <div v-if="isStaking" class="flex flex-col gap-1 w-full">
@@ -222,7 +225,7 @@ async function submit(): Promise<void> {
       :disabled="loading"
       @click="submit"
     />
-  </div>
+  </BaseForm>
 </template>
 
 <style scoped></style>

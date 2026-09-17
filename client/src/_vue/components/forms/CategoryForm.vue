@@ -7,6 +7,7 @@ import { required } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
@@ -187,7 +188,12 @@ async function restoreCategoryName() {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting || readOnly"
+    @submit="manageRecord"
+  >
     <div v-if="readOnly">
       <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
     </div>
@@ -283,7 +289,7 @@ async function restoreCategoryName() {
         />
       </div>
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="4" />
 </template>
 

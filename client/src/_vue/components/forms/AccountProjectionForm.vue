@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Account } from "../../../models/account_models.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import ValidationError from "../validation/ValidationError.vue";
 import { computed, onMounted, ref, watch } from "vue";
@@ -289,7 +290,11 @@ async function revertProjection() {
 </script>
 
 <template>
-  <div v-if="account" class="flex flex-col w-full gap-4">
+  <BaseForm
+    v-if="account"
+    class="flex flex-col w-full gap-4"
+    @submit="saveProjection"
+  >
     <SlotSkeleton class="w-full" bg="opt">
       <div class="flex flex-col gap-2 p-4 w-full">
         <div class="flex flex-col gap-1">
@@ -503,7 +508,7 @@ async function revertProjection() {
         </div>
       </div>
     </SlotSkeleton>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="3" />
 </template>
 

@@ -6,6 +6,7 @@ import { required } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import type { Permission, Role } from "../../../models/user_models.ts";
 import { useUserStore } from "../../../services/stores/user_store.ts";
 import { useConfirm } from "primevue/useconfirm";
@@ -164,7 +165,12 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="readOnly"
+    @submit="manageRecord"
+  >
     <div v-if="readOnly">
       <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
     </div>
@@ -273,7 +279,7 @@ async function deleteRecord(id: number) {
         />
       </div>
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="4" />
 </template>
 

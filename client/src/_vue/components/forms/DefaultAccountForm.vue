@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
+import BaseForm from "../base/BaseForm.vue";
 import { onMounted, ref } from "vue";
 import type { Account, AccountType } from "../../../models/account_models.ts";
 
@@ -68,7 +69,11 @@ async function setAsDefault() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 p-1">
+  <BaseForm
+    class="flex flex-col gap-4 p-1"
+    :disabled="loading"
+    @submit="setAsDefault"
+  >
     <span class="text-sm" style="color: var(--text-secondary)"
       >Select an account type, and define which account should be the default
       for it.</span
@@ -119,7 +124,7 @@ async function setAsDefault() {
         />
       </div>
     </div>
-  </div>
+  </BaseForm>
 </template>
 
 <style scoped></style>
