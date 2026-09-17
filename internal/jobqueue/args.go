@@ -161,10 +161,13 @@ type AssetPriceSyncArgs struct{}
 func (AssetPriceSyncArgs) Kind() string { return TypeAssetPriceSync }
 
 type ImportArgs struct {
-	ImportID int64 `river:"unique"`
-	UserID   int64
-	SubType  string
-	Source   string
+	ImportID    int64 `river:"unique"`
+	UserID      int64
+	SubType     string `river:"unique"`
+	Source      string
+	CheckAccID  int64
+	UseBalances bool
+	Mappings    []models.TransferMapping
 }
 
 func (ImportArgs) Kind() string { return TypeImport }

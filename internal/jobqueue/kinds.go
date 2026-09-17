@@ -29,6 +29,7 @@ var SelfServiceKinds = map[string]bool{
 	TypeMergeCategories: true,
 	TypeMergeAccounts:   true,
 	TypeExport:          true,
+	TypeImport:          true,
 	TypeImportDelete:    true,
 }
 

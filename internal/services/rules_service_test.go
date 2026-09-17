@@ -167,8 +167,9 @@ func (s *RulesServiceSuite) TestBankImportAppliesRules() {
 		row("R4", "SPAR - big trip", "600.00"),
 	}}
 
-	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	rulesImpID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
 	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, rulesImpID, accID, models.ImportTypeBank))
 
 	var txns []models.Transaction
 	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)

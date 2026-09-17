@@ -319,20 +319,29 @@ func (_c *MockImportServiceInterface_FetchImportsByImportType_Call) RunAndReturn
 }
 
 // ImportAccounts provides a mock function for the type MockImportServiceInterface
-func (_mock *MockImportServiceInterface) ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error {
+func (_mock *MockImportServiceInterface) ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) (int64, error) {
 	ret := _mock.Called(ctx, userID, payload, useBalances)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ImportAccounts")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.AccImportPayload, bool) error); ok {
+	var r0 int64
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.AccImportPayload, bool) (int64, error)); ok {
+		return returnFunc(ctx, userID, payload, useBalances)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.AccImportPayload, bool) int64); ok {
 		r0 = returnFunc(ctx, userID, payload, useBalances)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, models.AccImportPayload, bool) error); ok {
+		r1 = returnFunc(ctx, userID, payload, useBalances)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // MockImportServiceInterface_ImportAccounts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ImportAccounts'
@@ -377,31 +386,40 @@ func (_c *MockImportServiceInterface_ImportAccounts_Call) Run(run func(ctx conte
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportAccounts_Call) Return(err error) *MockImportServiceInterface_ImportAccounts_Call {
-	_c.Call.Return(err)
+func (_c *MockImportServiceInterface_ImportAccounts_Call) Return(n int64, err error) *MockImportServiceInterface_ImportAccounts_Call {
+	_c.Call.Return(n, err)
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportAccounts_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error) *MockImportServiceInterface_ImportAccounts_Call {
+func (_c *MockImportServiceInterface_ImportAccounts_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) (int64, error)) *MockImportServiceInterface_ImportAccounts_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ImportCategories provides a mock function for the type MockImportServiceInterface
-func (_mock *MockImportServiceInterface) ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) error {
+func (_mock *MockImportServiceInterface) ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) (int64, error) {
 	ret := _mock.Called(ctx, userID, payload)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ImportCategories")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.CategoryImportPayload) error); ok {
+	var r0 int64
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.CategoryImportPayload) (int64, error)); ok {
+		return returnFunc(ctx, userID, payload)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.CategoryImportPayload) int64); ok {
 		r0 = returnFunc(ctx, userID, payload)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, models.CategoryImportPayload) error); ok {
+		r1 = returnFunc(ctx, userID, payload)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // MockImportServiceInterface_ImportCategories_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ImportCategories'
@@ -440,31 +458,40 @@ func (_c *MockImportServiceInterface_ImportCategories_Call) Run(run func(ctx con
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportCategories_Call) Return(err error) *MockImportServiceInterface_ImportCategories_Call {
-	_c.Call.Return(err)
+func (_c *MockImportServiceInterface_ImportCategories_Call) Return(n int64, err error) *MockImportServiceInterface_ImportCategories_Call {
+	_c.Call.Return(n, err)
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportCategories_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload models.CategoryImportPayload) error) *MockImportServiceInterface_ImportCategories_Call {
+func (_c *MockImportServiceInterface_ImportCategories_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload models.CategoryImportPayload) (int64, error)) *MockImportServiceInterface_ImportCategories_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ImportRules provides a mock function for the type MockImportServiceInterface
-func (_mock *MockImportServiceInterface) ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) error {
+func (_mock *MockImportServiceInterface) ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) (int64, error) {
 	ret := _mock.Called(ctx, userID, payload)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ImportRules")
 	}
 
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.RuleImportPayload) error); ok {
+	var r0 int64
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.RuleImportPayload) (int64, error)); ok {
+		return returnFunc(ctx, userID, payload)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.RuleImportPayload) int64); ok {
 		r0 = returnFunc(ctx, userID, payload)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, models.RuleImportPayload) error); ok {
+		r1 = returnFunc(ctx, userID, payload)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // MockImportServiceInterface_ImportRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ImportRules'
@@ -503,33 +530,33 @@ func (_c *MockImportServiceInterface_ImportRules_Call) Run(run func(ctx context.
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportRules_Call) Return(err error) *MockImportServiceInterface_ImportRules_Call {
-	_c.Call.Return(err)
+func (_c *MockImportServiceInterface_ImportRules_Call) Return(n int64, err error) *MockImportServiceInterface_ImportRules_Call {
+	_c.Call.Return(n, err)
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportRules_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload models.RuleImportPayload) error) *MockImportServiceInterface_ImportRules_Call {
+func (_c *MockImportServiceInterface_ImportRules_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload models.RuleImportPayload) (int64, error)) *MockImportServiceInterface_ImportRules_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ImportTransactions provides a mock function for the type MockImportServiceInterface
-func (_mock *MockImportServiceInterface) ImportTransactions(ctx context.Context, userID int64, checkID int64, source string, payload models.TxnImportPayload) (int, error) {
+func (_mock *MockImportServiceInterface) ImportTransactions(ctx context.Context, userID int64, checkID int64, source string, payload models.TxnImportPayload) (int64, error) {
 	ret := _mock.Called(ctx, userID, checkID, source, payload)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ImportTransactions")
 	}
 
-	var r0 int
+	var r0 int64
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, string, models.TxnImportPayload) (int, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, string, models.TxnImportPayload) (int64, error)); ok {
 		return returnFunc(ctx, userID, checkID, source, payload)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, string, models.TxnImportPayload) int); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, string, models.TxnImportPayload) int64); ok {
 		r0 = returnFunc(ctx, userID, checkID, source, payload)
 	} else {
-		r0 = ret.Get(0).(int)
+		r0 = ret.Get(0).(int64)
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64, string, models.TxnImportPayload) error); ok {
 		r1 = returnFunc(ctx, userID, checkID, source, payload)
@@ -587,12 +614,12 @@ func (_c *MockImportServiceInterface_ImportTransactions_Call) Run(run func(ctx c
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportTransactions_Call) Return(n int, err error) *MockImportServiceInterface_ImportTransactions_Call {
+func (_c *MockImportServiceInterface_ImportTransactions_Call) Return(n int64, err error) *MockImportServiceInterface_ImportTransactions_Call {
 	_c.Call.Return(n, err)
 	return _c
 }
 
-func (_c *MockImportServiceInterface_ImportTransactions_Call) RunAndReturn(run func(ctx context.Context, userID int64, checkID int64, source string, payload models.TxnImportPayload) (int, error)) *MockImportServiceInterface_ImportTransactions_Call {
+func (_c *MockImportServiceInterface_ImportTransactions_Call) RunAndReturn(run func(ctx context.Context, userID int64, checkID int64, source string, payload models.TxnImportPayload) (int64, error)) *MockImportServiceInterface_ImportTransactions_Call {
 	_c.Call.Return(run)
 	return _c
 }
