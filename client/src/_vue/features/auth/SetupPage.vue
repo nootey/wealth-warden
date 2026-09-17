@@ -3,9 +3,12 @@ import { computed, onMounted, ref } from "vue";
 import AuthSkeleton from "../../components/layout/AuthSkeleton.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAuthStore } from "../../../services/stores/auth_store.ts";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import { useThemeStore } from "../../../services/stores/theme_store.ts";
 import { useRouter } from "vue-router";
+import { getTimezone } from "countries-and-timezones";
+import countryToCurrency from "country-to-currency";
 import searchHelper from "../../../utils/search_helper.ts";
 import type {
   CurrencyInfo,
@@ -14,6 +17,7 @@ import type {
 } from "../../../models/settings_models.ts";
 
 const authStore = useAuthStore();
+const transactionStore = useTransactionStore();
 const settingsStore = useSettingsStore();
 const toastStore = useToastStore();
 const themeStore = useThemeStore();
@@ -21,6 +25,8 @@ const router = useRouter();
 
 const loading = ref(true);
 const saving = ref(false);
+const step = ref(1);
+const categoryChoice = ref<"defaults" | "own">("defaults");
 
 const form = ref({
   language: "en",
@@ -101,6 +107,23 @@ onMounted(async () => {
       form.value.theme = settingsRes.data.theme || "system";
       form.value.accent = settingsRes.data.accent || "blurple";
     }
+
+    // First-time setup: any stored zone/currency is a backend default, so
+    // infer both from the browser's timezone when possible.
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (detected && timezones.value.some((t) => t.value === detected)) {
+      form.value.timezone = detected;
+    }
+
+    const country = detected
+      ? getTimezone(detected)?.countries?.[0]
+      : undefined;
+    const currency = country
+      ? (countryToCurrency as Record<string, string>)[country]
+      : undefined;
+    if (currency && currencies.value.some((c) => c.value === currency)) {
+      form.value.default_currency = currency;
+    }
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -136,6 +159,9 @@ async function completeSetup() {
   saving.value = true;
   try {
     await authStore.completeSetup(form.value);
+    if (categoryChoice.value === "defaults") {
+      await transactionStore.seedDefaultCategories();
+    }
     themeStore.setTheme(
       form.value.theme as "system" | "dark" | "light",
       form.value.accent,
@@ -164,93 +190,177 @@ async function completeSetup() {
           class="mt-2 leading-normal text-base"
           style="color: var(--text-secondary)"
         >
-          Let's get a few things set up before you dive in.
+          {{
+            step === 1
+              ? "Let's get a few things set up before you dive in."
+              : "Choose how to start your categories."
+          }}
+        </p>
+        <p class="mt-1 text-sm" style="color: var(--text-secondary)">
+          Step {{ step }} of 2
         </p>
       </div>
 
       <div v-if="!loading" class="flex flex-col gap-4">
-        <IftaLabel class="w-full" variant="in">
-          <AutoComplete
-            id="currency_input"
-            v-model="selectedCurrency"
-            dropdown
-            size="small"
-            :suggestions="filteredCurrencies"
-            option-label="label"
-            class="w-full"
-            :input-class="'w-full'"
-            placeholder="Search currency..."
-            force-selection
-            @complete="searchCurrency"
-          />
-          <label for="currency_input">Default Currency</label>
-        </IftaLabel>
+        <template v-if="step === 1">
+          <IftaLabel class="w-full" variant="in">
+            <AutoComplete
+              id="timezone_input"
+              v-model="selectedTimezone"
+              dropdown
+              size="small"
+              :suggestions="filteredTimezones"
+              option-label="label"
+              class="w-full"
+              :input-class="'w-full'"
+              placeholder="Search timezone..."
+              force-selection
+              @complete="searchTimezone"
+            />
+            <label for="timezone_input">Timezone</label>
+          </IftaLabel>
 
-        <IftaLabel class="w-full" variant="in">
-          <AutoComplete
-            id="timezone_input"
-            v-model="selectedTimezone"
-            dropdown
-            size="small"
-            :suggestions="filteredTimezones"
-            option-label="label"
-            class="w-full"
-            :input-class="'w-full'"
-            placeholder="Search timezone..."
-            force-selection
-            @complete="searchTimezone"
-          />
-          <label for="timezone_input">Timezone</label>
-        </IftaLabel>
+          <IftaLabel class="w-full" variant="in">
+            <AutoComplete
+              id="currency_input"
+              v-model="selectedCurrency"
+              dropdown
+              size="small"
+              :suggestions="filteredCurrencies"
+              option-label="label"
+              class="w-full"
+              :input-class="'w-full'"
+              placeholder="Search currency..."
+              force-selection
+              @complete="searchCurrency"
+            />
+            <label for="currency_input">Default Currency</label>
+          </IftaLabel>
 
-        <IftaLabel class="w-full" variant="in">
-          <AutoComplete
-            id="language_input"
-            v-model="selectedLanguage"
-            dropdown
-            size="small"
-            :suggestions="filteredLanguages"
-            option-label="label"
-            class="w-full"
-            :input-class="'w-full'"
-            placeholder="Search language..."
-            force-selection
-            @complete="searchLanguage"
-          />
-          <label for="language_input">Language</label>
-        </IftaLabel>
+          <IftaLabel class="w-full" variant="in">
+            <AutoComplete
+              id="language_input"
+              v-model="selectedLanguage"
+              dropdown
+              size="small"
+              :suggestions="filteredLanguages"
+              option-label="label"
+              class="w-full"
+              :input-class="'w-full'"
+              placeholder="Search language..."
+              force-selection
+              @complete="searchLanguage"
+            />
+            <label for="language_input">Language</label>
+          </IftaLabel>
 
-        <IftaLabel class="w-full" variant="in">
-          <Select
-            id="theme_input"
-            v-model="selectedTheme"
-            :options="themeOptions"
-            option-label="label"
-            class="w-full"
-            placeholder="Select theme..."
-          />
-          <label for="theme_input">Theme</label>
-        </IftaLabel>
+          <IftaLabel class="w-full" variant="in">
+            <Select
+              id="theme_input"
+              v-model="selectedTheme"
+              :options="themeOptions"
+              option-label="label"
+              class="w-full"
+              placeholder="Select theme..."
+            />
+            <label for="theme_input">Theme</label>
+          </IftaLabel>
 
-        <IftaLabel class="w-full" variant="in">
-          <Select
-            id="accent_input"
-            v-model="selectedAccent"
-            :options="accentOptions"
-            option-label="label"
-            class="w-full"
-            placeholder="Select accent..."
-          />
-          <label for="accent_input">Accent</label>
-        </IftaLabel>
+          <IftaLabel class="w-full" variant="in">
+            <Select
+              id="accent_input"
+              v-model="selectedAccent"
+              :options="accentOptions"
+              option-label="label"
+              class="w-full"
+              placeholder="Select accent..."
+            />
+            <label for="accent_input">Accent</label>
+          </IftaLabel>
 
-        <Button
-          label="Complete setup"
-          class="w-full auth-accent-button mt-2"
-          :disabled="saving || !form.default_currency || !form.timezone"
-          :loading="saving"
-          @click="completeSetup"
-        />
+          <Button
+            label="Next"
+            class="w-full auth-accent-button mt-2"
+            :disabled="!form.default_currency || !form.timezone"
+            @click="step = 2"
+          />
+        </template>
+
+        <template v-else>
+          <p
+            class="text-sm leading-normal"
+            style="color: var(--text-secondary)"
+          >
+            Categories group your transactions so your reports make sense. Start
+            with a ready-made set, or build your own.
+          </p>
+
+          <div
+            class="flex flex-row items-center gap-3 p-3 rounded-md cursor-pointer"
+            :style="{
+              border:
+                categoryChoice === 'defaults'
+                  ? '1px solid var(--accent-primary)'
+                  : '1px solid var(--border-color)',
+            }"
+            @click="categoryChoice = 'defaults'"
+          >
+            <RadioButton
+              v-model="categoryChoice"
+              input-id="cat_defaults"
+              value="defaults"
+            />
+            <label for="cat_defaults" class="flex flex-col cursor-pointer">
+              <span style="font-weight: 500; color: var(--text-primary)">
+                Use default categories
+              </span>
+              <span class="text-sm" style="color: var(--text-secondary)">
+                Recommended. A ready-made that can be edited later.
+              </span>
+            </label>
+          </div>
+
+          <div
+            class="flex flex-row items-center gap-3 p-3 rounded-md cursor-pointer"
+            :style="{
+              border:
+                categoryChoice === 'own'
+                  ? '1px solid var(--accent-primary)'
+                  : '1px solid var(--border-color)',
+            }"
+            @click="categoryChoice = 'own'"
+          >
+            <RadioButton
+              v-model="categoryChoice"
+              input-id="cat_own"
+              value="own"
+            />
+            <label for="cat_own" class="flex flex-col cursor-pointer">
+              <span style="font-weight: 500; color: var(--text-primary)">
+                Create my own
+              </span>
+              <span class="text-sm" style="color: var(--text-secondary)">
+                Start empty. Add categories from settings.
+              </span>
+            </label>
+          </div>
+
+          <div class="flex flex-row gap-2 mt-2">
+            <Button
+              label="Back"
+              class="w-full outline-button"
+              :disabled="saving"
+              @click="step = 1"
+            />
+            <Button
+              label="Complete setup"
+              class="w-full auth-accent-button"
+              :disabled="saving"
+              :loading="saving"
+              @click="completeSetup"
+            />
+          </div>
+        </template>
       </div>
 
       <div v-else class="flex flex-col gap-4">

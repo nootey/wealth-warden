@@ -21,6 +21,8 @@
     "chart.js": "4.5.0",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-chart-sankey": "^0.15.0",
+    "countries-and-timezones": "^3.10.0",
+    "country-to-currency": "^3.0.1",
     "dayjs": "^1.11.21",
     "decimal.js": "^10.6.0",
     "pinia": "^4.0.2",

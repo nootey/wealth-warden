@@ -10,6 +10,7 @@ import { useTransactionStore } from "../../services/stores/transaction_store.ts"
 import YearlyCashFlowWidget from "../features/widgets/YearlyCashFlowWidget.vue";
 import MonthlyCategoryBreakdownWidget from "../features/widgets/MonthlyCategoryBreakdownWidget.vue";
 import YearlySankeyWidget from "../features/widgets/YearlySankeyWidget.vue";
+import GettingStartedCard from "../features/widgets/GettingStartedCard.vue";
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
@@ -76,6 +77,8 @@ async function backfillBalances() {
           />
         </div>
       </SlotSkeleton>
+
+      <GettingStartedCard />
 
       <Panel :collapsed="false" header="Net worth">
         <SlotSkeleton bg="transparent">
