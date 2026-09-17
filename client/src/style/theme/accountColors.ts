@@ -1,20 +1,10 @@
 import styleHelper from "../../utils/style_helper.ts";
-
-const baseColors: Record<string, string> = {
-  cash: "#6E64CC",
-  investment: "#486EE8",
-  crypto: "#78BEFF",
-  property: "#55EDD9",
-  vehicle: "#30BF70",
-  other_asset: "#71D17B",
-  credit_card: "#ef4444",
-  loan: "#f97316",
-  other_liability: "#eab308",
-};
+import { ACCOUNT_TOKENS, tokenColor } from "./tokens.ts";
 
 function baseColorFor(type?: string): string {
   const t = (type || "other_asset").toLowerCase();
-  return baseColors[t] ?? baseColors.other_asset!;
+  const token = ACCOUNT_TOKENS[t] ?? ACCOUNT_TOKENS.other_asset!;
+  return tokenColor(token);
 }
 
 export type AccountTypeColor = {

@@ -20,6 +20,7 @@ import type { Account } from "../../../models/account_models.ts";
 import dayjs from "dayjs";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import dateHelper from "../../../utils/date_helper.ts";
@@ -532,7 +533,12 @@ async function startOperation() {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting || isReadOnly || isAccountRestricted"
+    @submit="manageRecord"
+  >
     <div
       v-if="!isImmutable && !isTransfer"
       class="flex flex-row w-full justify-center"
@@ -869,7 +875,7 @@ async function startOperation() {
         />
       </div>
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="7" />
 </template>
 

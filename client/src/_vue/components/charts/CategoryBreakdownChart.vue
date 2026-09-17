@@ -13,7 +13,7 @@ import {
 import vueHelper from "../../../utils/vue_helper.ts";
 import {
   useChartColors,
-  CATEGORY_PALETTE,
+  categoryPalette,
 } from "../../../style/theme/chartColors.ts";
 
 ChartJS.register(
@@ -89,7 +89,7 @@ const hoverGuidePlugin = {
   },
 };
 
-const palette = computed(() => CATEGORY_PALETTE);
+const palette = computed(() => categoryPalette());
 const chartData = computed(() => ({
   labels: months,
   datasets: props.series.map((s, i) => ({

@@ -30,6 +30,8 @@ const chipClass = computed(() => {
 </script>
 
 <style scoped>
+/* PrimeVue tokens. Light: soft tint (step 100) + strong text (step 700).
+   Dark: deep tint (step 900) + light text (step 300), via the ancestor. */
 .status-chip-small {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
@@ -37,27 +39,52 @@ const chipClass = computed(() => {
 }
 
 .status-pending {
-  background-color: #fef3c7;
-  color: #92400e;
+  background-color: var(--p-amber-100);
+  color: var(--p-amber-700);
 }
 
 .status-processing {
-  background-color: #dbeafe;
-  color: #1e40af;
+  background-color: var(--p-blue-100);
+  color: var(--p-blue-700);
 }
 
 .status-success {
-  background-color: #d1fae5;
-  color: #065f46;
+  background-color: var(--p-green-100);
+  color: var(--p-green-700);
 }
 
 .status-fail {
-  background-color: #fee2e2;
-  color: #991b1b;
+  background-color: var(--p-red-100);
+  color: var(--p-red-700);
 }
 
 .status-default {
-  background-color: #e5e7eb;
-  color: #374151;
+  background-color: var(--p-surface-200);
+  color: var(--p-surface-700);
+}
+
+:global(.my-app-dark) .status-pending {
+  background-color: var(--p-amber-900);
+  color: var(--p-amber-300);
+}
+
+:global(.my-app-dark) .status-processing {
+  background-color: var(--p-blue-900);
+  color: var(--p-blue-300);
+}
+
+:global(.my-app-dark) .status-success {
+  background-color: var(--p-green-900);
+  color: var(--p-green-300);
+}
+
+:global(.my-app-dark) .status-fail {
+  background-color: var(--p-red-900);
+  color: var(--p-red-300);
+}
+
+:global(.my-app-dark) .status-default {
+  background-color: var(--p-surface-800);
+  color: var(--p-surface-200);
 }
 </style>

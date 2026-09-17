@@ -17,6 +17,7 @@ import currencyHelper from "../../../utils/currency_helper.ts";
 import { useConfirm } from "primevue/useconfirm";
 import Decimal from "decimal.js";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import AuditTrail from "../base/AuditTrail.vue";
@@ -436,7 +437,12 @@ async function manageRecord() {
 </script>
 
 <template>
-  <div v-if="!initializing" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!initializing"
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting || readOnly"
+    @submit="confirmAdjustments"
+  >
     <div v-if="!readOnly" class="flex flex-row w-full justify-center">
       <div class="flex flex-col">
         <SelectButton
@@ -630,7 +636,7 @@ async function manageRecord() {
         />
       </div>
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="6" />
 </template>
 

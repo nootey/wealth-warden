@@ -4,7 +4,7 @@ import ComparativePieChart from "./charts/ComparativePieChart.vue";
 import ShowLoading from "./base/ShowLoading.vue";
 import { useInvestmentStore } from "../../services/stores/investment_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
-import { CATEGORY_PALETTE } from "../../style/theme/chartColors.ts";
+import { categoryPalette } from "../../style/theme/chartColors.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import type {
   AllocationGroupKey,
@@ -46,7 +46,8 @@ const chartLabels = computed<string[]>(() => rows.value.map((r) => r.label));
 const chartOptions = { cutout: "62%" };
 
 function sliceColor(index: number): string {
-  return CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
+  const palette = categoryPalette();
+  return palette[index % palette.length];
 }
 
 onMounted(async () => {

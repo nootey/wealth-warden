@@ -37,6 +37,7 @@ import timezone from "dayjs/plugin/timezone";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import type { UserSettings } from "../../../models/settings_models.ts";
 import AuditTrail from "../base/AuditTrail.vue";
+import BaseForm from "../base/BaseForm.vue";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -509,7 +510,12 @@ async function deleteRecord(id: number, tx_type: string) {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting || isFormReadOnly"
+    @submit="manageRecord"
+  >
     <span
       v-if="record.transaction_type == 'adjustment'"
       class="text-sm"
@@ -740,7 +746,7 @@ async function deleteRecord(id: number, tx_type: string) {
         :categories="['transaction']"
       />
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="7" />
 </template>
 

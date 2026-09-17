@@ -11,6 +11,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import { useConfirm } from "primevue/useconfirm";
 import type { Account } from "../../../models/account_models.ts";
 import type {
@@ -274,7 +275,12 @@ function confirmDelete() {
 </script>
 
 <template>
-  <div v-if="!initializing" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!initializing"
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting"
+    @submit="manageRecord"
+  >
     <div
       v-if="record.monthly_allocation"
       class="flex flex-col gap-2 p-4 rounded-xl text-sm"
@@ -498,7 +504,7 @@ function confirmDelete() {
         :categories="['saving_goal']"
       />
     </div>
-  </div>
+  </BaseForm>
 
   <ShowLoading v-else :num-fields="5" />
 </template>

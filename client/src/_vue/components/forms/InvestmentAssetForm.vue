@@ -23,6 +23,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
@@ -391,7 +392,12 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     </div>
   </Popover>
 
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="isReadOnly"
+    @submit="manageRecord"
+  >
     <div v-if="!isReadOnly" class="flex flex-row w-full justify-center">
       <div class="flex flex-col">
         <SelectButton
@@ -771,7 +777,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         :categories="['investment_asset']"
       />
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="5" />
 
   <div class="flex flex-col mt-4 gap-4">

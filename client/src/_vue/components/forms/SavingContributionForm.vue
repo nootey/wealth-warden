@@ -4,6 +4,7 @@ import { required } from "@regle/rules";
 import { decimalNonZero, decimalValid } from "../../../validators/currency.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
+import BaseForm from "../base/BaseForm.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
@@ -74,7 +75,11 @@ async function manageRecord() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 p-1">
+  <BaseForm
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting"
+    @submit="manageRecord"
+  >
     <div
       class="flex flex-col gap-2 p-4 rounded-xl text-sm"
       style="
@@ -144,7 +149,7 @@ async function manageRecord() {
         @click="manageRecord"
       />
     </div>
-  </div>
+  </BaseForm>
 </template>
 
 <style scoped></style>

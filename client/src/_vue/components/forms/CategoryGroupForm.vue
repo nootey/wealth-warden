@@ -10,6 +10,7 @@ import { required } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
+import BaseForm from "../base/BaseForm.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import searchHelper from "../../../utils/search_helper.ts";
@@ -181,7 +182,12 @@ const searchClassifications = (event: { query: string }) => {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <BaseForm
+    v-if="!loading"
+    class="flex flex-col gap-4 p-1"
+    :disabled="submitting"
+    @submit="manageRecord"
+  >
     <div class="flex flex-col gap-4 p-1">
       <div class="flex flex-row w-full">
         <div class="flex flex-col w-full gap-1">
@@ -257,7 +263,7 @@ const searchClassifications = (event: { query: string }) => {
         />
       </div>
     </div>
-  </div>
+  </BaseForm>
   <ShowLoading v-else :num-fields="4" />
 </template>
 
