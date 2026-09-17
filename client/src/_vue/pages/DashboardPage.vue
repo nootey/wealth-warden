@@ -19,6 +19,7 @@ const transactionStore = useTransactionStore();
 
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 const backfilling = ref(false);
+const onboarded = ref<boolean | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
 
 const handleResize = () => {
@@ -68,6 +69,7 @@ async function backfillBalances() {
             <div>Here's what's happening with your finances.</div>
           </div>
           <Button
+            v-if="onboarded === true"
             label="Refresh"
             icon="pi pi-refresh"
             style="height: 42px"
@@ -78,54 +80,59 @@ async function backfillBalances() {
         </div>
       </SlotSkeleton>
 
-      <GettingStartedCard />
+      <GettingStartedCard @ready="onboarded = $event" />
 
-      <Panel :collapsed="false" header="Net worth">
-        <SlotSkeleton bg="transparent">
-          <NetworthWidget
-            ref="nWidgetRef"
-            :chart-height="400"
-            :is-refreshing="backfilling"
-          />
-        </SlotSkeleton>
-      </Panel>
+      <template v-if="onboarded === true">
+        <Panel :collapsed="false" header="Net worth">
+          <SlotSkeleton bg="transparent">
+            <NetworthWidget
+              ref="nWidgetRef"
+              :chart-height="400"
+              :is-refreshing="backfilling"
+            />
+          </SlotSkeleton>
+        </Panel>
 
-      <Panel :collapsed="false" header="Yearly overview" toggleable>
-        <SlotSkeleton bg="transparent">
-          <YearlyCashFlowWidget :is-mobile="isMobile" />
-        </SlotSkeleton>
-      </Panel>
+        <Panel :collapsed="false" header="Yearly overview" toggleable>
+          <SlotSkeleton bg="transparent">
+            <YearlyCashFlowWidget :is-mobile="isMobile" />
+          </SlotSkeleton>
+        </Panel>
 
-      <Panel :collapsed="false" header="Cash flow" toggleable>
-        <SlotSkeleton bg="transparent">
-          <YearlySankeyWidget :is-mobile="isMobile" />
-        </SlotSkeleton>
-      </Panel>
+        <Panel :collapsed="false" header="Cash flow" toggleable>
+          <SlotSkeleton bg="transparent">
+            <YearlySankeyWidget :is-mobile="isMobile" />
+          </SlotSkeleton>
+        </Panel>
 
-      <Panel :collapsed="false" header="Overview by category" toggleable>
-        <div class="w-full flex flex-row justify-between p-1">
-          <span style="color: var(--text-secondary)" class="text-sm">
-            View and compare how your money moves through out different years
-            and categories. You can compare up to 5 years at a time, with the
-            option to filter by any income or expense category. Totals and
-            average over time include ALL of your data.
-          </span>
-        </div>
+        <Panel :collapsed="false" header="Overview by category" toggleable>
+          <div class="w-full flex flex-row justify-between p-1">
+            <span style="color: var(--text-secondary)" class="text-sm">
+              View and compare how your money moves through out different years
+              and categories. You can compare up to 5 years at a time, with the
+              option to filter by any income or expense category. Totals and
+              average over time include ALL of your data.
+            </span>
+          </div>
 
-        <SlotSkeleton bg="transparent">
-          <MonthlyCategoryBreakdownWidget :is-mobile="isMobile" />
-        </SlotSkeleton>
-      </Panel>
+          <SlotSkeleton bg="transparent">
+            <MonthlyCategoryBreakdownWidget :is-mobile="isMobile" />
+          </SlotSkeleton>
+        </Panel>
 
-      <Panel :collapsed="false" header="Balance sheet" toggleable>
-        <SlotSkeleton bg="transparent">
-          <AccountAllocations title="Assets" classification="asset" />
-        </SlotSkeleton>
+        <Panel :collapsed="false" header="Balance sheet" toggleable>
+          <SlotSkeleton bg="transparent">
+            <AccountAllocations title="Assets" classification="asset" />
+          </SlotSkeleton>
 
-        <SlotSkeleton bg="transparent">
-          <AccountAllocations title="Liabilities" classification="liability" />
-        </SlotSkeleton>
-      </Panel>
+          <SlotSkeleton bg="transparent">
+            <AccountAllocations
+              title="Liabilities"
+              classification="liability"
+            />
+          </SlotSkeleton>
+        </Panel>
+      </template>
     </div>
   </main>
 </template>

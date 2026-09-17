@@ -5,6 +5,8 @@ import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 
+const emit = defineEmits<{ ready: [complete: boolean] }>();
+
 const router = useRouter();
 const accountStore = useAccountStore();
 const transactionStore = useTransactionStore();
@@ -62,6 +64,7 @@ onMounted(async () => {
     toastStore.errorResponseToast(error);
   } finally {
     loading.value = false;
+    emit("ready", complete.value);
   }
 });
 </script>
