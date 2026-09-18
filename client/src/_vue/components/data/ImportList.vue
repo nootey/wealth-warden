@@ -21,6 +21,22 @@ const confirm = useConfirm();
 
 const imports = ref<Import[]>([]);
 const loading = ref(false);
+const expandedRows = ref<Record<string, boolean>>({});
+
+function isExpanded(row: Import): boolean {
+  return row.id != null && expandedRows.value[row.id] === true;
+}
+
+function toggleError(row: Import): void {
+  if (row.id == null) return;
+  const next = { ...expandedRows.value };
+  if (next[row.id]) {
+    delete next[row.id];
+  } else {
+    next[row.id] = true;
+  }
+  expandedRows.value = next;
+}
 
 onMounted(async () => {
   await getData();
@@ -117,85 +133,117 @@ async function deleteRecord(id: number) {
     </template>
   </ConfirmDialog>
 
-  <div class="w-full flex flex-row gap-2 justify-center">
-    <DataTable
-      data-key="id"
-      class="w-full enhanced-table"
-      :loading="loading"
-      :value="imports"
-      scrollable
-      scroll-height="50vh"
-      column-resize-mode="fit"
-      scroll-direction="both"
-      paginator
-      :rows="10"
-      :rows-per-page-options="[10, 25, 50]"
+  <div class="flex flex-col w-full gap-4">
+
+    <div
+        class="flex flex-col w-full rounded-2xl"
+        style="
+        padding: 0.25rem 0.25rem 0 0.25rem;
+        border: 1px solid var(--border-color);
+      "
     >
-      <template #empty>
-        <div style="padding: 10px">No records found.</div>
-      </template>
-      <template #loading>
-        <LoadingSpinner />
-      </template>
-      <Column header="Actions">
-        <template #body="{ data }">
-          <div class="flex flex-row items-center gap-2">
-            <i
-              v-if="hasPermission('manage_data')"
-              class="pi pi-trash hover-icon text-sm"
+      <DataTable
+          v-model:expanded-rows="expandedRows"
+          data-key="id"
+          class="w-full enhanced-table"
+          :loading="loading"
+          :value="imports"
+          scrollable
+          column-resize-mode="fit"
+          scroll-direction="both"
+          paginator
+          :rows="10"
+          :rows-per-page-options="[10, 25, 50]"
+      >
+        <template #empty>
+          <div style="padding: 10px">No records found.</div>
+        </template>
+        <template #loading>
+          <LoadingSpinner />
+        </template>
+        <template #expansion="{ data }">
+          <div
+              class="flex flex-row items-start gap-2 p-3"
               style="color: var(--p-red-300)"
-              @click="deleteConfirmation(data?.id, data?.name)"
-            />
-            <i
-              v-if="data.investments_transferred"
-              v-tooltip="'Investments transferred'"
-              class="pi pi-database hover-icon text-sm"
-            />
-            <i
-              v-if="data.savings_transferred"
-              v-tooltip="'Savings transferred'"
-              class="pi pi-credit-card hover-icon text-sm"
-            />
-            <i
-              v-if="data.repayments_transferred"
-              v-tooltip="'Repayments transferred'"
-              class="pi pi-building-columns hover-icon text-sm"
-            />
+          >
+            <i class="pi pi-exclamation-circle mt-1 text-sm" />
+            <span>{{ data.error || "No error detail was recorded." }}</span>
           </div>
         </template>
-      </Column>
-      <Column
-        v-for="col of activeColumns"
-        :key="col.field"
-        :header="col.header"
-        :field="col.field"
-        :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
-        :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
-      >
-        <template #body="{ data }">
-          <template v-if="col.field === 'amount'">
-            {{
-              vueHelper.displayAsCurrency(
-                data.direction == "expense" ? data.amount * -1 : data.amount,
-              )
-            }}
+        <Column header="Actions">
+          <template #body="{ data }">
+            <div class="flex flex-row items-center gap-2">
+              <i
+                  v-if="hasPermission('manage_data')"
+                  class="pi pi-trash hover-icon text-sm"
+                  style="color: var(--p-red-300)"
+                  @click="deleteConfirmation(data?.id, data?.name)"
+              />
+              <i
+                  v-if="data.investments_transferred"
+                  v-tooltip="'Investments transferred'"
+                  class="pi pi-database hover-icon text-sm"
+              />
+              <i
+                  v-if="data.savings_transferred"
+                  v-tooltip="'Savings transferred'"
+                  class="pi pi-credit-card hover-icon text-sm"
+              />
+              <i
+                  v-if="data.repayments_transferred"
+                  v-tooltip="'Repayments transferred'"
+                  class="pi pi-building-columns hover-icon text-sm"
+              />
+            </div>
           </template>
-          <template
-            v-else-if="
+        </Column>
+        <Column
+            v-for="col of activeColumns"
+            :key="col.field"
+            :header="col.header"
+            :field="col.field"
+            :expander="col.field === 'status'"
+            :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+            :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        >
+          <template #body="{ data }">
+            <template v-if="col.field === 'amount'">
+              {{
+                vueHelper.displayAsCurrency(
+                    data.direction == "expense" ? data.amount * -1 : data.amount,
+                )
+              }}
+            </template>
+            <template
+                v-else-if="
               col.field === 'started_at' || col.field === 'completed_at'
             "
-          >
-            {{ dateHelper.formatDate(data[col.field], true) }}
+            >
+              {{ dateHelper.formatDate(data[col.field], true) }}
+            </template>
+            <template v-else-if="col.field === 'status'">
+              <div class="flex flex-row items-center gap-2">
+                <DisplayStatus :status="data.status" />
+                <i
+                    v-if="data.status === 'failed'"
+                    v-tooltip="isExpanded(data) ? 'Hide error' : 'Show error'"
+                    :class="
+                  isExpanded(data) ? 'pi pi-chevron-down' : 'pi pi-chevron-right'
+                "
+                    class="hover-icon text-sm"
+                    @click="toggleError(data)"
+                />
+              </div>
+            </template>
+            <template v-else>
+              {{ data[col.field] }}
+            </template>
           </template>
-          <template v-else-if="col.field === 'status'">
-            <DisplayStatus :status="data.status" />
-          </template>
-          <template v-else>
-            {{ data[col.field] }}
-          </template>
-        </template>
-      </Column>
-    </DataTable>
+        </Column>
+      </DataTable>
+    </div>
+
+
   </div>
 </template>
 

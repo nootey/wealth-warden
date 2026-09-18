@@ -155,9 +155,18 @@ func (s *ImportService) applyRules(ctx context.Context, tx *gorm.DB, userID int6
 
 func (s *ImportService) markImportFailed(ctx context.Context, userID, importID int64, cause error, extra ...zap.Field) {
 
+	var appErr *apperr.Error
+	isAppErr := errors.As(cause, &appErr)
+
+	// Store only a client-safe reason. A client-facing apperr keeps its message;
+	// internal or unexpected errors fall back to the generic one. The full cause
+	// still reaches the logs below.
 	msg := ""
 	if cause != nil {
-		msg = cause.Error()
+		msg = apperr.GenericMessage
+		if isAppErr && appErr.Kind != apperr.Internal {
+			msg = appErr.Message
+		}
 	}
 
 	fields := append([]zap.Field{
@@ -179,8 +188,7 @@ func (s *ImportService) markImportFailed(ctx context.Context, userID, importID i
 	}
 
 	log := s.logger.Warn
-	var appErr *apperr.Error
-	if !errors.As(cause, &appErr) || appErr.Kind == apperr.Internal {
+	if !isAppErr || appErr.Kind == apperr.Internal {
 		log = s.logger.Error
 	}
 	log("import failed", append(fields, zap.Error(cause))...)
@@ -644,11 +652,12 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 			category, err = s.txnRepo.FindCategoryByID(ctx, tx, *txn.CategoryID, userID, false)
 			if err != nil {
 				tx.Rollback()
-				s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *txn.CategoryID))
+				failure := apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find row category %d", *txn.CategoryID), err)
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ErrInvalidCategoryID
+					failure = ErrInvalidCategoryID
 				}
-				return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find row category %d", *txn.CategoryID), err)
+				s.markImportFailed(ctx, userID, importID, failure, zap.Int("row", i), zap.Int64("category_id", *txn.CategoryID))
+				return failure
 			}
 			found = true
 		}
@@ -662,11 +671,12 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 					category, err = s.txnRepo.FindCategoryByID(ctx, tx, *m.CategoryID, userID, false)
 					if err != nil {
 						tx.Rollback()
-						s.markImportFailed(ctx, userID, importID, err, zap.Int("row", i), zap.Int64("category_id", *m.CategoryID))
+						failure := apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find mapped category %d", *m.CategoryID), err)
 						if errors.Is(err, gorm.ErrRecordNotFound) {
-							return ErrInvalidCategoryID
+							failure = ErrInvalidCategoryID
 						}
-						return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find mapped category %d", *m.CategoryID), err)
+						s.markImportFailed(ctx, userID, importID, failure, zap.Int("row", i), zap.Int64("category_id", *m.CategoryID))
+						return failure
 					}
 					found = true
 				}

@@ -79,6 +79,70 @@ func (s *ImportServiceSuite) TestBankImportSkipsKnownExternalIDs() {
 	s.Equal(models.ImportTypeBank, imp.Type)
 }
 
+// A rule import that references a missing category must fail and store the
+// client-facing reason, so the client can show why it failed.
+func (s *ImportServiceSuite) TestFailedRuleImportStoresClientFacingError() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	payload := models.RuleImportPayload{
+		GeneratedAt: time.Now().UTC(),
+		Rules: []models.RuleExport{{
+			Name:      "missing category rule",
+			IsActive:  true,
+			MatchType: models.RuleMatchAll,
+			Conditions: []models.RuleConditionExport{
+				{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "spar"},
+			},
+			Actions: []models.RuleActionExport{
+				{ActionType: models.RuleActionSetCategory, Value: "no such category"},
+			},
+		}},
+	}
+
+	impID, err := s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload)
+	s.Require().NoError(err)
+
+	err = s.TC.App.ImportService.RunImportRules(s.Ctx, seedUserID, impID)
+	s.Require().Error(err)
+
+	var imp models.Import
+	s.Require().NoError(s.TC.DB.Where("id = ?", impID).First(&imp).Error)
+	s.Equal("failed", imp.Status)
+	s.Require().NotNil(imp.Error)
+	s.Equal(`The category "no such category" from the rule "missing category rule" was not found`, *imp.Error)
+}
+
+// A bank row with a manual category id that does not exist must record the
+// client-facing reason, not the raw gorm error it fails on.
+func (s *ImportServiceSuite) TestFailedTxnImportStoresClientFacingError() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	payload := s.bankPayload("nlb_badcat", "TXB1")
+	badCategory := int64(999999)
+	payload.Txns[0].CategoryID = &badCategory
+
+	impID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	s.Require().NoError(err)
+
+	err = s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, impID, accID, models.ImportTypeBank)
+	s.Require().Error(err)
+
+	var imp models.Import
+	s.Require().NoError(s.TC.DB.Where("id = ?", impID).First(&imp).Error)
+	s.Equal("failed", imp.Status)
+	s.Require().NotNil(imp.Error)
+	s.Equal("The selected category does not exist", *imp.Error)
+}
+
 // A transaction dated on the account's opening day must be allowed, not just the day after.
 func (s *ImportServiceSuite) TestBankImportAllowsTxnOnAccountOpenDate() {
 	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })

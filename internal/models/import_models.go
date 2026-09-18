@@ -22,6 +22,7 @@ type Import struct {
 	Type                   string     `gorm:"not null" json:"type"`
 	SubType                string     `gorm:"not null" json:"sub_type"`
 	Status                 string     `gorm:"not null" json:"status"`
+	Error                  *string    `gorm:"column:error" json:"error"`
 	Currency               string     `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	Step                   string     `json:"step"`
 	InvestmentsTransferred bool       `json:"investments_transferred"`

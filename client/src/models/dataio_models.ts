@@ -37,6 +37,7 @@ export type Import = {
   account_id: number;
   name: string;
   status: string;
+  error?: string | null;
   type: string;
   sub_type: string;
   currency: string;
