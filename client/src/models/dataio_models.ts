@@ -14,6 +14,7 @@ export type BankTxn = {
   category: string;
   description: string;
   external_txn_id: string;
+  category_id?: number | null;
 };
 
 export type BankParseResponse = {

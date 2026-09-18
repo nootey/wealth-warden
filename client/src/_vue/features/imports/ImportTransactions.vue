@@ -15,6 +15,8 @@ import type { Category } from "../../../models/transaction_models.ts";
 import { useRouter } from "vue-router";
 import searchHelper from "../../../utils/search_helper.ts";
 import Select from "primevue/select";
+import RulesManager from "./RulesManager.vue";
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const emit = defineEmits<{
   (e: "completeImport"): void;
@@ -26,6 +28,8 @@ const accStore = useAccountStore();
 const transactionStore = useTransactionStore();
 
 const router = useRouter();
+
+const { colors } = useChartColors();
 
 const sourceAccounts = ref<Account[]>([]);
 const selectedCheckingAcc = ref<Account | null>(null);
@@ -119,17 +123,66 @@ function onBankRemove(e: { files: File[] }) {
 }
 
 const bankParsing = ref(false);
-// The row index keys the server-side edits; PDF rows have no bank id to key on.
 type BankRow = BankTxn & { row: number };
 const bankTxns = ref<BankRow[]>([]);
 const bankSelected = ref<BankRow[]>([]);
-// Category picked by hand per parsed row, keyed by row index; unset rows go through the rules.
 const bankRowCategories = ref<Record<number, number | null>>({});
+
+// A row is categorized once it has a category (rule guess or manual choice), else uncategorized.
+function rowCategorized(row: number): boolean {
+  return bankRowCategories.value[row] != null;
+}
+const uncategorizedRows = computed(() =>
+  bankTxns.value.filter((t) => !rowCategorized(t.row)),
+);
+const categorizedRows = computed(() =>
+  bankTxns.value.filter((t) => rowCategorized(t.row)),
+);
+// Each panel drives its own checkboxes, but bankSelected stays the union sent on import.
+const uncategorizedSelected = computed<BankRow[]>({
+  get: () => bankSelected.value.filter((t) => !rowCategorized(t.row)),
+  set: (rows) => {
+    bankSelected.value = [
+      ...bankSelected.value.filter((t) => rowCategorized(t.row)),
+      ...rows,
+    ];
+  },
+});
+const categorizedSelected = computed<BankRow[]>({
+  get: () => bankSelected.value.filter((t) => rowCategorized(t.row)),
+  set: (rows) => {
+    bankSelected.value = [
+      ...bankSelected.value.filter((t) => !rowCategorized(t.row)),
+      ...rows,
+    ];
+  },
+});
+
+const bankManualRows = ref<Set<number>>(new Set());
+
+function setBankRowCategory(row: number, value: number | null) {
+  bankRowCategories.value[row] = value;
+  bankManualRows.value.add(row);
+}
+
+async function refreshBankGuesses() {
+  if (bankTxns.value.length === 0) return;
+  try {
+    const res = await dataStore.applyBankRules(bankTxns.value);
+    res.transactions.forEach((t, row) => {
+      if (bankManualRows.value.has(row)) return;
+      bankRowCategories.value[row] = t.category_id ?? null;
+    });
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
 
 function clearBankParse() {
   bankTxns.value = [];
   bankSelected.value = [];
   bankRowCategories.value = {};
+  bankManualRows.value.clear();
 }
 
 function bankFormData(): FormData {
@@ -150,6 +203,14 @@ async function parseBankStatement() {
     const res = await dataStore.parseBankStatement(formData);
     bankTxns.value = res.transactions.map((t, row) => ({ ...t, row }));
     bankSelected.value = [...bankTxns.value];
+    // Seed the per-row category with the rule-based guess from the parse. The user
+    // then keeps, overrides, or clears it; the kept value is sent on import.
+    const guesses: Record<number, number | null> = {};
+    for (const t of bankTxns.value) {
+      if (t.category_id != null) guesses[t.row] = t.category_id;
+    }
+    bankRowCategories.value = guesses;
+    bankManualRows.value.clear();
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -420,10 +481,9 @@ defineExpose({ isDisabled, importing, importTransactions });
               style="color: var(--text-secondary)"
             >
               <span>
-                Uncheck a row to leave it out of the import. Pick a category on
-                a row to set it by hand. Rows left on Auto get their category
-                from your active rules. If no rule matches, they stay
-                uncategorized.
+                Rows with a category sit on the right, uncategorized rows on the
+                left. Change or clear a row's category to move it between the
+                groups. Uncheck a row to leave it out of the import.
               </span>
 
               <span>
@@ -432,62 +492,180 @@ defineExpose({ isDisabled, importing, importTransactions });
               </span>
             </div>
 
-            <DataTable
+            <div v-if="bankTxns.length > 0" class="flex w-full justify-end">
+              <RulesManager @changed="refreshBankGuesses" />
+            </div>
+
+            <div
               v-if="bankTxns.length > 0"
-              v-model:selection="bankSelected"
-              class="w-full enhanced-table bank-table"
-              :value="bankTxns"
-              data-key="row"
-              size="small"
-              scrollable
-              scroll-height="40vh"
+              class="flex flex-col xl:flex-row w-full gap-4"
             >
-              <Column selection-mode="multiple" header-style="width: 3rem" />
-              <Column field="txn_date" header="Date">
-                <template #body="{ data }">
-                  {{ data.txn_date.slice(0, 10) }}
-                </template>
-              </Column>
-              <Column field="transaction_type" header="Direction" />
-              <Column field="amount" header="Amount" />
-              <Column field="description" header="Description">
-                <template #body="{ data }">
-                  <span
-                    v-tooltip="data.description"
-                    class="truncate-text"
-                    style="max-width: 350px"
-                  >
-                    {{ data.description }}
-                  </span>
-                </template>
-              </Column>
-              <Column header="Category">
-                <template #body="{ data }">
-                  <Select
-                    class="w-full"
-                    size="small"
-                    :model-value="bankRowCategories[data.row] ?? null"
-                    :options="categoryOptions"
-                    option-label="label"
-                    option-value="value"
-                    show-clear
-                    filter
-                    placeholder="Auto (rules)"
-                    @update:model-value="bankRowCategories[data.row] = $event"
-                  >
-                    <template #option="{ option }">
-                      <div class="flex justify-between w-full gap-2">
-                        <span>{{ option.label }}</span>
-                        <small class="text-muted-color">
-                          {{ option.classification }}
-                        </small>
-                      </div>
+              <div class="flex flex-col w-full min-w-0 gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Uncategorized</span>
+                  <Tag
+                    :value="String(uncategorizedRows.length)"
+                    severity="warn"
+                  />
+                </div>
+                <DataTable
+                  v-model:selection="uncategorizedSelected"
+                  class="w-full enhanced-table bank-table"
+                  :value="uncategorizedRows"
+                  data-key="row"
+                  size="small"
+                  scrollable
+                  scroll-height="40vh"
+                >
+                  <Column
+                    selection-mode="multiple"
+                    header-style="width: 3rem"
+                  />
+                  <Column field="txn_date" header="Date">
+                    <template #body="{ data }">
+                      {{ data.txn_date.slice(0, 10) }}
                     </template>
-                  </Select>
-                </template>
-              </Column>
-              <Column field="external_txn_id" header="Bank ID" />
-            </DataTable>
+                  </Column>
+                  <Column field="transaction_type" header="Direction">
+                    <template #body="{ data }">
+                      <span
+                        class="capitalize"
+                        :style="{
+                          color:
+                            data.transaction_type === 'expense'
+                              ? colors.neg
+                              : colors.pos,
+                        }"
+                      >
+                        {{ data.transaction_type }}
+                      </span>
+                    </template>
+                  </Column>
+                  <Column field="amount" header="Amount" />
+                  <Column field="description" header="Description">
+                    <template #body="{ data }">
+                      <span
+                        v-tooltip="data.description"
+                        class="truncate-text"
+                        style="max-width: 200px"
+                      >
+                        {{ data.description }}
+                      </span>
+                    </template>
+                  </Column>
+                  <Column header="Category">
+                    <template #body="{ data }">
+                      <Select
+                        class="w-full"
+                        size="small"
+                        :model-value="bankRowCategories[data.row] ?? null"
+                        :options="categoryOptions"
+                        option-label="label"
+                        option-value="value"
+                        show-clear
+                        filter
+                        placeholder="Auto (rules)"
+                        @update:model-value="
+                          setBankRowCategory(data.row, $event)
+                        "
+                      >
+                        <template #option="{ option }">
+                          <div class="flex justify-between w-full gap-2">
+                            <span>{{ option.label }}</span>
+                            <small class="text-muted-color">
+                              {{ option.classification }}
+                            </small>
+                          </div>
+                        </template>
+                      </Select>
+                    </template>
+                  </Column>
+                </DataTable>
+              </div>
+
+              <div class="flex flex-col w-full min-w-0 gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Categorized</span>
+                  <Tag
+                    :value="String(categorizedRows.length)"
+                    severity="success"
+                  />
+                </div>
+                <DataTable
+                  v-model:selection="categorizedSelected"
+                  class="w-full enhanced-table bank-table"
+                  :value="categorizedRows"
+                  data-key="row"
+                  size="small"
+                  scrollable
+                  scroll-height="40vh"
+                >
+                  <Column
+                    selection-mode="multiple"
+                    header-style="width: 3rem"
+                  />
+                  <Column field="txn_date" header="Date">
+                    <template #body="{ data }">
+                      {{ data.txn_date.slice(0, 10) }}
+                    </template>
+                  </Column>
+                  <Column field="transaction_type" header="Direction">
+                    <template #body="{ data }">
+                      <span
+                        class="capitalize"
+                        :style="{
+                          color:
+                            data.transaction_type === 'expense'
+                              ? colors.neg
+                              : colors.pos,
+                        }"
+                      >
+                        {{ data.transaction_type }}
+                      </span>
+                    </template>
+                  </Column>
+                  <Column field="amount" header="Amount" />
+                  <Column field="description" header="Description">
+                    <template #body="{ data }">
+                      <span
+                        v-tooltip="data.description"
+                        class="truncate-text"
+                        style="max-width: 200px"
+                      >
+                        {{ data.description }}
+                      </span>
+                    </template>
+                  </Column>
+                  <Column header="Category">
+                    <template #body="{ data }">
+                      <Select
+                        class="w-full"
+                        size="small"
+                        :model-value="bankRowCategories[data.row] ?? null"
+                        :options="categoryOptions"
+                        option-label="label"
+                        option-value="value"
+                        show-clear
+                        filter
+                        placeholder="Auto (rules)"
+                        @update:model-value="
+                          setBankRowCategory(data.row, $event)
+                        "
+                      >
+                        <template #option="{ option }">
+                          <div class="flex justify-between w-full gap-2">
+                            <span>{{ option.label }}</span>
+                            <small class="text-muted-color">
+                              {{ option.classification }}
+                            </small>
+                          </div>
+                        </template>
+                      </Select>
+                    </template>
+                  </Column>
+                </DataTable>
+              </div>
+            </div>
 
             <div
               v-if="bankTxns.length > 0"

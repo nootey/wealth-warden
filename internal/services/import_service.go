@@ -42,6 +42,7 @@ type ImportServiceInterface interface {
 	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
 	ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error)
+	ApplyRulesToBankPayload(ctx context.Context, userID int64, payload *models.TxnImportPayload) error
 	ApplyBankRowOverrides(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error
 }
 
@@ -144,6 +145,42 @@ func (s *ImportService) applyRules(ctx context.Context, tx *gorm.DB, userID int6
 		return c, true, nil
 	}
 	return models.Category{}, false, nil
+}
+
+// ApplyRulesToBankPayload fills each row's CategoryID with the category a matching
+// active rule resolves to, so the parse preview shows the same guess the import
+// commit would produce. Rows with no match are left blank for the commit fallback.
+func (s *ImportService) ApplyRulesToBankPayload(ctx context.Context, userID int64, payload *models.TxnImportPayload) error {
+	rules, err := s.rulesRepo.FindRules(ctx, nil, userID, true)
+	if err != nil {
+		return err
+	}
+
+	cache := map[int64]models.Category{}
+	for i := range payload.Txns {
+		t := &payload.Txns[i]
+		// Recompute from scratch so a re-apply after a rule change (or delete) does
+		// not keep a stale guess.
+		t.CategoryID = nil
+		amount, err := decimal.NewFromString(t.Amount)
+		if err != nil {
+			continue
+		}
+		// Bank rows carry a real description; the commit resolves rules against it.
+		desc := t.Category
+		if t.Description != "" {
+			desc = t.Description
+		}
+		category, found, err := s.applyRules(ctx, nil, userID, rules, cache, desc, amount, models.TransactionDirection(t.TransactionType))
+		if err != nil {
+			return err
+		}
+		if found {
+			id := category.ID
+			t.CategoryID = &id
+		}
+	}
+	return nil
 }
 
 func (s *ImportService) markImportFailed(ctx context.Context, userID, importID int64, cause error, extra ...zap.Field) {

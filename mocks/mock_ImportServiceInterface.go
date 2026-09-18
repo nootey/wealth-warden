@@ -101,6 +101,69 @@ func (_c *MockImportServiceInterface_ApplyBankRowOverrides_Call) RunAndReturn(ru
 	return _c
 }
 
+// ApplyRulesToBankPayload provides a mock function for the type MockImportServiceInterface
+func (_mock *MockImportServiceInterface) ApplyRulesToBankPayload(ctx context.Context, userID int64, payload *models.TxnImportPayload) error {
+	ret := _mock.Called(ctx, userID, payload)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ApplyRulesToBankPayload")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, *models.TxnImportPayload) error); ok {
+		r0 = returnFunc(ctx, userID, payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockImportServiceInterface_ApplyRulesToBankPayload_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApplyRulesToBankPayload'
+type MockImportServiceInterface_ApplyRulesToBankPayload_Call struct {
+	*mock.Call
+}
+
+// ApplyRulesToBankPayload is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - payload *models.TxnImportPayload
+func (_e *MockImportServiceInterface_Expecter) ApplyRulesToBankPayload(ctx any, userID any, payload any) *MockImportServiceInterface_ApplyRulesToBankPayload_Call {
+	return &MockImportServiceInterface_ApplyRulesToBankPayload_Call{Call: _e.mock.On("ApplyRulesToBankPayload", ctx, userID, payload)}
+}
+
+func (_c *MockImportServiceInterface_ApplyRulesToBankPayload_Call) Run(run func(ctx context.Context, userID int64, payload *models.TxnImportPayload)) *MockImportServiceInterface_ApplyRulesToBankPayload_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 *models.TxnImportPayload
+		if args[2] != nil {
+			arg2 = args[2].(*models.TxnImportPayload)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockImportServiceInterface_ApplyRulesToBankPayload_Call) Return(err error) *MockImportServiceInterface_ApplyRulesToBankPayload_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockImportServiceInterface_ApplyRulesToBankPayload_Call) RunAndReturn(run func(ctx context.Context, userID int64, payload *models.TxnImportPayload) error) *MockImportServiceInterface_ApplyRulesToBankPayload_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteImport provides a mock function for the type MockImportServiceInterface
 func (_mock *MockImportServiceInterface) DeleteImport(ctx context.Context, userID int64, id int64) error {
 	ret := _mock.Called(ctx, userID, id)

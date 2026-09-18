@@ -398,6 +398,44 @@ func (s *ImportServiceSuite) TestBankImportRowCategoryThenRules() {
 	s.Equal(uncategorized.ID, *txns[2].CategoryID)
 }
 
+// Parsing runs rules so the preview carries the same category the commit would resolve; unmatched rows stay blank.
+func (s *ImportServiceSuite) TestApplyRulesToBankPayloadFillsGuess() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	ruleCat, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Parse Guess Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
+		Name:       "parse-guess",
+		MatchType:  models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "zzparseguess"}},
+		Actions:    []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(ruleCat, 10)}},
+	})
+	s.Require().NoError(err)
+
+	payload := s.bankPayload("nlb_guess", "TX1", "TX2")
+	payload.Txns[0].Description = "ZZPARSEGUESS ruled"
+	payload.Txns[1].Description = "PETROL"
+
+	s.Require().NoError(s.TC.App.ImportService.ApplyRulesToBankPayload(s.Ctx, seedUserID, &payload))
+
+	s.Require().NotNil(payload.Txns[0].CategoryID)
+	s.Equal(ruleCat, *payload.Txns[0].CategoryID)
+	s.Nil(payload.Txns[1].CategoryID)
+}
+
+// Re-applying rules recomputes from scratch, so a stale guess is cleared when no active rule matches.
+func (s *ImportServiceSuite) TestApplyRulesToBankPayloadClearsStaleGuess() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	stale := int64(999999)
+	payload := s.bankPayload("nlb_stale", "TX1")
+	payload.Txns[0].Description = "NO ACTIVE RULE MATCHES THIS"
+	payload.Txns[0].CategoryID = &stale
+
+	s.Require().NoError(s.TC.App.ImportService.ApplyRulesToBankPayload(s.Ctx, seedUserID, &payload))
+	s.Nil(payload.Txns[0].CategoryID)
+}
+
 // A rule matching on direction must only apply to rows on that side, even when the description matches too.
 func (s *ImportServiceSuite) TestBankImportRuleMatchesOnDirection() {
 	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
