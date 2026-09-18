@@ -122,10 +122,10 @@ async function manipulateDialog(modal: string, value: any) {
       <div class="w-full flex flex-col gap-4 p-2">
         <div class="flex flex-row items-center gap-2 w-full">
           <div class="w-full flex flex-col gap-2">
-            <h3>Data Import</h3>
-            <h5 style="color: var(--text-secondary)">
+            <span>Data Import</span>
+            <span class="text-sn" style="color: var(--text-secondary)">
               Manage your imported data.
-            </h5>
+            </span>
           </div>
           <Button
             class="main-button"
@@ -139,7 +139,6 @@ async function manipulateDialog(modal: string, value: any) {
           </Button>
         </div>
 
-        <h3>Imports</h3>
         <ImportList ref="importListRef" />
       </div>
     </SettingsSkeleton>

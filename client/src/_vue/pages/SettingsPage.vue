@@ -142,7 +142,10 @@ const pageTitle = computed(() => {
       </template>
     </aside>
 
-    <main class="w-full flex-1 pt-4" style="max-width: 850px; margin: 0 auto">
+    <main
+      class="w-full flex-1 min-w-0 pt-4"
+      style="max-width: 850px; margin: 0 auto"
+    >
       <div class="flex flex-row gap-2 mb-2 items-center text-center">
         <i
           class="pi pi-ellipsis-v mobile-only text-xs"

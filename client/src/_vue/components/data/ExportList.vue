@@ -8,6 +8,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
 import { computed, onMounted, ref } from "vue";
+import DisplayStatus from "../base/DisplayStatus.vue";
 import type { Export } from "../../../models/dataio_models.ts";
 
 const dataStore = useDataStore();
@@ -40,8 +41,8 @@ defineExpose({ refresh });
 
 const activeColumns = computed<Column[]>(() => [
   { field: "name", header: "Name" },
-  { field: "status", header: "Status" },
   { field: "currency", header: "Currency" },
+  { field: "status", header: "Status" },
 ]);
 
 async function deleteConfirmation(id: number, name: string) {
@@ -141,6 +142,9 @@ async function deleteRecord(id: number) {
             v-if="col.field === 'started_at' || col.field === 'completed_at'"
           >
             {{ dateHelper.formatDate(data[col.field], true) }}
+          </template>
+          <template v-else-if="col.field === 'status'">
+            <DisplayStatus :status="data.status" />
           </template>
           <template v-else>
             {{ data[col.field] }}
