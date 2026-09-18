@@ -13,5 +13,8 @@ export const useRulesStore = defineStore("rules", {
       const response = await apiClient.get(`${this.apiPrefix}`);
       this.rules = response.data;
     },
+    async applyRules() {
+      return await apiClient.post(`${this.apiPrefix}/apply`);
+    },
   },
 });

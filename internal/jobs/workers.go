@@ -59,6 +59,9 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 			return river.AddWorkerSafely(workers, NewMergeCategoriesWorker(logger.Named("category_merge"), c.TransactionService))
 		},
 		func() error {
+			return river.AddWorkerSafely(workers, NewApplyRulesWorker(logger.Named("apply_rules"), c.RulesService))
+		},
+		func() error {
 			return river.AddWorkerSafely(workers, NewMergeAccountsWorker(logger.Named("account_merge"), c.AccountService))
 		},
 		func() error {

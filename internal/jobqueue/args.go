@@ -203,3 +203,17 @@ type ExportArgs struct {
 }
 
 func (ExportArgs) Kind() string { return TypeExport }
+
+type ApplyRulesArgs struct {
+	UserID int64
+}
+
+func (ApplyRulesArgs) Kind() string { return TypeApplyRules }
+
+// One in-flight run per user: a second click while a run is queued or running is
+// dropped. Re-running is safe, so retries keep the default policy.
+func (ApplyRulesArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{
+		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: InFlightStates},
+	}
+}

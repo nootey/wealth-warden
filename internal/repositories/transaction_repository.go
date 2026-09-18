@@ -89,6 +89,8 @@ type TransactionRepositoryInterface interface {
 	BulkUpdateTemplateAccountIDs(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
 	BulkUpdateTransactionCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) (int64, error)
 	BulkUpdateTemplateCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) error
+	FindUncategorizedTransactions(ctx context.Context, tx *gorm.DB, userID, uncategorizedCategoryID, afterID int64, limit int) ([]models.Transaction, error)
+	BulkSetTransactionCategoryByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID, userID int64) (int64, error)
 }
 
 type TransactionRepository struct {
@@ -1511,6 +1513,45 @@ func (r *TransactionRepository) BulkUpdateTransactionCategoryID(ctx context.Cont
 		Where("category_id = ? AND user_id = ? AND deleted_at IS NULL", fromCategoryID, userID).
 		Updates(map[string]any{
 			"category_id": toCategoryID,
+			"updated_at":  time.Now().UTC(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+// FindUncategorizedTransactions pages a user's uncategorized transactions by id
+// cursor. Uncategorized means the seeded uncategorized category or a null
+// category. It selects only the columns rule matching needs.
+func (r *TransactionRepository) FindUncategorizedTransactions(ctx context.Context, tx *gorm.DB, userID, uncategorizedCategoryID, afterID int64, limit int) ([]models.Transaction, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Transaction
+	err := db.Model(&models.Transaction{}).
+		Select("id", "category_id", "description", "amount", "direction").
+		Where("user_id = ? AND deleted_at IS NULL AND id > ? AND (category_id = ? OR category_id IS NULL)", userID, afterID, uncategorizedCategoryID).
+		Order("id").
+		Limit(limit).
+		Find(&records).Error
+	return records, err
+}
+
+func (r *TransactionRepository) BulkSetTransactionCategoryByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"category_id": categoryID,
 			"updated_at":  time.Now().UTC(),
 		})
 	return res.RowsAffected, res.Error

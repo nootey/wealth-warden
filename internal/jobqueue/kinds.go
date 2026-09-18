@@ -22,6 +22,7 @@ const (
 	TypeImport                 = "import"
 	TypeExport                 = "export"
 	TypeImportDelete           = "import_delete"
+	TypeApplyRules             = "apply_rules"
 )
 
 // Kinds a user may see and act on from their own settings pages.
@@ -31,6 +32,7 @@ var SelfServiceKinds = map[string]bool{
 	TypeExport:          true,
 	TypeImport:          true,
 	TypeImportDelete:    true,
+	TypeApplyRules:      true,
 }
 
 // Two rebuilds at once would count every trade twice, so this queue runs one job
