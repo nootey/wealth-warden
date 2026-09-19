@@ -558,6 +558,12 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 	txDate := utils.LocalMidnightUTC(t, loc)
 
+	transferCategory, err := s.repo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	if err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
+	}
+
 	outflow := models.Transaction{
 		UserID:          userID,
 		AccountID:       fromAcc.ID,
@@ -567,6 +573,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		TxnDate:         txDate,
 		Description:     req.Notes,
 		TransactionType: models.TxnTypeTransfer,
+		CategoryID:      &transferCategory.ID,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
@@ -583,6 +590,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		TxnDate:         txDate,
 		Description:     req.Notes,
 		TransactionType: models.TxnTypeTransfer,
+		CategoryID:      &transferCategory.ID,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
@@ -2855,6 +2863,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			return 0, time.Time{}, err
 		}
 
+		transferCategory, err := s.repo.EnsureRootCategory(ctx, tx, "uncategorized", currentTemplate.UserID)
+		if err != nil {
+			tx.Rollback()
+			return 0, time.Time{}, err
+		}
+
 		outflow := models.Transaction{
 			UserID:          currentTemplate.UserID,
 			AccountID:       srcAcc.ID,
@@ -2864,6 +2878,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			TxnDate:         txDate,
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 			tx.Rollback()
@@ -2879,6 +2894,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			TxnDate:         txDate,
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 			tx.Rollback()

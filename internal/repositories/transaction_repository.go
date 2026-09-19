@@ -1177,22 +1177,22 @@ func (r *TransactionRepository) PurgeImportedCategories(ctx context.Context, tx 
 	}
 	db = db.WithContext(ctx)
 
-	// reassign any transactions using these categories to (uncategorized)
 	updateSQL := `
         UPDATE transactions
         SET category_id = (
-            SELECT id FROM categories 
-            WHERE name = '(uncategorized)' 
+            SELECT id FROM categories
+            WHERE user_id = ?
             AND classification = 'uncategorized'
+            AND parent_id IS NULL
             LIMIT 1
         )
         WHERE category_id IN (
-            SELECT id FROM categories 
+            SELECT id FROM categories
             WHERE user_id = ? AND import_id = ?
         )
     `
 
-	if err := db.Exec(updateSQL, userID, importID).Error; err != nil {
+	if err := db.Exec(updateSQL, userID, userID, importID).Error; err != nil {
 		return 0, err
 	}
 

@@ -1659,6 +1659,12 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 		}
 	}
 
+	transferCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
 	for i, txn := range txnPayload.InvestmentTransfers {
 		if txn.TransactionType != "investments" {
 			continue
@@ -1700,6 +1706,7 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			ImportID:        &imp.ID,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -1717,6 +1724,7 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			ImportID:        &imp.ID,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -1943,6 +1951,12 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 		}
 	}
 
+	transferCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
 	for i, txn := range txnPayload.SavingsTransfers {
 		if txn.TransactionType != "savings" {
 			continue
@@ -1997,6 +2011,7 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			ImportID:        &imp.ID,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -2014,6 +2029,7 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			ImportID:        &imp.ID,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -2240,6 +2256,12 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 		}
 	}
 
+	transferCategory, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
 	for i, txn := range txnPayload.RepaymentTransfers {
 		if txn.TransactionType != "repayments" {
 			continue
@@ -2294,6 +2316,7 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			ImportID:        &imp.ID,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -2311,6 +2334,7 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			ImportID:        &imp.ID,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
