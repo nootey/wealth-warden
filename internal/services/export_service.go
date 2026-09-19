@@ -281,7 +281,6 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	now := time.Now().UTC()
 	localTime := now.In(loc)
 
-	// Create pending export record
 	export := &models.Export{
 		Name:       fmt.Sprintf("Export %s", localTime.Format("2006-01-02 15:04:05")),
 		UserID:     userID,
@@ -295,9 +294,35 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		return nil, err
 	}
 
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ExportArgs{ExportID: export.ID, UserID: userID}); err != nil {
+		if uErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error()); uErr != nil {
+			return nil, uErr
+		}
+		return nil, err
+	}
+
+	return export, nil
+}
+
+// failExport records the failure on the row. A recorded failure is a finished
+// run, so it returns nil; only an unrecorded failure is worth a retry.
+func (s *ExportService) failExport(ctx context.Context, exportID int64, cause error) error {
+	if err := s.updateExportStatus(ctx, exportID, "failed", cause.Error()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) error {
+
+	export, err := s.FetchExportByID(ctx, nil, exportID, userID)
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer func() {
@@ -310,99 +335,57 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	accs, err := s.accRepo.FindAllAccountsWithLatestBalance(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	categories, err := s.txnRepo.FindAllCategories(ctx, tx, userID, false)
 	if err != nil {
 		tx.Rollback()
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	txns, err := s.txnRepo.FindAllTransactionsForUser(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	transfers, err := s.txnRepo.FindAllTransfersForUser(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	rules, err := s.rulesRepo.FindRules(ctx, tx, userID, false)
 	if err != nil {
 		tx.Rollback()
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
-	// Build JSON payloads
 	accJSON, err := s.buildAccountExportJSON(accs)
 	if err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	catJSON, err := s.buildCategoryExportJSON(categories)
 	if err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	txnsJSON, err := s.buildTxnAndTransfersExportJSON(txns, transfers)
 	if err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	rulesJSON, err := s.buildRuleExportJSON(rules, categories)
 	if err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
-	// Create ZIP
 	var buf bytes.Buffer
 	zipWriter := zip.NewWriter(&buf)
 
@@ -416,38 +399,21 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	for name, data := range files {
 		f, err := zipWriter.Create(name)
 		if err != nil {
-			sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-			if sErr != nil {
-				return nil, sErr
-			}
-			return nil, err
+			return s.failExport(ctx, export.ID, err)
 		}
 		if _, err := f.Write(data); err != nil {
-			sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-			if sErr != nil {
-				return nil, sErr
-			}
-			return nil, err
+			return s.failExport(ctx, export.ID, err)
 		}
 	}
 
 	if err := zipWriter.Close(); err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
-	// Save to filesystem
 	zipData := buf.Bytes()
 	filePath, err := s.saveExportFile(userID, export.Name, zipData)
 	if err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	completedAt := time.Now().UTC()
@@ -461,11 +427,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	}
 
 	if err := s.repo.UpdateExport(ctx, nil, export.ID, updates); err != nil {
-		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
-		if sErr != nil {
-			return nil, sErr
-		}
-		return nil, err
+		return s.failExport(ctx, export.ID, err)
 	}
 
 	changes := utils.InitChanges()
@@ -485,11 +447,10 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return nil, err
+		return err
 	}
 
-	return export, nil
-
+	return nil
 }
 
 func (s *ExportService) saveExportFile(userID int64, exportName string, data []byte) (string, error) {

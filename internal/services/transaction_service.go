@@ -83,6 +83,7 @@ type TransactionService struct {
 	balanceRepo   repositories.BalanceRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	savingsRepo   repositories.SavingsRepositoryInterface
+	rulesRepo     repositories.RulesRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 	logger        *zap.Logger
 }
@@ -94,6 +95,7 @@ func NewTransactionService(
 	balanceRepo *repositories.BalanceRepository,
 	settingsRepo *repositories.SettingsRepository,
 	savingsRepo *repositories.SavingsRepository,
+	rulesRepo *repositories.RulesRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *TransactionService {
 	return &TransactionService{
@@ -102,6 +104,7 @@ func NewTransactionService(
 		balanceRepo:   balanceRepo,
 		settingsRepo:  settingsRepo,
 		savingsRepo:   savingsRepo,
+		rulesRepo:     rulesRepo,
 		jobDispatcher: jobDispatcher,
 		logger:        logger,
 	}
@@ -217,6 +220,28 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	}
 
 	return &record, nil
+}
+
+func (s *TransactionService) autoAssignCategory(ctx context.Context, tx *gorm.DB, userID int64, req *models.TransactionReq, fallback models.Category) (models.Category, error) {
+	rules, err := s.rulesRepo.FindRules(ctx, tx, userID, true)
+	if err != nil {
+		return models.Category{}, err
+	}
+
+	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
+	cats := utils.MatchingRuleCategories(rules, utils.SafeString(req.Description), req.Amount, direction)
+	for _, id := range cats {
+		category, err := s.repo.FindCategoryByID(ctx, tx, id, userID, false)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Rule points at a deleted category; skip it, same as import.
+				continue
+			}
+			return models.Category{}, err
+		}
+		return category, nil
+	}
+	return fallback, nil
 }
 
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
@@ -372,6 +397,16 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		}
 	}
 
+	if category.Classification == "uncategorized" {
+		category, err = s.autoAssignCategory(ctx, tx, userID, req, category)
+		if err != nil {
+			if ownsTx {
+				tx.Rollback()
+			}
+			return models.InsertResult{}, err
+		}
+	}
+
 	tr := models.Transaction{
 		UserID:         userID,
 		AccountID:      account.ID,
@@ -523,6 +558,12 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 	txDate := utils.LocalMidnightUTC(t, loc)
 
+	transferCategory, err := s.repo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	if err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
+	}
+
 	outflow := models.Transaction{
 		UserID:          userID,
 		AccountID:       fromAcc.ID,
@@ -532,6 +573,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		TxnDate:         txDate,
 		Description:     req.Notes,
 		TransactionType: models.TxnTypeTransfer,
+		CategoryID:      &transferCategory.ID,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
@@ -548,6 +590,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		TxnDate:         txDate,
 		Description:     req.Notes,
 		TransactionType: models.TxnTypeTransfer,
+		CategoryID:      &transferCategory.ID,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
@@ -2820,6 +2863,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			return 0, time.Time{}, err
 		}
 
+		transferCategory, err := s.repo.EnsureRootCategory(ctx, tx, "uncategorized", currentTemplate.UserID)
+		if err != nil {
+			tx.Rollback()
+			return 0, time.Time{}, err
+		}
+
 		outflow := models.Transaction{
 			UserID:          currentTemplate.UserID,
 			AccountID:       srcAcc.ID,
@@ -2829,6 +2878,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			TxnDate:         txDate,
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 			tx.Rollback()
@@ -2844,6 +2894,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			TxnDate:         txDate,
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
+			CategoryID:      &transferCategory.ID,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 			tx.Rollback()

@@ -2,10 +2,50 @@ package utils_test
 
 import (
 	"testing"
+	"time"
 	"wealth-warden/pkg/utils"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestContentFingerprint(t *testing.T) {
+	day := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	base := utils.ContentFingerprint(day, "expense", decimal.RequireFromString("3.20"), "EUR", "Coffee Shop")
+
+	t.Run("ignores whitespace, case, amount scale and clock time", func(t *testing.T) {
+		assert.Equal(t, base, utils.ContentFingerprint(day, "expense", decimal.RequireFromString("3.20"), "EUR", "  coffee   SHOP "))
+		assert.Equal(t, base, utils.ContentFingerprint(day, "expense", decimal.RequireFromString("3.2000"), "EUR", "Coffee Shop"))
+		assert.Equal(t, base, utils.ContentFingerprint(time.Date(2026, 9, 1, 13, 45, 0, 0, time.UTC), "expense", decimal.RequireFromString("3.20"), "EUR", "Coffee Shop"))
+	})
+
+	t.Run("distinguishes direction, amount, currency, description and date", func(t *testing.T) {
+		assert.NotEqual(t, base, utils.ContentFingerprint(day, "income", decimal.RequireFromString("3.20"), "EUR", "Coffee Shop"))
+		assert.NotEqual(t, base, utils.ContentFingerprint(day, "expense", decimal.RequireFromString("3.21"), "EUR", "Coffee Shop"))
+		assert.NotEqual(t, base, utils.ContentFingerprint(day, "expense", decimal.RequireFromString("3.20"), "USD", "Coffee Shop"))
+		assert.NotEqual(t, base, utils.ContentFingerprint(day, "expense", decimal.RequireFromString("3.20"), "EUR", "Tea Shop"))
+		assert.NotEqual(t, base, utils.ContentFingerprint(day.AddDate(0, 0, 1), "expense", decimal.RequireFromString("3.20"), "EUR", "Coffee Shop"))
+	})
+}
+
+func TestConsumeDuplicate(t *testing.T) {
+	t.Run("partial overlap keeps the surplus", func(t *testing.T) {
+		counts := map[string]int{"fp": 1}
+		assert.True(t, utils.ConsumeDuplicate(counts, "fp"))
+		assert.False(t, utils.ConsumeDuplicate(counts, "fp"))
+	})
+
+	t.Run("full overlap skips every stored copy", func(t *testing.T) {
+		counts := map[string]int{"fp": 2}
+		assert.True(t, utils.ConsumeDuplicate(counts, "fp"))
+		assert.True(t, utils.ConsumeDuplicate(counts, "fp"))
+		assert.False(t, utils.ConsumeDuplicate(counts, "fp"))
+	})
+
+	t.Run("no stored match inserts", func(t *testing.T) {
+		assert.False(t, utils.ConsumeDuplicate(map[string]int{}, "fp"))
+	})
+}
 
 func TestSafeString(t *testing.T) {
 	t.Run("returns empty string for nil pointer", func(t *testing.T) {

@@ -221,7 +221,6 @@ async function submit(): Promise<void> {
     <Button
       label="Save income"
       class="main-button"
-      style="height: 38px"
       :disabled="loading"
       @click="submit"
     />

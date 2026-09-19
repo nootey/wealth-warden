@@ -144,7 +144,6 @@ async function doMerge() {
           label="Merge"
           :disabled="!sourceCategory || !destinationCategory"
           :loading="merging"
-          style="height: 42px"
           @click="confirmMerge"
         />
       </div>

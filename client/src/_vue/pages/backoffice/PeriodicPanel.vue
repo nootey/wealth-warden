@@ -40,7 +40,7 @@ async function getData() {
       <div class="text-sm" style="color: var(--text-secondary)">
         Jobs the app runs on a fixed schedule. Schedules are defined in code.
       </div>
-      <Button class="main-button" style="height: 32px" @click="getData">
+      <Button class="main-button" @click="getData">
         <div class="flex flex-row gap-1 items-center">
           <i class="pi pi-refresh" />
           <span class="mobile-hide"> Refresh </span>

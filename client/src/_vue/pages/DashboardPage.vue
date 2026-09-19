@@ -72,7 +72,6 @@ async function backfillBalances() {
             v-if="onboarded === true"
             label="Refresh"
             icon="pi pi-refresh"
-            style="height: 42px"
             class="main-button"
             :disabled="backfilling"
             @click="backfillBalances"

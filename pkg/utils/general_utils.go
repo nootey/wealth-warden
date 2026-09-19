@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"github.com/shopspring/decimal"
 	"strings"
+	"time"
 	"wealth-warden/internal/models"
 )
 
@@ -54,6 +56,25 @@ func ValidJobState(state string) bool {
 		if s == state {
 			return true
 		}
+	}
+	return false
+}
+
+func ContentFingerprint(day time.Time, direction string, amount decimal.Decimal, currency, description string) string {
+	normDesc := strings.ToLower(strings.Join(strings.Fields(description), " "))
+	return strings.Join([]string{
+		day.UTC().Format("2006-01-02"),
+		direction,
+		amount.StringFixed(4),
+		currency,
+		normDesc,
+	}, "|")
+}
+
+func ConsumeDuplicate(counts map[string]int, fp string) bool {
+	if counts[fp] > 0 {
+		counts[fp]--
+		return true
 	}
 	return false
 }

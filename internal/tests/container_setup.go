@@ -124,7 +124,10 @@ TRUNCATE TABLE
     balances,
     accounts,
     balance_snapshots,
-    ticker_price_history
+    ticker_price_history,
+    rules,
+    rule_conditions,
+    rule_actions
 RESTART IDENTITY CASCADE;
 `
 

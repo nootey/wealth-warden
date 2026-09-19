@@ -114,7 +114,6 @@ async function doMerge() {
           label="Merge"
           :disabled="!sourceAccount || !destinationAccount"
           :loading="merging"
-          style="height: 42px"
           @click="confirmMerge"
         />
       </div>

@@ -59,14 +59,15 @@ func (s *ImportServiceSuite) TestBankImportSkipsKnownExternalIDs() {
 	})
 	s.Require().NoError(err)
 
-	skipped, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, s.bankPayload("nlb_a", "TX1", "TX2"))
+	id1, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, s.bankPayload("nlb_a", "TX1", "TX2"))
 	s.Require().NoError(err)
-	s.Equal(0, skipped)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, id1, accID, models.ImportTypeBank))
 
-	skipped, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, s.bankPayload("nlb_b", "TX2", "TX3"))
+	id2, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, s.bankPayload("nlb_b", "TX2", "TX3"))
 	s.Require().NoError(err)
-	s.Equal(1, skipped)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, id2, accID, models.ImportTypeBank))
 
+	// TX2 repeats across both imports, so only three unique rows must land.
 	var txns []models.Transaction
 	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
 	s.Require().Len(txns, 3)
@@ -76,6 +77,70 @@ func (s *ImportServiceSuite) TestBankImportSkipsKnownExternalIDs() {
 	var imp models.Import
 	s.Require().NoError(s.TC.DB.Where("name LIKE ?", "txns_nlb_b%").First(&imp).Error)
 	s.Equal(models.ImportTypeBank, imp.Type)
+}
+
+// A rule import that references a missing category must fail and store the
+// client-facing reason, so the client can show why it failed.
+func (s *ImportServiceSuite) TestFailedRuleImportStoresClientFacingError() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	payload := models.RuleImportPayload{
+		GeneratedAt: time.Now().UTC(),
+		Rules: []models.RuleExport{{
+			Name:      "missing category rule",
+			IsActive:  true,
+			MatchType: models.RuleMatchAll,
+			Conditions: []models.RuleConditionExport{
+				{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "spar"},
+			},
+			Actions: []models.RuleActionExport{
+				{ActionType: models.RuleActionSetCategory, Value: "no such category"},
+			},
+		}},
+	}
+
+	impID, err := s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload)
+	s.Require().NoError(err)
+
+	err = s.TC.App.ImportService.RunImportRules(s.Ctx, seedUserID, impID)
+	s.Require().Error(err)
+
+	var imp models.Import
+	s.Require().NoError(s.TC.DB.Where("id = ?", impID).First(&imp).Error)
+	s.Equal("failed", imp.Status)
+	s.Require().NotNil(imp.Error)
+	s.Equal(`The category "no such category" from the rule "missing category rule" was not found`, *imp.Error)
+}
+
+// A bank row with a manual category id that does not exist must record the
+// client-facing reason, not the raw gorm error it fails on.
+func (s *ImportServiceSuite) TestFailedTxnImportStoresClientFacingError() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	payload := s.bankPayload("nlb_badcat", "TXB1")
+	badCategory := int64(999999)
+	payload.Txns[0].CategoryID = &badCategory
+
+	impID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	s.Require().NoError(err)
+
+	err = s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, impID, accID, models.ImportTypeBank)
+	s.Require().Error(err)
+
+	var imp models.Import
+	s.Require().NoError(s.TC.DB.Where("id = ?", impID).First(&imp).Error)
+	s.Equal("failed", imp.Status)
+	s.Require().NotNil(imp.Error)
+	s.Equal("The selected category does not exist", *imp.Error)
 }
 
 // A transaction dated on the account's opening day must be allowed, not just the day after.
@@ -107,8 +172,9 @@ func (s *ImportServiceSuite) TestBankImportAllowsTxnOnAccountOpenDate() {
 		}},
 	}
 
-	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	impID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
 	s.Require().NoError(err, "a txn dated the same day the account opened must be allowed")
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, impID, accID, models.ImportTypeBank))
 }
 
 // The earliest txn_date must be found across all rows, not just the first one in the array,
@@ -179,7 +245,9 @@ func (s *ImportServiceSuite) TestImportAccountsSkipsDuplicateName() {
 	payload.Accounts[0].AccountType.Type, payload.Accounts[0].AccountType.SubType = "cash", "checking"
 	payload.Accounts[1].AccountType.Type, payload.Accounts[1].AccountType.SubType = "cash", "checking"
 
-	s.Require().NoError(s.TC.App.ImportService.ImportAccounts(s.Ctx, seedUserID, payload, true))
+	accImpID, err := s.TC.App.ImportService.ImportAccounts(s.Ctx, seedUserID, payload, true)
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportAccounts(s.Ctx, seedUserID, accImpID, true))
 
 	var checkingCount int64
 	s.Require().NoError(s.TC.DB.Model(&models.Account{}).Where("user_id = ? AND name = ?", seedUserID, "Checking").Count(&checkingCount).Error)
@@ -205,7 +273,9 @@ func (s *ImportServiceSuite) TestImportCategoriesSkipsDuplicateNameAndClassifica
 		},
 	}
 
-	s.Require().NoError(s.TC.App.ImportService.ImportCategories(s.Ctx, seedUserID, payload))
+	catImpID, err := s.TC.App.ImportService.ImportCategories(s.Ctx, seedUserID, payload)
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportCategories(s.Ctx, seedUserID, catImpID))
 
 	var household models.Category
 	s.Require().NoError(s.TC.DB.Where("user_id = ? AND name = ?", seedUserID, "household").First(&household).Error)
@@ -260,13 +330,15 @@ func (s *ImportServiceSuite) TestDeleteBankImport() {
 	})
 	s.Require().NoError(err)
 
-	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, s.bankPayload("nlb_del", "TX1", "TX2"))
+	delImpID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, s.bankPayload("nlb_del", "TX1", "TX2"))
 	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, delImpID, accID, models.ImportTypeBank))
 
 	var imp models.Import
 	s.Require().NoError(s.TC.DB.Where("name LIKE ?", "txns_nlb_del%").First(&imp).Error)
 
 	s.Require().NoError(s.TC.App.ImportService.DeleteImport(s.Ctx, seedUserID, imp.ID))
+	s.Require().NoError(s.TC.App.ImportService.RunImportDelete(s.Ctx, seedUserID, imp.ID))
 
 	var count int64
 	s.Require().NoError(s.TC.DB.Model(&models.Transaction{}).Where("import_id = ?", imp.ID).Count(&count).Error)
@@ -311,8 +383,9 @@ func (s *ImportServiceSuite) TestBankImportRowCategoryThenRules() {
 	payload.Txns[1].Description = "SPAR ruled"
 	payload.Txns[2].Description = "PETROL"
 
-	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	rulesImpID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
 	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, rulesImpID, accID, models.ImportTypeBank))
 
 	var txns []models.Transaction
 	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
@@ -323,6 +396,44 @@ func (s *ImportServiceSuite) TestBankImportRowCategoryThenRules() {
 	var uncategorized models.Category
 	s.Require().NoError(s.TC.DB.Where("classification = ?", "uncategorized").First(&uncategorized).Error)
 	s.Equal(uncategorized.ID, *txns[2].CategoryID)
+}
+
+// Parsing runs rules so the preview carries the same category the commit would resolve; unmatched rows stay blank.
+func (s *ImportServiceSuite) TestApplyRulesToBankPayloadFillsGuess() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	ruleCat, err := s.TC.App.TransactionService.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Parse Guess Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, &models.RuleReq{
+		Name:       "parse-guess",
+		MatchType:  models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{{Field: models.RuleFieldDescription, Operator: models.RuleOpContains, Value: "zzparseguess"}},
+		Actions:    []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(ruleCat, 10)}},
+	})
+	s.Require().NoError(err)
+
+	payload := s.bankPayload("nlb_guess", "TX1", "TX2")
+	payload.Txns[0].Description = "ZZPARSEGUESS ruled"
+	payload.Txns[1].Description = "PETROL"
+
+	s.Require().NoError(s.TC.App.ImportService.ApplyRulesToBankPayload(s.Ctx, seedUserID, &payload))
+
+	s.Require().NotNil(payload.Txns[0].CategoryID)
+	s.Equal(ruleCat, *payload.Txns[0].CategoryID)
+	s.Nil(payload.Txns[1].CategoryID)
+}
+
+// Re-applying rules recomputes from scratch, so a stale guess is cleared when no active rule matches.
+func (s *ImportServiceSuite) TestApplyRulesToBankPayloadClearsStaleGuess() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	stale := int64(999999)
+	payload := s.bankPayload("nlb_stale", "TX1")
+	payload.Txns[0].Description = "NO ACTIVE RULE MATCHES THIS"
+	payload.Txns[0].CategoryID = &stale
+
+	s.Require().NoError(s.TC.App.ImportService.ApplyRulesToBankPayload(s.Ctx, seedUserID, &payload))
+	s.Nil(payload.Txns[0].CategoryID)
 }
 
 // A rule matching on direction must only apply to rows on that side, even when the description matches too.
@@ -357,8 +468,9 @@ func (s *ImportServiceSuite) TestBankImportRuleMatchesOnDirection() {
 	payload.Txns[1].Description = "AMAZON refund"
 	payload.Txns[1].TransactionType = "income"
 
-	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	dirImpID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
 	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, dirImpID, accID, models.ImportTypeBank))
 
 	var txns []models.Transaction
 	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
@@ -407,6 +519,8 @@ func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
 
 	export, err := s.TC.App.ExportService.CreateExport(s.Ctx, seedUserID)
 	s.Require().NoError(err)
+	err = s.TC.App.ExportService.RunExport(s.Ctx, export.ID, seedUserID)
+	s.Require().NoError(err)
 	zipData, err := s.TC.App.ExportService.DownloadExport(s.Ctx, export.ID, seedUserID)
 	s.Require().NoError(err)
 
@@ -446,7 +560,9 @@ func (s *ImportServiceSuite) TestExportThenImportRulesRoundTrip() {
 	s.Require().NoError(s.TC.App.RulesService.DeleteRule(s.Ctx, seedUserID, originalRuleID))
 
 	importPayload := models.RuleImportPayload{GeneratedAt: payload.GeneratedAt, Rules: []models.RuleExport{*exported}}
-	s.Require().NoError(s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, importPayload))
+	ruleImpID, err := s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, importPayload)
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportRules(s.Ctx, seedUserID, ruleImpID))
 
 	var imported models.Rule
 	s.Require().NoError(s.TC.DB.
@@ -511,7 +627,9 @@ func (s *ImportServiceSuite) TestImportRulesSkipsDuplicateConditionsAndActions()
 		},
 	}
 
-	s.Require().NoError(s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload))
+	dupRuleImpID, err := s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload)
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportRules(s.Ctx, seedUserID, dupRuleImpID))
 
 	var dupCount int64
 	s.Require().NoError(s.TC.DB.Model(&models.Rule{}).Where("user_id = ? AND name = ?", seedUserID, "duplicate spar rule").Count(&dupCount).Error)
@@ -541,7 +659,9 @@ func (s *ImportServiceSuite) TestImportRulesRejectsInvalidCondition() {
 		},
 	}
 
-	err := s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload)
+	badRuleImpID, err := s.TC.App.ImportService.ImportRules(s.Ctx, seedUserID, payload)
+	s.Require().NoError(err, "the invalid condition is caught when the job runs, not at stage time")
+	err = s.TC.App.ImportService.RunImportRules(s.Ctx, seedUserID, badRuleImpID)
 	s.Require().Error(err)
 	status, _ := apperr.Resolve(err)
 	s.Equal(http.StatusUnprocessableEntity, status)

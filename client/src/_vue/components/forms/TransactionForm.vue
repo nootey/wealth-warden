@@ -712,14 +712,12 @@ async function deleteRecord(id: number, tx_type: string) {
           "
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
         <Button
           v-else-if="canRestore"
           class="main-button"
           label="Restore"
-          style="height: 42px"
           @click="restoreTransaction"
         />
         <Button
@@ -730,7 +728,6 @@ async function deleteRecord(id: number, tx_type: string) {
           "
           label="Delete transaction"
           class="delete-button"
-          style="height: 42px"
           @click="deleteConfirmation(record.id!, record.direction)"
         />
         <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">

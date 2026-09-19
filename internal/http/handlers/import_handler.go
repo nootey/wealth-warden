@@ -48,6 +48,7 @@ func (h *ImportHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.POST("custom/repayments", authz.RequireAllMW("manage_data"), h.TransferRepaymentsFromImport)
 	apiGroup.POST("custom/trades", authz.RequireAllMW("manage_data"), h.TransferInvestmentTrades)
 	apiGroup.POST("bank/parse", authz.RequireAllMW("manage_data"), h.ParseBankStatement)
+	apiGroup.POST("bank/apply-rules", authz.RequireAllMW("manage_data"), h.ApplyBankRules)
 	apiGroup.POST("bank/transactions", authz.RequireAllMW("manage_data"), h.ImportBankTransactions)
 	apiGroup.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteImport)
 }
@@ -226,12 +227,35 @@ func (h *ImportHandler) ParseBankStatement(c *gin.Context) {
 		return
 	}
 
+	if err := h.Service.ApplyRulesToBankPayload(c.Request.Context(), c.GetInt64("user_id"), &payload); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"bank":         bankName,
 		"identifier":   payload.Identifier,
 		"count":        len(payload.Txns),
 		"transactions": payload.Txns,
 	})
+}
+
+func (h *ImportHandler) ApplyBankRules(c *gin.Context) {
+	var body struct {
+		Transactions []models.JSONTxn `json:"transactions"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A transactions array is required", err))
+		return
+	}
+
+	payload := models.TxnImportPayload{Txns: body.Transactions}
+	if err := h.Service.ApplyRulesToBankPayload(c.Request.Context(), c.GetInt64("user_id"), &payload); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"transactions": payload.Txns})
 }
 
 func (h *ImportHandler) ImportAccounts(c *gin.Context) {
@@ -289,12 +313,12 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ImportAccounts(ctx, userID, payload, useBalances); err != nil {
+	if _, err := h.Service.ImportAccounts(ctx, userID, payload, useBalances); err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	utils.SuccessMessage(c, "Account import successful", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Account import started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) ImportCategories(c *gin.Context) {
@@ -340,12 +364,12 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ImportCategories(ctx, userID, payload); err != nil {
+	if _, err := h.Service.ImportCategories(ctx, userID, payload); err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	utils.SuccessMessage(c, "Category import successful", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Category import started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) ImportRules(c *gin.Context) {
@@ -391,12 +415,12 @@ func (h *ImportHandler) ImportRules(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ImportRules(ctx, userID, payload); err != nil {
+	if _, err := h.Service.ImportRules(ctx, userID, payload); err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	utils.SuccessMessage(c, "Rule import successful", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Rule import started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) ImportTransactions(c *gin.Context) {
@@ -469,7 +493,7 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Transaction import successful", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Transaction import started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) ImportBankTransactions(c *gin.Context) {
@@ -515,17 +539,12 @@ func (h *ImportHandler) ImportBankTransactions(c *gin.Context) {
 		return
 	}
 
-	skipped, err := h.Service.ImportTransactions(ctx, userID, checkAccID, models.ImportTypeBank, payload)
-	if err != nil {
+	if _, err := h.Service.ImportTransactions(ctx, userID, checkAccID, models.ImportTypeBank, payload); err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	msg := fmt.Sprintf("Imported %d transactions", len(payload.Txns)-skipped)
-	if skipped > 0 {
-		msg = fmt.Sprintf("%s, skipped %d already imported", msg, skipped)
-	}
-	utils.SuccessMessage(c, msg, "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Transaction import started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
@@ -552,7 +571,7 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Investments transferred successfully", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Investment transfer started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
@@ -579,7 +598,7 @@ func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Savings transferred successfully", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Savings transfer started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
@@ -606,7 +625,7 @@ func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Repayments transferred successfully", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Repayment transfer started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) DeleteImport(c *gin.Context) {
@@ -625,7 +644,7 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Import deletion started", "Success", http.StatusAccepted)
 }
 
 func (h *ImportHandler) TransferInvestmentTrades(c *gin.Context) {
@@ -670,5 +689,5 @@ func (h *ImportHandler) TransferInvestmentTrades(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Investments transferred successfully", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Trade import started", "Success", http.StatusAccepted)
 }

@@ -33,6 +33,7 @@ func (h *RulesHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.PUT("", authz.RequireAllMW("manage_data"), h.InsertRule)
 	apiGroup.PUT(":id", authz.RequireAllMW("manage_data"), h.UpdateRule)
 	apiGroup.DELETE(":id", authz.RequireAllMW("manage_data"), h.DeleteRule)
+	apiGroup.POST("/apply", authz.RequireAllMW("manage_data"), h.ApplyRules)
 }
 
 func (h *RulesHandler) GetRules(c *gin.Context) {
@@ -137,4 +138,16 @@ func (h *RulesHandler) DeleteRule(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Rule deleted", "Success", http.StatusOK)
+}
+
+func (h *RulesHandler) ApplyRules(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	if err := h.service.DispatchApplyRules(ctx, userID); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Applying rules to uncategorized transactions", "Success", http.StatusOK)
 }

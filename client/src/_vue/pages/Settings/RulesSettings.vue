@@ -17,11 +17,32 @@ onMounted(async () => {
 });
 
 const createModal = ref(false);
+const applying = ref(false);
 
 const rules = computed<Rule[]>(() => rulesStore.rules);
 
 async function getRules() {
   await rulesStore.getRules();
+}
+
+async function applyRules() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  applying.value = true;
+  try {
+    const res = await rulesStore.applyRules();
+    toastStore.successResponseToast(res);
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  } finally {
+    applying.value = false;
+  }
 }
 
 async function handleEmit(type: string) {
@@ -80,15 +101,25 @@ async function handleEmit(type: string) {
             </h5>
           </div>
 
-          <Button
-            class="main-button w-4/12"
-            @click="handleEmit('openRuleCreate')"
-          >
-            <div class="flex flex-row gap-1 items-center">
-              <i class="pi pi-plus" />
-              <span class="mobile-hide"> New rule </span>
-            </div>
-          </Button>
+          <div class="flex flex-row gap-2 shrink-0">
+            <Button
+              class="outline-button"
+              :disabled="applying"
+              @click="applyRules"
+            >
+              <div class="flex flex-row gap-1 items-center">
+                <i :class="applying ? 'pi pi-spinner pi-spin' : 'pi pi-bolt'" />
+                <span class="mobile-hide"> Apply rules </span>
+              </div>
+            </Button>
+
+            <Button class="main-button" @click="handleEmit('openRuleCreate')">
+              <div class="flex flex-row gap-1 items-center">
+                <i class="pi pi-plus" />
+                <span class="mobile-hide"> New rule </span>
+              </div>
+            </Button>
+          </div>
         </div>
 
         <div v-if="rules" class="w-full flex flex-col gap-2">

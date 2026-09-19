@@ -166,8 +166,14 @@ func (s *BalanceServiceSuite) TestRecomputeWaitsForConcurrentDelta() {
 	s.Require().NoError(err)
 
 	amount := decimal.NewFromInt(40)
+	// category_id is NOT NULL; seedAccounts already created the user's uncategorized
+	// root, so reuse it for this direct opening-transaction insert.
+	var catID int64
+	s.Require().NoError(s.TC.DB.Raw(
+		`SELECT id FROM categories WHERE user_id = ? AND classification = 'uncategorized' AND parent_id IS NULL LIMIT 1`,
+		seedUserID).Scan(&catID).Error)
 	writer := s.TC.DB.Begin()
-	txn := models.NewOpeningTransaction(seedUserID, id, nil, "EUR", s.today(), amount)
+	txn := models.NewOpeningTransaction(seedUserID, id, &catID, "EUR", s.today(), amount)
 	s.Require().NoError(writer.Create(&txn).Error)
 	s.Require().NoError(repo.ApplyDelta(s.Ctx, writer, id, amount))
 

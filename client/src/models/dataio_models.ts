@@ -14,6 +14,7 @@ export type BankTxn = {
   category: string;
   description: string;
   external_txn_id: string;
+  category_id?: number | null;
 };
 
 export type BankParseResponse = {
@@ -37,6 +38,7 @@ export type Import = {
   account_id: number;
   name: string;
   status: string;
+  error?: string | null;
   type: string;
   sub_type: string;
   currency: string;

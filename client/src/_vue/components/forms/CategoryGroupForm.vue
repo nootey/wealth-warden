@@ -258,7 +258,6 @@ const searchClassifications = (event: { query: string }) => {
           :label="(mode == 'create' ? 'Add' : 'Update') + ' group'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
       </div>

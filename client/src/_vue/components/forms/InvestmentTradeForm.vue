@@ -610,7 +610,6 @@ async function deleteRecord(id: number) {
     <Button
       class="main-button"
       :label="(mode == 'create' ? 'Insert' : 'Update') + ' trade'"
-      style="height: 42px"
       :disabled="loading"
       @click="manageRecord"
     />
@@ -618,7 +617,6 @@ async function deleteRecord(id: number) {
       v-if="mode == 'update'"
       label="Delete trade"
       class="delete-button"
-      style="height: 42px"
       :disabled="loading"
       @click="deleteConfirmation(record.id!)"
     />
