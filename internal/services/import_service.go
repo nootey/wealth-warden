@@ -650,7 +650,37 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 	}
 	ruleCategories := map[int64]models.Category{}
 
+	contentCounts := map[string]int{}
+	if source == models.ImportTypeBank {
+		needFallback := false
+		for _, txn := range payload.Txns {
+			if txn.ExternalTxnID == nil || *txn.ExternalTxnID == "" {
+				needFallback = true
+				break
+			}
+		}
+		if needFallback {
+			from := utils.LocalMidnightUTC(payload.Txns[0].TxnDate, loc)
+			to := utils.LocalMidnightUTC(payload.Txns[len(payload.Txns)-1].TxnDate, loc)
+			existing, err := s.txnRepo.FindTransactionsForDedup(ctx, tx, sourceAcc.ID, from, to)
+			if err != nil {
+				tx.Rollback()
+				s.markImportFailed(ctx, userID, importID, err, zap.Int64("account_id", sourceAcc.ID))
+				return err
+			}
+			for _, e := range existing {
+				desc := ""
+				if e.Description != nil {
+					desc = *e.Description
+				}
+				fp := utils.ContentFingerprint(e.TxnDate, string(e.Direction), e.Amount, e.Currency, desc)
+				contentCounts[fp]++
+			}
+		}
+	}
+
 	skipped := 0
+	contentSkipped := 0
 	for i, txn := range payload.Txns {
 
 		if source == models.ImportTypeBank && txn.ExternalTxnID != nil && *txn.ExternalTxnID != "" {
@@ -741,6 +771,15 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 
 		if txn.TransactionType == "income" || txn.TransactionType == "expense" {
 
+			if source == models.ImportTypeBank && (txn.ExternalTxnID == nil || *txn.ExternalTxnID == "") {
+				fp := utils.ContentFingerprint(txDay, txn.TransactionType, amount, sourceAcc.Currency, desc)
+				if utils.ConsumeDuplicate(contentCounts, fp) {
+					skipped++
+					contentSkipped++
+					continue
+				}
+			}
+
 			t := models.Transaction{
 				UserID:        userID,
 				AccountID:     sourceAcc.ID,
@@ -807,6 +846,7 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)-skipped), changes, "transactions_count")
 	utils.CompareChanges("", strconv.Itoa(skipped), changes, "skipped_count")
+	utils.CompareChanges("", strconv.Itoa(contentSkipped), changes, "duplicates_skipped")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
