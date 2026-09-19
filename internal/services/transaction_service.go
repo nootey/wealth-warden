@@ -83,6 +83,7 @@ type TransactionService struct {
 	balanceRepo   repositories.BalanceRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	savingsRepo   repositories.SavingsRepositoryInterface
+	rulesRepo     repositories.RulesRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 	logger        *zap.Logger
 }
@@ -94,6 +95,7 @@ func NewTransactionService(
 	balanceRepo *repositories.BalanceRepository,
 	settingsRepo *repositories.SettingsRepository,
 	savingsRepo *repositories.SavingsRepository,
+	rulesRepo *repositories.RulesRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *TransactionService {
 	return &TransactionService{
@@ -102,6 +104,7 @@ func NewTransactionService(
 		balanceRepo:   balanceRepo,
 		settingsRepo:  settingsRepo,
 		savingsRepo:   savingsRepo,
+		rulesRepo:     rulesRepo,
 		jobDispatcher: jobDispatcher,
 		logger:        logger,
 	}
@@ -217,6 +220,28 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	}
 
 	return &record, nil
+}
+
+func (s *TransactionService) autoAssignCategory(ctx context.Context, tx *gorm.DB, userID int64, req *models.TransactionReq, fallback models.Category) (models.Category, error) {
+	rules, err := s.rulesRepo.FindRules(ctx, tx, userID, true)
+	if err != nil {
+		return models.Category{}, err
+	}
+
+	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
+	cats := utils.MatchingRuleCategories(rules, utils.SafeString(req.Description), req.Amount, direction)
+	for _, id := range cats {
+		category, err := s.repo.FindCategoryByID(ctx, tx, id, userID, false)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// Rule points at a deleted category; skip it, same as import.
+				continue
+			}
+			return models.Category{}, err
+		}
+		return category, nil
+	}
+	return fallback, nil
 }
 
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
@@ -369,6 +394,16 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 				tx.Rollback()
 			}
 			return models.InsertResult{}, fmt.Errorf("can't find default category %w", err)
+		}
+	}
+
+	if category.Classification == "uncategorized" {
+		category, err = s.autoAssignCategory(ctx, tx, userID, req, category)
+		if err != nil {
+			if ownsTx {
+				tx.Rollback()
+			}
+			return models.InsertResult{}, err
 		}
 	}
 

@@ -351,10 +351,7 @@ async function saveSettings(): Promise<void> {
             :disabled="loading"
             @change="(e) => copyBrackets(e.value, type)"
           />
-          <Button
-            class="main-button"
-            @click="openAddBracket(type)"
-          >
+          <Button class="main-button" @click="openAddBracket(type)">
             <div class="flex flex-row gap-1 items-center">
               <i class="pi pi-plus" />
               <span>Add bracket</span>
