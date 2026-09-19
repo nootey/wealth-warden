@@ -843,7 +843,6 @@ async function startOperation() {
           :label="(mode == 'create' ? 'Add' : 'Update') + ' template'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
         <Button
@@ -852,7 +851,6 @@ async function startOperation() {
           label="Rename template"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="renameRecord"
         />
         <Button
@@ -863,14 +861,12 @@ async function startOperation() {
           "
           label="Execute now"
           class="outline-button"
-          style="height: 42px"
           @click="executeConfirmation"
         />
         <Button
           v-if="mode === 'update'"
           label="Delete template"
           class="delete-button"
-          style="height: 42px"
           @click="deleteConfirmation"
         />
       </div>

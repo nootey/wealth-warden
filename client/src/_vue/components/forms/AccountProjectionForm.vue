@@ -490,19 +490,13 @@ async function revertProjection() {
         </div>
 
         <div class="flex flex-col w-full">
-          <Button
-            class="main-button"
-            label="Save"
-            style="height: 42px"
-            @click="saveProjection"
-          />
+          <Button class="main-button" label="Save" @click="saveProjection" />
         </div>
 
         <div class="flex flex-col w-full">
           <Button
             class="delete-button"
             label="Revert"
-            style="height: 42px"
             @click="revertProjection"
           />
         </div>

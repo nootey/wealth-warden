@@ -277,14 +277,12 @@ async function restoreCategoryName() {
           :label="(mode == 'create' ? 'Add' : 'Update') + ' category'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
         <Button
           v-else
           class="main-button"
           label="Restore"
-          style="height: 42px"
           @click="restoreCategory"
         />
       </div>

@@ -130,7 +130,7 @@ async function runZeroCostMigration() {
             <div class="mt-2">
               <Button
                 label="Run backfill"
-                severity="danger"
+                class="delete-button"
                 @click="triggerAssetCashFlowSync"
               />
             </div>
@@ -149,7 +149,7 @@ async function runZeroCostMigration() {
             <div class="mt-2">
               <Button
                 label="Run correction"
-                severity="danger"
+                class="delete-button"
                 @click="triggerCorrectFeeAccounting"
               />
             </div>
@@ -166,7 +166,7 @@ async function runZeroCostMigration() {
             <div class="mt-2">
               <Button
                 label="Run backfill"
-                severity="danger"
+                class="delete-button"
                 @click="triggerIncomeFXBackfill"
               />
             </div>
@@ -182,7 +182,7 @@ async function runZeroCostMigration() {
             <div class="mt-2">
               <Button
                 label="Run migration"
-                severity="danger"
+                class="delete-button"
                 @click="runZeroCostMigration"
               />
             </div>

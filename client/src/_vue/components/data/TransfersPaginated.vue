@@ -215,7 +215,6 @@ defineExpose({ refresh });
         label="Update transfer"
         :disabled="submitting"
         :loading="submitting"
-        style="height: 42px"
         @click="submitUpdate"
       />
     </div>

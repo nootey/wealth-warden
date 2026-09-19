@@ -267,7 +267,6 @@ async function saveSettings(): Promise<void> {
       <Button
         label="Save bracket"
         class="main-button"
-        style="height: 38px"
         :disabled="loading"
         @click="submitBracket"
       />
@@ -307,7 +306,6 @@ async function saveSettings(): Promise<void> {
           <Button
             label="Save"
             class="main-button ml-auto"
-            style="height: 32px"
             :disabled="loading"
             @click="saveSettings"
           />
@@ -355,7 +353,6 @@ async function saveSettings(): Promise<void> {
           />
           <Button
             class="main-button"
-            style="height: 30px"
             @click="openAddBracket(type)"
           >
             <div class="flex flex-row gap-1 items-center">
