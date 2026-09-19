@@ -385,37 +385,22 @@ defineExpose({ isDisabled, importing, importTransactions });
         <Tab value="0"> Bank </Tab>
         <Tab value="1"> Custom </Tab>
       </TabList>
-      <TabPanels>
+      <TabPanels class="w-full">
         <TabPanel value="0">
           <div class="flex flex-col w-full justify-center items-center gap-4">
             <h3>Import your bank statements</h3>
-            <span class="text-sm" style="color: var(--text-secondary)"
+            <span
+              class="text-sm max-w-2xl text-center"
+              style="color: var(--text-secondary)"
               >Upload PDF monthly statements from your bank, or generate CSV
               exports. The transactions will be extracted automatically. Use one
               kind per import, since PDF rows cannot be deduplicated against CSV
               rows.</span
             >
 
-            <div
-              class="flex flex-col gap-2 p-4 rounded-xl text-sm"
-              style="
-                background: var(--background-secondary);
-                border: 1px solid var(--border-color);
-                color: var(--text-secondary);
-              "
-            >
-              <div class="flex flex-row gap-2 items-center justify-center">
-                <i class="pi pi-info-circle" style="flex-shrink: 0" />
-                <span class="text-xs">
-                  Only NLB bank statements are tested. CSV import expects these
-                  columns: amount, +/-, value date, description. Other banks or
-                  formats may fail to import or import incorrectly.
-                </span>
-              </div>
-            </div>
-
             <FileUpload
               ref="bankUploadRef"
+              class="w-full"
               accept=".pdf, .csv, application/pdf, text/csv"
               :max-file-size="10485760"
               :multiple="true"
@@ -427,53 +412,137 @@ defineExpose({ isDisabled, importing, importTransactions });
               @clear="onBankClear"
             >
               <template #header="{ chooseCallback }">
-                <div class="w-full flex flex-row justify-center">
-                  <Button
-                    class="outline-button w-3/12"
-                    label="Upload"
-                    @click="chooseCallback()"
-                  />
+                <div class="flex flex-col gap-3 w-full">
+                  <div
+                    class="flex flex-row w-full gap-2 items-center p-3 rounded-lg text-xs"
+                    style="
+                      background: var(--background-secondary);
+                      border: 1px solid var(--border-color);
+                      color: var(--text-secondary);
+                    "
+                  >
+                    <i class="pi pi-info-circle" style="flex-shrink: 0" />
+                    <span>
+                      Only NLB bank statements are tested. CSV import expects
+                      these columns: amount, +/-, value date, description. Other
+                      banks or formats may fail to import or import incorrectly.
+                    </span>
+                  </div>
+
+                  <div class="flex flex-col items-center gap-2 py-4">
+                    <i
+                      class="pi pi-cloud-upload text-3xl"
+                      style="color: var(--text-secondary)"
+                    />
+                    <span class="text-sm" style="color: var(--text-secondary)"
+                      >Drag files here, or</span
+                    >
+                    <Button
+                      class="outline-button"
+                      label="Upload"
+                      @click="chooseCallback()"
+                    />
+                    <span class="text-xs" style="color: var(--text-secondary)"
+                      >Accepts .pdf and .csv</span
+                    >
+                  </div>
                 </div>
               </template>
 
               <template #content="{ removeFileCallback }">
                 <div
                   v-if="bankFiles.length > 0"
-                  class="flex flex-col gap-1 w-full items-center"
+                  class="flex flex-col gap-2 w-full"
                 >
                   <h5>Pending</h5>
-                  <div class="flex flex-wrap gap-2 w-full">
+                  <div class="flex flex-col gap-2 w-full">
                     <div
                       v-for="(file, index) in bankFiles"
                       :key="file.name + file.type + file.size"
-                      class="flex flex-row gap-2 p-1 w-full justify-center items-center"
+                      class="flex flex-row gap-2 items-center justify-between p-2 rounded-lg"
+                      style="border: 1px solid var(--border-color)"
                     >
-                      <span
-                        class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
-                        >{{ file.name }}</span
+                      <div class="flex flex-row gap-2 items-center min-w-0">
+                        <i
+                          class="pi pi-file"
+                          style="color: var(--text-secondary); flex-shrink: 0"
+                        />
+                        <span
+                          class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
+                          >{{ file.name }}</span
+                        >
+                      </div>
+                      <div
+                        class="flex flex-row gap-2 items-center"
+                        style="flex-shrink: 0"
                       >
-                      <Badge
-                        :value="bankTxns.length > 0 ? 'Parsed' : 'Pending'"
-                        :severity="bankTxns.length > 0 ? 'info' : 'warn'"
-                      />
-                      <i
-                        class="pi pi-times hover-icon"
-                        style="color: var(--p-red-300)"
-                        @click="removeFileCallback(index)"
-                      />
+                        <Badge
+                          :value="bankTxns.length > 0 ? 'Parsed' : 'Pending'"
+                          :severity="bankTxns.length > 0 ? 'info' : 'warn'"
+                        />
+                        <i
+                          class="pi pi-times hover-icon"
+                          style="color: var(--p-red-300)"
+                          @click="removeFileCallback(index)"
+                        />
+                      </div>
                     </div>
                   </div>
+                  <Button
+                    v-if="bankTxns.length === 0"
+                    class="outline-button self-center mt-1"
+                    label="Parse"
+                    :loading="bankParsing"
+                    @click="parseBankStatement"
+                  />
                 </div>
               </template>
             </FileUpload>
 
-            <Button
-              v-if="bankFiles.length > 0 && bankTxns.length === 0"
-              class="outline-button w-3/12"
-              label="Parse"
-              :loading="bankParsing"
-              @click="parseBankStatement"
-            />
+            <div
+              v-if="bankTxns.length > 0"
+              class="flex flex-col w-full gap-3 items-center justify-center"
+            >
+              <span class="text-sm" style="color: var(--text-secondary)">
+                Select an account which will receive the import transactions.
+              </span>
+              <AutoComplete
+                v-model="selectedCheckingAcc"
+                size="small"
+                :suggestions="filteredSourceAccounts"
+                option-label="name"
+                force-selection
+                placeholder="Select checking account"
+                dropdown
+                @complete="searchAccount($event, 'source')"
+              />
+              <div
+                class="flex items-center gap-1 text-sm"
+                style="color: var(--text-secondary)"
+              >
+                <Checkbox
+                  v-model="useNonCheckingAccount"
+                  :binary="true"
+                  input-id="use-non-check-bank"
+                  @update:model-value="fetchSourceAccounts"
+                />
+                <label
+                  for="use-non-check-bank"
+                  style="color: var(--text-secondary)"
+                  >Use non checking account</label
+                >
+              </div>
+              <span
+                v-if="!selectedCheckingAcc"
+                class="text-sm"
+                style="color: var(--text-secondary)"
+                >Please select an account.</span
+              >
+            </div>
+
+            <div v-if="bankTxns.length > 0" class="flex w-full justify-end">
+              <RulesManager @changed="refreshBankGuesses" />
+            </div>
 
             <div
               v-if="bankTxns.length > 0"
@@ -492,17 +561,13 @@ defineExpose({ isDisabled, importing, importTransactions });
               </span>
             </div>
 
-            <div v-if="bankTxns.length > 0" class="flex w-full justify-end">
-              <RulesManager @changed="refreshBankGuesses" />
-            </div>
-
             <div
               v-if="bankTxns.length > 0"
               class="flex flex-col xl:flex-row w-full gap-4"
             >
               <div class="flex flex-col w-full min-w-0 gap-2">
                 <div class="flex items-center gap-2">
-                  <span class="font-medium">Uncategorized</span>
+                  <h5 class="m-0">Uncategorized</h5>
                   <Tag
                     :value="String(uncategorizedRows.length)"
                     severity="warn"
@@ -585,7 +650,7 @@ defineExpose({ isDisabled, importing, importTransactions });
 
               <div class="flex flex-col w-full min-w-0 gap-2">
                 <div class="flex items-center gap-2">
-                  <span class="font-medium">Categorized</span>
+                  <h5 class="m-0">Categorized</h5>
                   <Tag
                     :value="String(categorizedRows.length)"
                     severity="success"
@@ -665,47 +730,6 @@ defineExpose({ isDisabled, importing, importTransactions });
                   </Column>
                 </DataTable>
               </div>
-            </div>
-
-            <div
-              v-if="bankTxns.length > 0"
-              class="flex flex-col w-full gap-3 items-center justify-center"
-            >
-              <span class="text-sm" style="color: var(--text-secondary)">
-                Select an account which will receive the import transactions.
-              </span>
-              <AutoComplete
-                v-model="selectedCheckingAcc"
-                size="small"
-                :suggestions="filteredSourceAccounts"
-                option-label="name"
-                force-selection
-                placeholder="Select checking account"
-                dropdown
-                @complete="searchAccount($event, 'source')"
-              />
-              <div
-                class="flex items-center gap-1 text-sm"
-                style="color: var(--text-secondary)"
-              >
-                <Checkbox
-                  v-model="useNonCheckingAccount"
-                  :binary="true"
-                  input-id="use-non-check-bank"
-                  @update:model-value="fetchSourceAccounts"
-                />
-                <label
-                  for="use-non-check-bank"
-                  style="color: var(--text-secondary)"
-                  >Use non checking account</label
-                >
-              </div>
-              <span
-                v-if="!selectedCheckingAcc"
-                class="text-sm"
-                style="color: var(--text-secondary)"
-                >Please select an account.</span
-              >
             </div>
           </div>
         </TabPanel>

@@ -123,7 +123,7 @@ async function manipulateDialog(modal: string, value: any) {
         <div class="flex flex-row items-center gap-2 w-full">
           <div class="w-full flex flex-col gap-2">
             <span>Data Import</span>
-            <span class="text-sn" style="color: var(--text-secondary)">
+            <span class="text-sm" style="color: var(--text-secondary)">
               Manage your imported data.
             </span>
           </div>
