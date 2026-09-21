@@ -92,6 +92,10 @@ type TransactionRepositoryInterface interface {
 	BulkUpdateTemplateCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) error
 	FindUncategorizedTransactions(ctx context.Context, tx *gorm.DB, userID, uncategorizedCategoryID, afterID int64, limit int) ([]models.Transaction, error)
 	BulkSetTransactionCategoryByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID, userID int64) (int64, error)
+	BulkSetTransactionDescriptionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, description *string, userID int64) (int64, error)
+	BulkSetTransactionCategoryDirectionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID int64, direction models.TransactionDirection, userID int64) (int64, error)
+	BulkDeleteTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) (int64, error)
+	FindTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) ([]models.Transaction, error)
 }
 
 type TransactionRepository struct {
@@ -1572,6 +1576,84 @@ func (r *TransactionRepository) BulkSetTransactionCategoryByIDs(ctx context.Cont
 			"updated_at":  time.Now().UTC(),
 		})
 	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) BulkSetTransactionDescriptionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, description *string, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"description": description,
+			"updated_at":  time.Now().UTC(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) BulkSetTransactionCategoryDirectionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID int64, direction models.TransactionDirection, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"category_id": categoryID,
+			"direction":   direction,
+			"updated_at":  time.Now().UTC(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) BulkDeleteTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	now := time.Now().UTC()
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"deleted_at": now,
+			"updated_at": now,
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) FindTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) ([]models.Transaction, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Transaction
+	err := db.
+		Preload("Category").
+		Preload("Account").
+		Where("id IN ? AND user_id = ? AND transactions.deleted_at IS NULL", ids, userID).
+		Find(&records).Error
+	return records, err
 }
 
 func (r *TransactionRepository) BulkUpdateTemplateCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) error {

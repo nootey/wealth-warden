@@ -1,11 +1,21 @@
 package utils
 
 import (
-	"github.com/shopspring/decimal"
+	"strconv"
 	"strings"
 	"time"
 	"wealth-warden/internal/models"
+
+	"github.com/shopspring/decimal"
 )
+
+func JoinInt64s(values []int64, sep string) string {
+	parts := make([]string, len(values))
+	for i, v := range values {
+		parts[i] = strconv.FormatInt(v, 10)
+	}
+	return strings.Join(parts, sep)
+}
 
 func SafeString(s *string) string {
 	if s == nil {

@@ -25,6 +25,18 @@ export function isTransactionDeletable(type: TransactionType): boolean {
   return type === "ledger" || type === "transfer" || type === "adjustment";
 }
 
+export function isBulkFieldEditable(type: TransactionType): boolean {
+  return type === "ledger";
+}
+
+export function isBulkDeletable(type: TransactionType): boolean {
+  return type === "ledger" || type === "adjustment";
+}
+
+export function isBulkSelectable(type: TransactionType): boolean {
+  return isBulkDeletable(type) || isBulkFieldEditable(type);
+}
+
 export interface Transaction {
   id: number | null;
   account_id: number | null;

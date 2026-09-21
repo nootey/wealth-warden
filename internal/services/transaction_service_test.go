@@ -4235,3 +4235,219 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_DoesNotApplyRules() 
 	s.Require().NotNil(edited.CategoryID)
 	s.Assert().Equal(uncategorizedID, *edited.CategoryID, "edit must not auto-assign a rule category")
 }
+
+func (s *TransactionServiceTestSuite) newBulkAccount(userID int64, balance decimal.Decimal) int64 {
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Bulk Ops Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &balance,
+		OpenedAt:       time.Now().AddDate(0, 0, -30),
+	})
+	s.Require().NoError(err)
+	return accID
+}
+
+func (s *TransactionServiceTestSuite) insertLedgerTxn(userID, accID int64, dir models.TransactionDirection, amount decimal.Decimal, desc string) int64 {
+	d := desc
+	res, err := s.TC.App.TransactionService.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:   accID,
+		Direction:   dir,
+		Amount:      amount,
+		TxnDate:     time.Now().UTC().Truncate(24 * time.Hour),
+		Description: &d,
+	})
+	s.Require().NoError(err)
+	return res.ID
+}
+
+// Bulk re-categorize updates every eligible ledger row to the target category.
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategory() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(100000))
+
+	id1 := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(1000), "a")
+	id2 := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(2000), "b")
+
+	catID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "BulkSetCategory", Classification: "expense"})
+	s.Require().NoError(err)
+
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:        []int64{id1, id2},
+		Action:     models.BulkActionSetCategory,
+		CategoryID: &catID,
+	})
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(2), res.Processed)
+	s.Assert().Equal(int64(0), res.Skipped)
+
+	for _, id := range []int64{id1, id2} {
+		var tr models.Transaction
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
+		s.Require().NotNil(tr.CategoryID)
+		s.Assert().Equal(catID, *tr.CategoryID)
+	}
+}
+
+// Bulk description sets the same text on every eligible ledger row.
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetDescription() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(100000))
+
+	id1 := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(1000), "old-a")
+	id2 := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(2000), "old-b")
+
+	newDesc := "unified"
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:         []int64{id1, id2},
+		Action:      models.BulkActionSetDescription,
+		Description: &newDesc,
+	})
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(2), res.Processed)
+
+	for _, id := range []int64{id1, id2} {
+		var tr models.Transaction
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
+		s.Require().NotNil(tr.Description)
+		s.Assert().Equal(newDesc, *tr.Description)
+	}
+}
+
+// Ineligible rows (an opening balance) are skipped, not rejected, and reported.
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SkipsIneligible() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(100000))
+
+	id1 := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(1000), "a")
+
+	var opening models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeOpening).
+		First(&opening).Error)
+
+	catID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "BulkSkipCategory", Classification: "expense"})
+	s.Require().NoError(err)
+
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:        []int64{id1, opening.ID},
+		Action:     models.BulkActionSetCategory,
+		CategoryID: &catID,
+	})
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(1), res.Processed)
+	s.Assert().Equal(int64(1), res.Skipped)
+
+	var openingAfter models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&openingAfter, opening.ID).Error)
+	if openingAfter.CategoryID != nil {
+		s.Assert().NotEqual(catID, *openingAfter.CategoryID, "opening row must not be re-categorized")
+	}
+}
+
+// Bulk delete soft-deletes every eligible row.
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_Delete() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(100000))
+
+	id1 := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(1000), "a")
+	id2 := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(2000), "b")
+
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:    []int64{id1, id2},
+		Action: models.BulkActionDelete,
+	})
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(2), res.Processed)
+
+	for _, id := range []int64{id1, id2} {
+		var tr models.Transaction
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
+		s.Assert().NotNil(tr.DeletedAt, "row should be soft-deleted")
+	}
+}
+
+// A guard breach on any account rolls the whole delete batch back.
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_DeleteGuardRollsBack() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.Zero)
+
+	incomeID := s.insertLedgerTxn(userID, accID, "income", decimal.NewFromInt(10000), "in")
+	expenseID := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(10000), "out")
+
+	// Latest balance is 0; deleting the income would drop it below zero.
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:    []int64{incomeID, expenseID},
+		Action: models.BulkActionDelete,
+	})
+	s.Require().Error(err)
+	s.Assert().Nil(res)
+
+	for _, id := range []int64{incomeID, expenseID} {
+		var tr models.Transaction
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
+		s.Assert().Nil(tr.DeletedAt, "no row should be deleted when the batch rolls back")
+	}
+}
+
+// Assigning an expense category to an income row overwrites its direction and
+// moves the balance accordingly.
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategoryFlipsDirection() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(100000))
+
+	incomeID := s.insertLedgerTxn(userID, accID, "income", decimal.NewFromInt(5000), "in")
+
+	catID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "FlipExpense", Classification: "expense"})
+	s.Require().NoError(err)
+
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:        []int64{incomeID},
+		Action:     models.BulkActionSetCategory,
+		CategoryID: &catID,
+	})
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(1), res.Processed)
+
+	var tr models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, incomeID).Error)
+	s.Assert().Equal(models.TxnDirectionExpense, tr.Direction)
+	s.Require().NotNil(tr.CategoryID)
+	s.Assert().Equal(catID, *tr.CategoryID)
+
+	// opening 100000 + income 5000 = 105000; flipping to expense = 100000 - 5000.
+	s.assertBalance(accID, decimal.NewFromInt(95000), "balance after direction flip")
+}
+
+// A direction flip that would push an account past its limit rolls back the
+// whole batch, leaving direction and category untouched.
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategoryGuardRollsBack() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.Zero)
+
+	incomeID := s.insertLedgerTxn(userID, accID, "income", decimal.NewFromInt(10000), "in")
+
+	catID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "GuardExpense", Classification: "expense"})
+	s.Require().NoError(err)
+
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:        []int64{incomeID},
+		Action:     models.BulkActionSetCategory,
+		CategoryID: &catID,
+	})
+	s.Require().Error(err)
+	s.Assert().Nil(res)
+
+	var tr models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, incomeID).Error)
+	s.Assert().Equal(models.TxnDirectionIncome, tr.Direction, "direction must be unchanged on rollback")
+}

@@ -48,6 +48,7 @@ type TransactionServiceInterface interface {
 	UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error)
 	UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error)
 	DeleteTransaction(ctx context.Context, userID int64, id int64) error
+	BulkOperateTransactions(ctx context.Context, userID int64, req *models.BulkTransactionReq) (*models.BulkTransactionResult, error)
 	UpdateTransfer(ctx context.Context, userID int64, id int64, req *models.UpdateTransferReq) error
 	DeleteTransfer(ctx context.Context, userID int64, id int64) error
 	DeleteCategory(ctx context.Context, userID int64, id int64) error
@@ -1285,6 +1286,324 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	}
 
 	return nil
+}
+
+func (s *TransactionService) BulkOperateTransactions(ctx context.Context, userID int64, req *models.BulkTransactionReq) (*models.BulkTransactionResult, error) {
+	if len(req.IDs) == 0 {
+		return nil, apperr.New(apperr.Validation, "no transactions selected")
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	records, err := s.repo.FindTransactionsByIDs(ctx, tx, req.IDs, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if len(records) == 0 {
+		tx.Rollback()
+		return nil, ErrTransactionNotFound
+	}
+
+	switch req.Action {
+	case models.BulkActionSetCategory:
+		return s.bulkSetCategory(ctx, tx, userID, records, req.CategoryID)
+	case models.BulkActionSetDescription:
+		return s.bulkSetDescription(ctx, tx, userID, records, req.Description)
+	case models.BulkActionDelete:
+		return s.bulkDelete(ctx, tx, userID, records)
+	default:
+		tx.Rollback()
+		return nil, apperr.New(apperr.Validation, fmt.Sprintf("unknown bulk action: %s", req.Action))
+	}
+}
+
+func (s *TransactionService) bulkSetCategory(ctx context.Context, tx *gorm.DB, userID int64, records []models.Transaction, categoryID *int64) (*models.BulkTransactionResult, error) {
+	if categoryID == nil {
+		tx.Rollback()
+		return nil, apperr.New(apperr.Validation, "a category is required")
+	}
+
+	cat, err := s.repo.FindCategoryByID(ctx, tx, *categoryID, userID, false)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrInvalidCategoryID
+		}
+		return nil, err
+	}
+
+	eligible, skipped := utils.PartitionBulkTransactions(records, models.TransactionType.IsBulkFieldEditable)
+	if len(eligible) == 0 {
+		tx.Rollback()
+		return nil, apperr.New(apperr.Validation, "none of the selected transactions can be re-categorized")
+	}
+	ids := utils.TransactionIDs(eligible)
+
+	targetDir, hasDir := models.DirectionForClassification(cat.Classification)
+
+	// No direction to enforce: a plain category update, no balance effect.
+	if !hasDir {
+		updated, err := s.repo.BulkSetTransactionCategoryByIDs(ctx, tx, ids, cat.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := tx.Commit().Error; err != nil {
+			return nil, err
+		}
+
+		changes := utils.InitChanges()
+		utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "category_id")
+		utils.CompareChanges("", strconv.FormatInt(updated, 10), changes, "count")
+		s.logBulkTransactionEvent(ctx, userID, "bulk_categorize", changes)
+
+		return &models.BulkTransactionResult{Processed: updated, Skipped: int64(skipped)}, nil
+	}
+
+	// Direction overwrite: aggregate the balance net-change per account for the
+	// rows that actually flip, then guard each before applying anything.
+	type accountFlip struct {
+		account   *models.Account
+		netChange decimal.Decimal
+		earliest  time.Time
+	}
+	byAccount := make(map[int64]*accountFlip)
+	for i := range eligible {
+		tr := eligible[i]
+		if tr.Direction == targetDir {
+			continue
+		}
+		agg, ok := byAccount[tr.AccountID]
+		if !ok {
+			agg = &accountFlip{netChange: decimal.Zero, earliest: tr.TxnDate}
+			byAccount[tr.AccountID] = agg
+		}
+		if tr.TxnDate.Before(agg.earliest) {
+			agg.earliest = tr.TxnDate
+		}
+		delta := utils.DirectionEffect(targetDir, tr.Amount).Sub(utils.DirectionEffect(tr.Direction, tr.Amount))
+		agg.netChange = agg.netChange.Add(delta)
+	}
+
+	for accountID, agg := range byAccount {
+		account, err := s.accRepo.FindAccountByID(ctx, tx, accountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("can't find account with given id %w", err)
+		}
+		if err := utils.ValidateAccount(account, ""); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		agg.account = account
+
+		if agg.netChange.IsNegative() {
+			latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			resultingBalance := latestBalance.Add(agg.netChange)
+			if utils.AccountBelowLimit(resultingBalance, account) {
+				tx.Rollback()
+				return nil, utils.AccountLimitError(resultingBalance, account)
+			}
+			if !resultingBalance.IsNegative() {
+				uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
+				if err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+				if err := utils.CheckGoalAllocation(agg.netChange.Neg(), uncategorized, account.AccountType.Classification); err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+			}
+		}
+	}
+
+	updated, err := s.repo.BulkSetTransactionCategoryDirectionByIDs(ctx, tx, ids, cat.ID, targetDir, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	for _, agg := range byAccount {
+		from := agg.earliest.UTC().Truncate(24 * time.Hour)
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, agg.account.ID, agg.account.Currency, from); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "category_id")
+	utils.CompareChanges("", string(targetDir), changes, "direction")
+	utils.CompareChanges("", strconv.FormatInt(updated, 10), changes, "count")
+	s.logBulkTransactionEvent(ctx, userID, "bulk_categorize", changes)
+
+	return &models.BulkTransactionResult{Processed: updated, Skipped: int64(skipped)}, nil
+}
+
+func (s *TransactionService) bulkSetDescription(ctx context.Context, tx *gorm.DB, userID int64, records []models.Transaction, description *string) (*models.BulkTransactionResult, error) {
+	if description == nil || strings.TrimSpace(*description) == "" {
+		tx.Rollback()
+		return nil, apperr.New(apperr.Validation, "a description is required")
+	}
+
+	eligible, skipped := utils.PartitionBulkTransactions(records, models.TransactionType.IsBulkFieldEditable)
+	if len(eligible) == 0 {
+		tx.Rollback()
+		return nil, apperr.New(apperr.Validation, "none of the selected transactions can be edited")
+	}
+
+	updated, err := s.repo.BulkSetTransactionDescriptionByIDs(ctx, tx, utils.TransactionIDs(eligible), description, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", utils.SafeString(description), changes, "description")
+	utils.CompareChanges("", strconv.FormatInt(updated, 10), changes, "count")
+	s.logBulkTransactionEvent(ctx, userID, "bulk_describe", changes)
+
+	return &models.BulkTransactionResult{Processed: updated, Skipped: int64(skipped)}, nil
+}
+
+func (s *TransactionService) bulkDelete(ctx context.Context, tx *gorm.DB, userID int64, records []models.Transaction) (*models.BulkTransactionResult, error) {
+	eligible, skipped := utils.PartitionBulkTransactions(records, models.TransactionType.IsBulkDeletable)
+	if len(eligible) == 0 {
+		tx.Rollback()
+		return nil, apperr.New(apperr.Validation, "none of the selected transactions can be deleted")
+	}
+	ids := utils.TransactionIDs(eligible)
+
+	// Income deletions lower a balance, so guards and the rebuild run once per
+	// account over the aggregate change.
+	type accountDeletion struct {
+		incomeSum decimal.Decimal
+		earliest  time.Time
+	}
+	byAccount := make(map[int64]*accountDeletion)
+	for i := range eligible {
+		tr := eligible[i]
+
+		agg, ok := byAccount[tr.AccountID]
+		if !ok {
+			agg = &accountDeletion{incomeSum: decimal.Zero, earliest: tr.TxnDate}
+			byAccount[tr.AccountID] = agg
+		}
+		if tr.TxnDate.Before(agg.earliest) {
+			agg.earliest = tr.TxnDate
+		}
+		if tr.Direction == models.TxnDirectionIncome {
+			agg.incomeSum = agg.incomeSum.Add(tr.Amount)
+		}
+	}
+
+	for accountID, agg := range byAccount {
+		account, err := s.accRepo.FindAccountByID(ctx, tx, accountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("can't find account with given id %w", err)
+		}
+		if err := utils.ValidateAccount(account, ""); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		if agg.incomeSum.IsPositive() {
+			latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+
+			resultingBalance := latestBalance.Sub(agg.incomeSum)
+			if utils.AccountBelowLimit(resultingBalance, account) {
+				tx.Rollback()
+				return nil, utils.AccountLimitError(resultingBalance, account)
+			}
+
+			if !resultingBalance.IsNegative() {
+				uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
+				if err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+				if err := utils.CheckGoalAllocation(agg.incomeSum, uncategorized, account.AccountType.Classification); err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+			}
+		}
+	}
+
+	deleted, err := s.repo.BulkDeleteTransactionsByIDs(ctx, tx, ids, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	for accountID, agg := range byAccount {
+		account, err := s.accRepo.FindAccountByID(ctx, tx, accountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("can't find account with given id %w", err)
+		}
+		from := agg.earliest.UTC().Truncate(24 * time.Hour)
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(deleted, 10), changes, "count")
+	utils.CompareChanges("", utils.JoinInt64s(ids, ","), changes, "ids")
+	s.logBulkTransactionEvent(ctx, userID, "bulk_delete", changes)
+
+	return &models.BulkTransactionResult{Processed: deleted, Skipped: int64(skipped)}, nil
+}
+
+func (s *TransactionService) logBulkTransactionEvent(ctx context.Context, userID int64, event string, changes *utils.Changes) {
+	if changes.IsEmpty() {
+		return
+	}
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+		Event:       event,
+		Category:    "transaction",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		s.logger.Error("bulk transaction activity log failed",
+			zap.Error(err), zap.Int64("user_id", userID), zap.String("event", event))
+	}
 }
 
 func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, id int64, req *models.UpdateTransferReq) error {

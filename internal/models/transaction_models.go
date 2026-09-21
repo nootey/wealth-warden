@@ -12,6 +12,7 @@ var (
 
 type TransactionType string
 type TransactionDirection string
+type BulkTransactionAction string
 
 const (
 	TxnTypeLedger           TransactionType = "ledger"            // Standard type
@@ -23,10 +24,25 @@ const (
 
 	TxnDirectionIncome  TransactionDirection = "income"
 	TxnDirectionExpense TransactionDirection = "expense"
+
+	BulkActionSetCategory    BulkTransactionAction = "set_category"
+	BulkActionSetDescription BulkTransactionAction = "set_description"
+	BulkActionDelete         BulkTransactionAction = "delete"
 )
 
 func (d TransactionDirection) IsValid() bool {
 	return d == TxnDirectionIncome || d == TxnDirectionExpense
+}
+
+func DirectionForClassification(classification string) (TransactionDirection, bool) {
+	switch classification {
+	case "income":
+		return TxnDirectionIncome, true
+	case "expense":
+		return TxnDirectionExpense, true
+	default:
+		return "", false
+	}
 }
 
 func (t TransactionType) IsUserEditable() bool {
@@ -46,6 +62,14 @@ func (t TransactionType) PartiallyEditableFields() string {
 
 func (t TransactionType) IsUserDeletable() bool {
 	return t == TxnTypeLedger || t == TxnTypeTransfer || t == TxnTypeAdjustment
+}
+
+func (t TransactionType) IsBulkFieldEditable() bool {
+	return t == TxnTypeLedger
+}
+
+func (t TransactionType) IsBulkDeletable() bool {
+	return t == TxnTypeLedger || t == TxnTypeAdjustment
 }
 
 type Transaction struct {
@@ -237,6 +261,18 @@ type TransactionReq struct {
 	TxnDate        time.Time            `json:"txn_date" validate:"required"`
 	Description    *string              `json:"description,omitempty"`
 	IdempotencyKey *string              `json:"idempotency_key,omitempty"`
+}
+
+type BulkTransactionReq struct {
+	IDs         []int64               `json:"ids" validate:"required"`
+	Action      BulkTransactionAction `json:"action" validate:"required,oneof=set_category set_description delete"`
+	CategoryID  *int64                `json:"category_id,omitempty"`
+	Description *string               `json:"description,omitempty"`
+}
+
+type BulkTransactionResult struct {
+	Processed int64 `json:"processed"`
+	Skipped   int64 `json:"skipped"`
 }
 
 type TransferReq struct {
