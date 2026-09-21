@@ -84,16 +84,23 @@ type RepaymentTransferPayload struct {
 }
 
 type JSONTxn struct {
-	TransactionType string    `json:"transaction_type"`
-	Amount          string    `json:"amount"`
-	Currency        string    `json:"currency"`
-	TxnDate         time.Time `json:"txn_date"`
-	Category        string    `json:"category"`
-	Description     string    `json:"description"`
-	CategoryID      *int64    `json:"category_id,omitempty"` // set by hand on a bank row; skips mappings and rules
-	ExternalTxnID   *string   `json:"external_txn_id,omitempty"`
-	Fee             *string   `json:"fee,omitempty"`
-	TradePrice      *string   `json:"trade_price,omitempty"`
+	TransactionType string            `json:"transaction_type"`
+	Amount          string            `json:"amount"`
+	Currency        string            `json:"currency"`
+	TxnDate         time.Time         `json:"txn_date"`
+	Category        string            `json:"category"`
+	Description     string            `json:"description"`
+	CategoryID      *int64            `json:"category_id,omitempty"` // set by hand on a bank row; skips mappings and rules
+	ExternalTxnID   *string           `json:"external_txn_id,omitempty"`
+	Fee             *string           `json:"fee,omitempty"`
+	TradePrice      *string           `json:"trade_price,omitempty"`
+	PartialMatch    *PartialMatchInfo `json:"partial_match,omitempty"`
+}
+
+type PartialMatchInfo struct {
+	ExistingDate        string `json:"existing_date"`
+	ExistingDescription string `json:"existing_description"`
+	ExistingCategory    string `json:"existing_category"`
 }
 
 type RowCategory struct {

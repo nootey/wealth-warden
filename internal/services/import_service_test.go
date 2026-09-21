@@ -482,6 +482,62 @@ func (s *ImportServiceSuite) TestBankImportRuleMatchesOnDirection() {
 	s.Equal(refundCat, *txns[1].CategoryID)
 }
 
+// A parsed bank row that matches an existing transaction on amount, direction and currency,
+// within the date window but not exactly, is flagged as a partial duplicate for the preview.
+// Exact duplicates, out-of-window dates and different amounts must not be flagged.
+func (s *ImportServiceSuite) TestDetectPartialDuplicatesFlagsNearMatches() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	// Seed one existing expense: 39.90 EUR described "Health".
+	existingDay := time.Date(time.Now().Year()-1, 9, 20, 0, 0, 0, 0, time.UTC)
+	seed := models.TxnImportPayload{
+		Identifier:  "nlb_partial_seed",
+		GeneratedAt: time.Now().UTC(),
+		Txns: []models.JSONTxn{{
+			TransactionType: "expense",
+			Amount:          "39.90",
+			Currency:        "EUR",
+			TxnDate:         existingDay,
+			Category:        "(uncategorized)",
+			Description:     "Health",
+		}},
+	}
+	seedImpID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, seed)
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, seedImpID, accID, models.ImportTypeBank))
+
+	parsedTxn := func(d time.Time, amount, desc string) models.JSONTxn {
+		return models.JSONTxn{TransactionType: "expense", Amount: amount, Currency: "EUR", TxnDate: d, Description: desc}
+	}
+	parsed := []models.JSONTxn{
+		parsedTxn(existingDay, "39.90", "Health"),                      // exact duplicate -> not flagged
+		parsedTxn(existingDay.AddDate(0, 0, 1), "39.90", "CF Fitness"), // +1 day, description differs -> flagged
+		parsedTxn(existingDay.AddDate(0, 0, 3), "39.90", "CF Fitness"), // outside window -> not flagged
+		parsedTxn(existingDay, "40.00", "CF Fitness"),                  // different amount -> not flagged
+	}
+
+	out, err := s.TC.App.ImportService.DetectPartialDuplicates(s.Ctx, seedUserID, accID, parsed)
+	s.Require().NoError(err)
+	s.Require().Len(out, 4)
+
+	s.Nil(out[0].PartialMatch, "an exact duplicate must not be flagged as partial")
+	s.Require().NotNil(out[1].PartialMatch, "a near match within the window must be flagged")
+	s.Equal(existingDay.Format("2006-01-02"), out[1].PartialMatch.ExistingDate)
+	s.Equal("Health", out[1].PartialMatch.ExistingDescription)
+	s.Equal("(Uncategorized)", out[1].PartialMatch.ExistingCategory)
+	s.Nil(out[2].PartialMatch, "a match outside the window must not be flagged")
+	s.Nil(out[3].PartialMatch, "a different amount must not be flagged")
+}
+
 func (s *ImportServiceSuite) TestParseBankStatementsRejectsMixedKinds() {
 	files := []models.BankStatementFile{
 		{Name: "a.csv", Reader: strings.NewReader("")},

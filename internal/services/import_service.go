@@ -44,6 +44,7 @@ type ImportServiceInterface interface {
 	ParseBankStatements(bankName string, files []models.BankStatementFile) (models.TxnImportPayload, error)
 	ApplyRulesToBankPayload(ctx context.Context, userID int64, payload *models.TxnImportPayload) error
 	ApplyBankRowOverrides(payload *models.TxnImportPayload, rowCategories []models.RowCategory, skipRows []int) error
+	DetectPartialDuplicates(ctx context.Context, userID, accountID int64, txns []models.JSONTxn) ([]models.JSONTxn, error)
 }
 
 type ImportService struct {
@@ -85,6 +86,8 @@ func NewImportService(
 var _ ImportServiceInterface = (*ImportService)(nil)
 
 var (
+	partialMatchWindowDays = 2
+
 	ErrImportFileExists       = apperr.New(apperr.Conflict, "An import with that name already exists")
 	ErrInvestmentsTransferred = apperr.New(apperr.Conflict, "Investments have already been transferred for this import")
 	ErrSavingsTransferred     = apperr.New(apperr.Conflict, "Savings have already been transferred for this import")
@@ -496,6 +499,113 @@ func (s *ImportService) ApplyBankRowOverrides(payload *models.TxnImportPayload, 
 	payload.Txns = kept
 
 	return nil
+}
+
+func (s *ImportService) DetectPartialDuplicates(ctx context.Context, userID, accountID int64, txns []models.JSONTxn) ([]models.JSONTxn, error) {
+	if len(txns) == 0 {
+		return txns, nil
+	}
+
+	acc, err := s.accRepo.FindAccountByID(ctx, nil, accountID, userID, false)
+	if err != nil {
+		return nil, err
+	}
+
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return nil, err
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	minDay := utils.LocalMidnightUTC(txns[0].TxnDate, loc)
+	maxDay := minDay
+	for _, t := range txns {
+		d := utils.LocalMidnightUTC(t.TxnDate, loc)
+		if d.Before(minDay) {
+			minDay = d
+		}
+		if d.After(maxDay) {
+			maxDay = d
+		}
+	}
+	from := minDay.AddDate(0, 0, -partialMatchWindowDays)
+	to := maxDay.AddDate(0, 0, partialMatchWindowDays)
+
+	existing, err := s.txnRepo.FindTransactionsForDedup(ctx, nil, accountID, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.flagPartialDuplicates(txns, existing, acc.Currency, loc), nil
+}
+
+func (s *ImportService) flagPartialDuplicates(txns []models.JSONTxn, existing []models.Transaction, currency string, loc *time.Location) []models.JSONTxn {
+	type candidate struct {
+		day      time.Time
+		desc     string
+		category string
+	}
+	exact := map[string]bool{}
+	byKey := map[string][]candidate{}
+	for _, e := range existing {
+		desc := ""
+		if e.Description != nil {
+			desc = *e.Description
+		}
+		category := e.Category.DisplayName
+		if category == "" {
+			category = e.Category.Name
+		}
+		exact[utils.ContentFingerprint(e.TxnDate, string(e.Direction), e.Amount, e.Currency, desc)] = true
+		key := utils.PartialMatchKey(string(e.Direction), e.Currency, e.Amount)
+		byKey[key] = append(byKey[key], candidate{day: e.TxnDate, desc: desc, category: category})
+	}
+
+	for i := range txns {
+		txn := txns[i]
+		if txn.TransactionType != "income" && txn.TransactionType != "expense" {
+			continue
+		}
+		amount, err := decimal.NewFromString(txn.Amount)
+		if err != nil {
+			continue
+		}
+		desc := txn.Description
+		if desc == "" {
+			desc = txn.Category
+		}
+		day := utils.LocalMidnightUTC(txn.TxnDate, loc)
+
+		// Exact duplicates are already skipped at commit; do not flag them here.
+		if exact[utils.ContentFingerprint(day, txn.TransactionType, amount, currency, desc)] {
+			continue
+		}
+
+		best := -1
+		var bestMatch candidate
+		for _, c := range byKey[utils.PartialMatchKey(txn.TransactionType, currency, amount)] {
+			diff := utils.DayDiff(day, c.day)
+			if diff > partialMatchWindowDays {
+				continue
+			}
+			if best == -1 || diff < best {
+				best = diff
+				bestMatch = c
+			}
+		}
+		if best >= 0 {
+			txns[i].PartialMatch = &models.PartialMatchInfo{
+				ExistingDate:        bestMatch.day.Format("2006-01-02"),
+				ExistingDescription: bestMatch.desc,
+				ExistingCategory:    bestMatch.category,
+			}
+		}
+	}
+
+	return txns
 }
 
 func (s *ImportService) FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error) {

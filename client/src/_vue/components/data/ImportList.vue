@@ -151,6 +151,8 @@ async function deleteRecord(id: number) {
         column-resize-mode="fit"
         scroll-direction="both"
         paginator
+        sort-field="created_at"
+        :sort-order="-1"
         :rows="10"
         :rows-per-page-options="[10, 25, 50]"
       >

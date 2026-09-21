@@ -227,6 +227,86 @@ func (_c *MockImportServiceInterface_DeleteImport_Call) RunAndReturn(run func(ct
 	return _c
 }
 
+// DetectPartialDuplicates provides a mock function for the type MockImportServiceInterface
+func (_mock *MockImportServiceInterface) DetectPartialDuplicates(ctx context.Context, userID int64, accountID int64, txns []models.JSONTxn) ([]models.JSONTxn, error) {
+	ret := _mock.Called(ctx, userID, accountID, txns)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DetectPartialDuplicates")
+	}
+
+	var r0 []models.JSONTxn
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, []models.JSONTxn) ([]models.JSONTxn, error)); ok {
+		return returnFunc(ctx, userID, accountID, txns)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, []models.JSONTxn) []models.JSONTxn); ok {
+		r0 = returnFunc(ctx, userID, accountID, txns)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.JSONTxn)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64, []models.JSONTxn) error); ok {
+		r1 = returnFunc(ctx, userID, accountID, txns)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockImportServiceInterface_DetectPartialDuplicates_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DetectPartialDuplicates'
+type MockImportServiceInterface_DetectPartialDuplicates_Call struct {
+	*mock.Call
+}
+
+// DetectPartialDuplicates is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - accountID int64
+//   - txns []models.JSONTxn
+func (_e *MockImportServiceInterface_Expecter) DetectPartialDuplicates(ctx any, userID any, accountID any, txns any) *MockImportServiceInterface_DetectPartialDuplicates_Call {
+	return &MockImportServiceInterface_DetectPartialDuplicates_Call{Call: _e.mock.On("DetectPartialDuplicates", ctx, userID, accountID, txns)}
+}
+
+func (_c *MockImportServiceInterface_DetectPartialDuplicates_Call) Run(run func(ctx context.Context, userID int64, accountID int64, txns []models.JSONTxn)) *MockImportServiceInterface_DetectPartialDuplicates_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		var arg3 []models.JSONTxn
+		if args[3] != nil {
+			arg3 = args[3].([]models.JSONTxn)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockImportServiceInterface_DetectPartialDuplicates_Call) Return(jSONTxns []models.JSONTxn, err error) *MockImportServiceInterface_DetectPartialDuplicates_Call {
+	_c.Call.Return(jSONTxns, err)
+	return _c
+}
+
+func (_c *MockImportServiceInterface_DetectPartialDuplicates_Call) RunAndReturn(run func(ctx context.Context, userID int64, accountID int64, txns []models.JSONTxn) ([]models.JSONTxn, error)) *MockImportServiceInterface_DetectPartialDuplicates_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FetchImportByID provides a mock function for the type MockImportServiceInterface
 func (_mock *MockImportServiceInterface) FetchImportByID(ctx context.Context, id int64, userID int64, importType string) (*models.Import, error) {
 	ret := _mock.Called(ctx, id, userID, importType)

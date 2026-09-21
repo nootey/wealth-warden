@@ -548,7 +548,8 @@ func (r *TransactionRepository) FindTransactionsForDedup(ctx context.Context, tx
 
 	var records []models.Transaction
 	result := db.
-		Select("txn_date", "amount", "direction", "currency", "description").
+		Select("txn_date", "amount", "direction", "currency", "description", "category_id").
+		Preload("Category").
 		Where("account_id = ? AND deleted_at IS NULL AND txn_date >= ? AND txn_date <= ?", accountID, from, to).
 		Find(&records)
 	return records, result.Error

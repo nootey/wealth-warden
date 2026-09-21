@@ -49,6 +49,7 @@ func (h *ImportHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.POST("custom/trades", authz.RequireAllMW("manage_data"), h.TransferInvestmentTrades)
 	apiGroup.POST("bank/parse", authz.RequireAllMW("manage_data"), h.ParseBankStatement)
 	apiGroup.POST("bank/apply-rules", authz.RequireAllMW("manage_data"), h.ApplyBankRules)
+	apiGroup.POST("bank/check-duplicates", authz.RequireAllMW("manage_data"), h.CheckBankDuplicates)
 	apiGroup.POST("bank/transactions", authz.RequireAllMW("manage_data"), h.ImportBankTransactions)
 	apiGroup.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteImport)
 }
@@ -256,6 +257,35 @@ func (h *ImportHandler) ApplyBankRules(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"transactions": payload.Txns})
+}
+
+func (h *ImportHandler) CheckBankDuplicates(c *gin.Context) {
+	checkAccIDStr := c.Query("check_acc_id")
+	if checkAccIDStr == "" {
+		_ = c.Error(apperr.New(apperr.Invalid, "check_acc_id is required"))
+		return
+	}
+	checkAccID, err := strconv.ParseInt(checkAccIDStr, 10, 64)
+	if err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "check_acc_id must be a valid integer", err))
+		return
+	}
+
+	var body struct {
+		Transactions []models.JSONTxn `json:"transactions"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "A transactions array is required", err))
+		return
+	}
+
+	txns, err := h.Service.DetectPartialDuplicates(c.Request.Context(), c.GetInt64("user_id"), checkAccID, body.Transactions)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"transactions": txns})
 }
 
 func (h *ImportHandler) ImportAccounts(c *gin.Context) {

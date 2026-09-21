@@ -6,6 +6,12 @@ type TxnSample = {
   description: string;
 };
 
+export type PartialMatchInfo = {
+  existing_date: string;
+  existing_description: string;
+  existing_category: string;
+};
+
 export type BankTxn = {
   transaction_type: string;
   amount: string;
@@ -15,6 +21,7 @@ export type BankTxn = {
   description: string;
   external_txn_id: string;
   category_id?: number | null;
+  partial_match?: PartialMatchInfo | null;
 };
 
 export type BankParseResponse = {

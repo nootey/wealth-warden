@@ -128,6 +128,18 @@ export const useDataStore = defineStore("data", {
       return res.data;
     },
 
+    async checkBankDuplicates(
+      transactions: BankTxn[],
+      checkID: number,
+    ): Promise<{ transactions: BankTxn[] }> {
+      const res = await apiClient.post(
+        `${this.importPrefix}/bank/check-duplicates`,
+        { transactions },
+        { params: { check_acc_id: checkID } },
+      );
+      return res.data;
+    },
+
     async importBankTransactions(formData: FormData, checkID: number) {
       const { data } = await apiClient.post(
         `${this.importPrefix}/bank/transactions`,
