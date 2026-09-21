@@ -7,6 +7,7 @@ Ledger based personal finance manager with an included web based client (separat
 - Jobs: `internal/jobqueue` holds the contract (args, kinds, dispatcher) and is safe for services to import; `internal/jobs` holds the runtime (job code, workers, River client, periodic schedule)
 - Exchange rates: `GetExchangeRate` with a date caches to `exchange_rate_history`; without a date it's a live rate and never cached
 - *_models contain constants, DB models and schemas, for each domain
+
 ## Workflow
 
 Before implementing:
@@ -23,6 +24,8 @@ Before implementing:
 - Build feature by feature, and write tests after each implementation, if applicable
   - Tests should be high impact only, do not cover everything
 - Minimum code that solves the problem. Nothing speculative.
+- Minimize helpers in service files. If they are needed, create them in utils package unless bound by circular dependencies.
+- DO NOT create seperate test files, use shared per domain/service ones.
 
 ## General guidelines
 - Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify
