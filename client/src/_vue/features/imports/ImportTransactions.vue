@@ -7,6 +7,7 @@ import type {
   CustomImportValidationResponse,
 } from "../../../models/dataio_models.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
+import UploadDropzone from "../../components/base/UploadDropzone.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
@@ -479,107 +480,34 @@ defineExpose({ isDisabled, importing, importTransactions });
                 will be parsed. If you have defined any rules, they will be used
                 to match categories to the parsed transactions.
               </span>
-              <FileUpload
+              <UploadDropzone
                 v-if="selectedCheckingAcc"
                 ref="bankUploadRef"
                 accept=".pdf, .csv, application/pdf, text/csv"
-                :max-file-size="10485760"
-                :multiple="true"
-                custom-upload
-                :show-upload-button="false"
-                :show-cancel-button="false"
+                hint="Accepts .pdf and .csv"
+                info="Only NLB bank statements are tested. CSV import expects these columns: amount, +/-, value date, description. Other banks or formats may fail to import or import incorrectly."
+                multiple
+                :files="bankFiles"
+                :status="
+                  bankTxns.length > 0
+                    ? { label: 'Parsed', severity: 'info' }
+                    : { label: 'Pending', severity: 'warn' }
+                "
                 @select="onBankSelect"
                 @remove="onBankRemove"
                 @clear="onBankClear"
-              >
-                <template #header="{ chooseCallback }">
-                  <div class="flex flex-col gap-3 w-full">
-                    <div
-                      class="flex flex-row w-full gap-2 items-center p-3 rounded-lg text-xs"
-                      style="
-                        background: var(--background-secondary);
-                        border: 1px solid var(--border-color);
-                        color: var(--text-secondary);
-                      "
-                    >
-                      <i class="pi pi-info-circle" style="flex-shrink: 0" />
-                      <span>
-                        Only NLB bank statements are tested. CSV import expects
-                        these columns: amount, +/-, value date, description.
-                        Other banks or formats may fail to import or import
-                        incorrectly.
-                      </span>
-                    </div>
-
-                    <div class="flex flex-col items-center gap-2 py-4">
-                      <i
-                        class="pi pi-cloud-upload text-3xl"
-                        style="color: var(--text-secondary)"
-                      />
-                      <span class="text-sm" style="color: var(--text-secondary)"
-                        >Drag files here, or</span
-                      >
-                      <Button
-                        class="outline-button"
-                        label="Upload"
-                        @click="chooseCallback()"
-                      />
-                      <span class="text-xs" style="color: var(--text-secondary)"
-                        >Accepts .pdf and .csv</span
-                      >
-                    </div>
-                  </div>
-                </template>
-
-                <template #content="{ removeFileCallback }">
-                  <div
-                    v-if="bankFiles.length > 0"
-                    class="flex flex-col gap-2 w-full"
-                  >
-                    <h5>Pending</h5>
-                    <div class="flex flex-col gap-2 w-full">
-                      <div
-                        v-for="(file, index) in bankFiles"
-                        :key="file.name + file.type + file.size"
-                        class="flex flex-row gap-2 items-center justify-between p-2 rounded-lg"
-                        style="border: 1px solid var(--border-color)"
-                      >
-                        <div class="flex flex-row gap-2 items-center min-w-0">
-                          <i
-                            class="pi pi-file"
-                            style="color: var(--text-secondary); flex-shrink: 0"
-                          />
-                          <span
-                            class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
-                            >{{ file.name }}</span
-                          >
-                        </div>
-                        <div
-                          class="flex flex-row gap-2 items-center"
-                          style="flex-shrink: 0"
-                        >
-                          <Badge
-                            :value="bankTxns.length > 0 ? 'Parsed' : 'Pending'"
-                            :severity="bankTxns.length > 0 ? 'info' : 'warn'"
-                          />
-                          <i
-                            class="pi pi-times hover-icon"
-                            style="color: var(--p-red-300)"
-                            @click="removeFileCallback(index)"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      v-if="bankTxns.length === 0"
-                      class="outline-button self-center mt-1"
-                      label="Parse"
-                      :loading="bankParsing"
-                      @click="parseBankStatement"
-                    />
-                  </div>
-                </template>
-              </FileUpload>
+              />
+              <Button
+                v-if="
+                  selectedCheckingAcc &&
+                  bankFiles.length > 0 &&
+                  bankTxns.length === 0
+                "
+                class="outline-button self-center mt-1"
+                label="Parse"
+                :loading="bankParsing"
+                @click="parseBankStatement"
+              />
             </div>
 
             <div v-if="bankTxns.length > 0" class="flex flex-col w-full gap-3">
@@ -795,12 +723,12 @@ defineExpose({ isDisabled, importing, importTransactions });
         <TabPanel value="1">
           <div
             v-if="sourceAccounts.length > 0"
-            class="flex flex-col w-full justify-center items-center gap-4"
+            class="flex flex-col w-full gap-4"
           >
-            <h3>Import your transaction data</h3>
+            <h3>1. Import your custom transaction data</h3>
             <span class="text-sm" style="color: var(--text-secondary)"
-              >Upload your JSON file below. Please review the instructions
-              before starting an import.</span
+              >Upload your JSON file of parsed transactions below. Please review
+              the instructions before starting an import.</span
             >
             <span
               v-if="sourceAccounts.length == 0"
@@ -808,90 +736,61 @@ defineExpose({ isDisabled, importing, importTransactions });
               >At least one checking account is required to proceed!</span
             >
 
-            <FileUpload
+            <UploadDropzone
               ref="uploadImportRef"
               accept=".json, application/json"
-              :max-file-size="10485760"
-              :multiple="false"
-              custom-upload
-              :show-upload-button="false"
-              :show-cancel-button="false"
+              hint="Accepts .json"
+              info="Only Wealth Warden JSON exports are supported. Other files may fail to import."
+              :files="selectedFiles"
+              :disabled="sourceAccounts.length == 0 || fileValidated"
+              :status="
+                fileValidated
+                  ? { label: 'Validated', severity: 'info' }
+                  : { label: 'Pending', severity: 'warn' }
+              "
               @select="onSelect"
+              @remove="resetWizard"
               @clear="onClear"
-            >
-              <template #header="{ chooseCallback }">
-                <div class="w-full flex flex-row justify-center">
-                  <Button
-                    v-if="!fileValidated"
-                    class="outline-button w-3/12"
-                    :disabled="sourceAccounts.length == 0"
-                    label="Upload"
-                    @click="chooseCallback()"
-                  />
-                </div>
-              </template>
+            />
 
-              <template #content>
-                <div
-                  v-if="selectedFiles.length > 0"
-                  class="flex flex-col gap-1 w-full items-center"
-                >
-                  <h5>Pending</h5>
-                  <div class="flex flex-wrap gap-2 w-full">
-                    <div
-                      v-for="file in selectedFiles"
-                      :key="file.name + file.type + file.size"
-                      class="flex flex-row gap-2 p-1 w-full justify-center items-center w-full"
-                    >
-                      <span
-                        class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
-                        >{{ file.name }}</span
-                      >
-                      <Badge
-                        :value="fileValidated ? 'Validated' : 'Pending'"
-                        :severity="fileValidated ? 'info' : 'warn'"
-                      />
-                      <i
-                        class="pi pi-times hover-icon"
-                        style="color: var(--p-red-300)"
-                        @click="resetWizard"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </FileUpload>
-
-            <div
-              v-if="!fileValidated"
-              class="flex flex-col w-full justify-center items-center gap-4"
-            >
-              <span style="color: var(--text-secondary)">
-                Once you have uploaded a document, it needs to be validated.
-              </span>
+            <div v-if="!fileValidated" class="flex flex-col w-full gap-4">
               <div
-                class="flex flex-row gap-2 items-center w-full justify-center gap-4"
+                class="flex flex-row w-full gap-4 align-center justify-between"
               >
+                <span class="text-sm" style="color: var(--text-secondary)">
+                  Once you have uploaded a document, it needs to be validated.
+                </span>
                 <Button
-                  class="main-button w-3/12"
+                  class="outline-button w-3/12"
                   :disabled="
                     selectedFiles.length === 0 || sourceAccounts.length == 0
                   "
-                  label="Validate"
+                  label="Parse"
                   @click="() => validateFile('cash')"
                 />
               </div>
             </div>
 
-            <div
-              v-if="validatedResponse"
-              class="flex flex-col w-full justify-center items-center gap-4"
-            >
-              <div
-                class="flex flex-col w-full gap-2 items-center justify-center"
-              >
+            <div v-if="validatedResponse" class="flex flex-col w-full gap-4">
+              <div class="flex flex-col w-full gap-2">
+                <h3>2. Select an account</h3>
+                <span class="text-sm" style="color: var(--text-secondary)"
+                  >Select an account which will receive the import
+                  transactions.</span
+                >
+                <AutoComplete
+                  v-model="selectedCheckingAcc"
+                  size="small"
+                  :suggestions="filteredSourceAccounts"
+                  option-label="name"
+                  force-selection
+                  placeholder="Select checking account"
+                  dropdown
+                  class="w-full sm:w-1/4"
+                  @complete="searchAccount($event, 'source')"
+                />
+
                 <div class="text-sm" style="color: var(--text-secondary)">
-                  Select an account which will receive the import transactions.
                   <div class="flex items-center gap-1">
                     <Checkbox
                       v-model="useNonCheckingAccount"
@@ -906,33 +805,9 @@ defineExpose({ isDisabled, importing, importTransactions });
                     >
                   </div>
                 </div>
-                <AutoComplete
-                  v-model="selectedCheckingAcc"
-                  size="small"
-                  :suggestions="filteredSourceAccounts"
-                  option-label="name"
-                  force-selection
-                  placeholder="Select checking account"
-                  dropdown
-                  @complete="searchAccount($event, 'source')"
-                />
-                <span
-                  v-if="!selectedCheckingAcc"
-                  class="text-sm"
-                  style="color: var(--text-secondary)"
-                  >Please select an account.</span
-                >
-                <span
-                  v-else
-                  class="text-sm"
-                  style="color: var(--text-secondary)"
-                  >Account's opening date is valid.</span
-                >
               </div>
 
-              <span>---</span>
-
-              <h4>Validation response</h4>
+              <h3>3. Review the data</h3>
               <span class="text-sm" style="color: var(--text-secondary)"
                 >General information about your import.</span
               >
@@ -942,8 +817,6 @@ defineExpose({ isDisabled, importing, importTransactions });
                 <span>Txn count: </span>
                 <span>{{ validatedResponse.filtered_count }} </span>
               </div>
-
-              <span>---</span>
 
               <h4>Category mappings</h4>
               <ImportCategoryMapping

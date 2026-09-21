@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import ShowLoading from "../../components/base/ShowLoading.vue";
+import UploadDropzone from "../../components/base/UploadDropzone.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useDataStore } from "../../../services/stores/data_store.ts";
 
@@ -77,71 +78,24 @@ defineExpose({ isDisabled, importRules });
 </script>
 
 <template>
-  <div
-    class="flex flex-col w-full justify-center items-center text-center gap-4"
-  >
+  <div class="flex flex-col w-full gap-4">
     <h3>Import your rule data</h3>
     <span class="text-sm" style="color: var(--text-secondary)"
       >Upload your JSON file below. Please review the instructions before
       starting an import.</span
     >
 
-    <FileUpload
+    <UploadDropzone
       v-if="!importing"
       ref="uploadImportRef"
       accept=".json, application/json"
-      :max-file-size="10485760"
-      :multiple="false"
-      custom-upload
-      :show-upload-button="false"
-      :show-cancel-button="false"
+      hint="Accepts .json"
+      info="Only Wealth Warden JSON exports are supported. Other files may fail to import."
+      :files="selectedFiles"
       @select="onSelect"
+      @remove="resetWizard"
       @clear="onClear"
-    >
-      <template #header="{ chooseCallback }">
-        <div class="w-full flex flex-row justify-center">
-          <Button
-            class="outline-button w-3/12"
-            :disabled="importing"
-            label="Upload"
-            @click="chooseCallback()"
-          />
-        </div>
-      </template>
-
-      <template #content>
-        <div
-          v-if="selectedFiles.length > 0"
-          class="flex flex-col gap-1 w-full items-center"
-        >
-          <h5>Pending</h5>
-          <div class="flex flex-wrap gap-2 w-full">
-            <div
-              v-for="file in selectedFiles"
-              :key="file.name + file.type + file.size"
-              class="flex flex-row gap-2 p-1 w-full justify-center items-center w-full"
-            >
-              <span
-                class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
-                >{{ file.name }}</span
-              >
-              <Badge value="Pending" severity="warn" />
-              <i
-                class="pi pi-times hover-icon"
-                style="color: var(--p-red-300)"
-                @click="resetWizard"
-              />
-            </div>
-          </div>
-        </div>
-      </template>
-    </FileUpload>
+    />
     <ShowLoading v-else :num-fields="3" />
   </div>
 </template>
-
-<style scoped>
-.p-fileupload {
-  width: 80% !important;
-}
-</style>
