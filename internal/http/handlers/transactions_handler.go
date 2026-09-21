@@ -36,6 +36,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertTransaction)
 	ap.PUT("/:id", authz.RequireAllMW("manage_data"), h.UpdateTransaction)
 	ap.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteTransaction)
+	ap.POST("/bulk", authz.RequireAllMW("manage_data"), h.BulkTransactions)
 	ap.GET("transfers", authz.RequireAllMW("view_data"), h.GetTransfersPaginated)
 	ap.PUT("transfers", authz.RequireAllMW("manage_data"), h.InsertTransfer)
 	ap.PATCH("transfers/:id", authz.RequireAllMW("manage_data"), h.UpdateTransfer)
@@ -423,6 +424,40 @@ func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) BulkTransactions(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req models.BulkTransactionReq
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
+	result, err := h.Service.BulkOperateTransactions(ctx, userID, &req)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	msg := fmt.Sprintf("%d transaction(s) updated", result.Processed)
+	if req.Action == models.BulkActionDelete {
+		msg = fmt.Sprintf("%d transaction(s) deleted", result.Processed)
+	}
+	if result.Skipped > 0 {
+		msg = fmt.Sprintf("%s, %d skipped", msg, result.Skipped)
+	}
+
+	utils.SuccessMessage(c, msg, "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {

@@ -24,6 +24,10 @@ import ActiveFilters from "../filters/ActiveFilters.vue";
 import ActionRow from "../layout/ActionRow.vue";
 import type { UserSettings } from "../../../models/settings_models.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
+import { usePermissions } from "../../../utils/use_permissions.ts";
+import { useConfirm } from "primevue/useconfirm";
+import { isBulkSelectable } from "../../../models/transaction_models.ts";
 
 const props = defineProps<{
   columns: Column[];
@@ -38,11 +42,33 @@ defineEmits<{
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const settingsStore = useSettingsStore();
+const transactionStore = useTransactionStore();
+const { hasPermission } = usePermissions();
+const confirm = useConfirm();
 const { colors } = useChartColors();
 
 const loading = ref(false);
 const records = ref<Transaction[]>([]);
 const totals = ref<TransactionBatchTotals | null>(null);
+
+const canManage = computed(() => hasPermission("manage_data"));
+const selecting = ref(false);
+const selected = ref<Transaction[]>([]);
+const bulkLoading = ref(false);
+const categoryDialog = ref(false);
+const descriptionDialog = ref(false);
+const bulkCategoryId = ref<number | null>(null);
+const bulkDescription = ref("");
+
+const categoryOptions = computed(() =>
+  transactionStore.categories
+    .filter((c) => c.parent_id != null || c.name === "(uncategorized)")
+    .map((c) => ({
+      label: c.display_name || c.name,
+      value: c.id,
+      classification: c.classification,
+    })),
+);
 
 const apiPrefix = "transactions";
 const includeDeleted = ref(false);
@@ -178,6 +204,72 @@ function refresh() {
   getData();
 }
 
+function toggleSelecting() {
+  selecting.value = !selecting.value;
+  if (!selecting.value) selected.value = [];
+}
+
+function isDataSelectable(event: { data: Transaction }) {
+  return isBulkSelectable(event.data.transaction_type);
+}
+
+async function openCategoryDialog() {
+  bulkCategoryId.value = null;
+  if (transactionStore.categories.length === 0) {
+    try {
+      await transactionStore.getCategories();
+    } catch (e) {
+      toastStore.errorResponseToast(e);
+    }
+  }
+  categoryDialog.value = true;
+}
+
+function openDescriptionDialog() {
+  bulkDescription.value = "";
+  descriptionDialog.value = true;
+}
+
+function confirmBulkDelete() {
+  if (selected.value.length === 0) return;
+  confirm.require({
+    header: "Delete transactions?",
+    message: `This will delete ${selected.value.length} selected transaction(s).`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Delete", severity: "danger" },
+    accept: () => runBulk("delete", {}),
+  });
+}
+
+async function runBulk(
+  action: "set_category" | "set_description" | "delete",
+  extra: { category_id?: number; description?: string },
+) {
+  const ids = selected.value
+    .map((t) => t.id)
+    .filter((id): id is number => id != null);
+  if (ids.length === 0) return;
+
+  bulkLoading.value = true;
+  try {
+    const res = await transactionStore.bulkOperateTransactions({
+      ids,
+      action,
+      ...extra,
+    });
+    toastStore.successResponseToast(res);
+    selected.value = [];
+    selecting.value = false;
+    categoryDialog.value = false;
+    descriptionDialog.value = false;
+    await getData();
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  } finally {
+    bulkLoading.value = false;
+  }
+}
+
 provide("removeFilter", removeFilter);
 provide("switchSort", switchSort);
 
@@ -229,7 +321,7 @@ defineExpose({ refresh });
     </div>
 
     <div v-if="!readOnly" class="flex flex-row w-full">
-      <ActionRow>
+      <ActionRow pills-last>
         <template #activeFilters>
           <ActiveFilters
             :active-filters="filters"
@@ -239,25 +331,89 @@ defineExpose({ refresh });
         </template>
         <template #filterButton>
           <div
-            class="hover-icon flex flex-row items-center gap-2"
+            v-tooltip="'Filter'"
+            class="hover-icon flex flex-row items-center justify-center"
             style="
-              padding: 0.5rem 1rem;
+              padding: 0.5rem;
               border-radius: 8px;
               border: 1px solid var(--border-color);
             "
             @click="toggleFilterOverlay($event)"
           >
             <i class="pi pi-filter" style="font-size: 0.845rem" />
-            <div>Filter</div>
           </div>
         </template>
         <template #includeDeleted>
-          <div class="flex items-center gap-2" style="margin-left: auto">
-            <span style="font-size: 0.8rem">Include deleted</span>
-            <ToggleSwitch v-model="includeDeleted" />
+          <div
+            v-tooltip="includeDeleted ? 'Hide archived' : 'Show archived'"
+            class="hover-icon flex flex-row items-center justify-center"
+            :style="{
+              padding: '0.5rem',
+              borderRadius: '8px',
+              border: includeDeleted
+                ? '1px solid var(--accent-primary)'
+                : '1px solid var(--border-color)',
+            }"
+            @click="includeDeleted = !includeDeleted"
+          >
+            <i
+              class="pi pi-trash"
+              :style="{
+                fontSize: '0.845rem',
+                color: includeDeleted ? 'var(--accent-primary)' : undefined,
+              }"
+            />
+          </div>
+        </template>
+        <template v-if="canManage" #selectButton>
+          <div
+            v-tooltip="selecting ? 'Cancel selection' : 'Select'"
+            class="hover-icon flex flex-row items-center justify-center"
+            style="
+              padding: 0.5rem;
+              border-radius: 8px;
+              border: 1px solid var(--border-color);
+            "
+            @click="toggleSelecting"
+          >
+            <i
+              :class="selecting ? 'pi pi-times' : 'pi pi-check-square'"
+              style="font-size: 0.845rem"
+            />
           </div>
         </template>
       </ActionRow>
+    </div>
+
+    <div
+      v-if="!readOnly && canManage && selecting"
+      class="flex flex-row items-center gap-2"
+    >
+      <span style="font-size: 0.8rem; color: var(--text-secondary)">
+        {{ selected.length }} selected
+      </span>
+      <Button
+        class="outline-button text-sm"
+        :disabled="selected.length === 0 || bulkLoading"
+        @click="openCategoryDialog"
+      >
+        <span>Category</span>
+      </Button>
+      <Button
+        class="outline-button text-sm"
+        :disabled="selected.length === 0 || bulkLoading"
+        @click="openDescriptionDialog"
+      >
+        <span>Description</span>
+      </Button>
+      <Button
+        class="outline-button text-sm"
+        severity="danger"
+        :disabled="selected.length === 0 || bulkLoading"
+        @click="confirmBulkDelete"
+      >
+        <span>Delete</span>
+      </Button>
     </div>
 
     <div
@@ -268,10 +424,12 @@ defineExpose({ refresh });
       "
     >
       <DataTable
+        v-model:selection="selected"
         data-key="id"
         class="w-full enhanced-table"
         :loading="loading"
         :value="records"
+        :is-data-selectable="isDataSelectable"
         scrollable
         :row-class="vueHelper.deletedRowClass"
         column-resize-mode="fit"
@@ -290,6 +448,12 @@ defineExpose({ refresh });
             @on-page="onPage"
           />
         </template>
+
+        <Column
+          v-if="selecting"
+          selection-mode="multiple"
+          header-style="width: 3rem"
+        />
 
         <Column
           v-for="col of columns"
@@ -368,6 +532,71 @@ defineExpose({ refresh });
       </DataTable>
     </div>
   </div>
+
+  <Dialog
+    v-model:visible="categoryDialog"
+    class="rounded-dialog"
+    :modal="true"
+    :breakpoints="{ '501px': '90vw' }"
+    :style="{ width: '400px' }"
+    header="Set category"
+  >
+    <div class="flex flex-col gap-4">
+      <Select
+        v-model="bulkCategoryId"
+        class="w-full"
+        :options="categoryOptions"
+        option-label="label"
+        option-value="value"
+        filter
+        placeholder="Select a category"
+      >
+        <template #option="{ option }">
+          <div class="flex justify-between w-full gap-2">
+            <span>{{ option.label }}</span>
+            <small class="text-muted-color">{{ option.classification }}</small>
+          </div>
+        </template>
+      </Select>
+      <small style="color: var(--text-secondary)">
+        Income and expense categories also overwrite each transaction's
+        direction to match.
+      </small>
+      <Button
+        class="main-button"
+        :disabled="bulkCategoryId == null || bulkLoading"
+        :loading="bulkLoading"
+        @click="runBulk('set_category', { category_id: bulkCategoryId! })"
+      >
+        Apply to {{ selected.length }}
+      </Button>
+    </div>
+  </Dialog>
+
+  <Dialog
+    v-model:visible="descriptionDialog"
+    class="rounded-dialog"
+    :modal="true"
+    :breakpoints="{ '501px': '90vw' }"
+    :style="{ width: '400px' }"
+    header="Set description"
+  >
+    <div class="flex flex-col gap-4">
+      <InputText
+        v-model="bulkDescription"
+        class="w-full"
+        placeholder="New description"
+      />
+      <Button
+        class="main-button"
+        :disabled="bulkDescription.trim().length === 0 || bulkLoading"
+        :loading="bulkLoading"
+        @click="runBulk('set_description', { description: bulkDescription })"
+      >
+        Apply to {{ selected.length }}
+      </Button>
+    </div>
+  </Dialog>
 </template>
 
 <style scoped>

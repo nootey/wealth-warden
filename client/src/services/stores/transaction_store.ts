@@ -81,6 +81,15 @@ export const useTransactionStore = defineStore("transaction", {
       );
       return response.data;
     },
+    async bulkOperateTransactions(payload: {
+      ids: number[];
+      action: "set_category" | "set_description" | "delete";
+      category_id?: number;
+      description?: string;
+    }) {
+      const response = await apiClient.post(`${this.apiPrefix}/bulk`, payload);
+      return response.data;
+    },
     async mergeCategories(sourceID: number, destinationID: number) {
       const response = await apiClient.post(
         `${this.apiPrefix}/categories/merge`,
