@@ -1,8 +1,33 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
+import dayjs from "dayjs";
 
 type Model = { date: Date | null; from: Date | null; to: Date | null };
 const model = defineModel<Model>({ required: true });
+
+const presets = [
+  { key: "week", label: "Last week" },
+  { key: "month", label: "Last month" },
+  { key: "6months", label: "Last 6 months" },
+  { key: "year", label: "Last year" },
+];
+const activePreset = ref<string | null>(null);
+
+function applyPreset(key: string | null) {
+  if (!key) return;
+  const to = dayjs();
+  let from = to;
+  if (key === "week") from = to.subtract(1, "week");
+  else if (key === "month") from = to.subtract(1, "month");
+  else if (key === "6months") from = to.subtract(6, "month");
+  else if (key === "year") from = to.subtract(1, "year");
+  isRange.value = true;
+  model.value.date = null;
+  model.value.from = from.toDate();
+  model.value.to = to.toDate();
+}
+
+watch(activePreset, (key) => applyPreset(key));
 
 const props = defineProps<{
   label?: string;
@@ -45,6 +70,7 @@ const dpValue = computed({
       const [start, end] = Array.isArray(v)
         ? (v as [Date | null, Date | null])
         : [null, null];
+      activePreset.value = null;
       model.value.date = null;
       model.value.from = start ?? null;
       model.value.to = end ?? null;
@@ -64,6 +90,7 @@ watch(isRange, (nowRange) => {
       model.value.date = null;
     }
   } else {
+    activePreset.value = null;
     if (model.value.from) model.value.date = model.value.from;
     model.value.from = null;
     model.value.to = null;
@@ -79,6 +106,19 @@ function toDate(v: unknown): Date | null {
 <template>
   <div class="flex flex-col gap-2 w-full">
     <label class="text-sm">{{ label }}</label>
+
+    <div class="grid grid-cols-2 gap-1 w-full">
+      <Button
+        v-for="p in presets"
+        :key="p.key"
+        :label="p.label"
+        fluid
+        class="outline-button"
+        style="max-height: 35px; font-size: small; color: var(--text-secondary)"
+        @click="activePreset = p.key"
+      />
+    </div>
+
     <div class="flex flex-row w-full">
       <IftaLabel class="w-full">
         <DatePicker
