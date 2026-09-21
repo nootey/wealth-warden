@@ -9,6 +9,7 @@ import type {
   Import,
 } from "../../../models/dataio_models.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
+import UploadDropzone from "../../components/base/UploadDropzone.vue";
 import ImportTransferMapping from "../../components/base/ImportTransferMapping.vue";
 
 const emit = defineEmits<{
@@ -197,56 +198,17 @@ defineExpose({ isDisabled, transferInvestmentTrades });
       existing ones.
     </span>
 
-    <FileUpload
+    <UploadDropzone
       v-if="!transfering"
       ref="uploadImportRef"
       accept=".json, application/json"
-      :max-file-size="10485760"
-      :multiple="false"
-      custom-upload
-      :show-upload-button="false"
-      :show-cancel-button="false"
+      hint="Accepts .json"
+      info="Only Wealth Warden JSON exports are supported. Other files may fail to import."
+      :files="selectedFiles"
       @select="onSelect"
+      @remove="resetWizard"
       @clear="onClear"
-    >
-      <template #header="{ chooseCallback }">
-        <div class="flex flex-row w-full justify-center">
-          <Button
-            class="outline-button"
-            :disabled="transfering"
-            label="Upload"
-            @click="chooseCallback()"
-          />
-        </div>
-      </template>
-
-      <template #content>
-        <div
-          v-if="selectedFiles.length > 0"
-          class="flex flex-col gap-1 w-full items-center"
-        >
-          <h5>Pending</h5>
-          <div class="flex flex-wrap gap-2 w-full">
-            <div
-              v-for="file in selectedFiles"
-              :key="file.name + file.type + file.size"
-              class="flex flex-row gap-2 p-1 w-full justify-center items-center w-full"
-            >
-              <span
-                class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
-                >{{ file.name }}</span
-              >
-              <Badge value="Pending" severity="warn" />
-              <i
-                class="pi pi-times hover-icon"
-                style="color: var(--p-red-300)"
-                @click="resetWizard"
-              />
-            </div>
-          </div>
-        </div>
-      </template>
-    </FileUpload>
+    />
     <ShowLoading v-else :num-fields="3" />
 
     <div
@@ -301,9 +263,3 @@ defineExpose({ isDisabled, transferInvestmentTrades });
     </div>
   </div>
 </template>
-
-<style scoped>
-.p-fileupload {
-  width: 80% !important;
-}
-</style>

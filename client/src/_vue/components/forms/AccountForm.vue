@@ -631,7 +631,6 @@ async function manageRecord() {
           :label="(mode == 'create' ? 'Add' : 'Update') + ' account'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="confirmAdjustments"
         />
       </div>

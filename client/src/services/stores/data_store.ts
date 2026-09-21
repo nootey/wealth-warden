@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import apiClient from "../api/api_client.ts";
-import type { BankParseResponse } from "../../models/dataio_models.ts";
+import type { BankParseResponse, BankTxn } from "../../models/dataio_models.ts";
 
 export const useDataStore = defineStore("data", {
   state: () => ({
@@ -115,6 +115,27 @@ export const useDataStore = defineStore("data", {
       const res = await apiClient.post(
         `${this.importPrefix}/bank/parse`,
         formData,
+      );
+      return res.data;
+    },
+    async applyBankRules(
+      transactions: BankTxn[],
+    ): Promise<{ transactions: BankTxn[] }> {
+      const res = await apiClient.post(
+        `${this.importPrefix}/bank/apply-rules`,
+        { transactions },
+      );
+      return res.data;
+    },
+
+    async checkBankDuplicates(
+      transactions: BankTxn[],
+      checkID: number,
+    ): Promise<{ transactions: BankTxn[] }> {
+      const res = await apiClient.post(
+        `${this.importPrefix}/bank/check-duplicates`,
+        { transactions },
+        { params: { check_acc_id: checkID } },
       );
       return res.data;
     },

@@ -784,7 +784,6 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     <Button
       class="main-button"
       :label="(mode == 'create' ? 'Insert' : 'Update') + ' asset'"
-      style="height: 42px"
       :disabled="loading"
       @click="manageRecord"
     />
@@ -792,7 +791,6 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       v-if="mode == 'update'"
       label="Delete asset"
       class="delete-button"
-      style="height: 42px"
       :disabled="loading"
       @click="deleteConfirmation(record.id!)"
     />

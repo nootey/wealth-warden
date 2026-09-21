@@ -93,7 +93,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	userService := services.NewUserService(userRepo, roleRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, balanceRepo, transactionRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
 	balanceService := services.NewBalanceService(logger.Named("balance_srv"), balanceRepo)
-	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, balanceRepo, settingsRepo, savingsRepo, jobDispatcher)
+	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, balanceRepo, settingsRepo, savingsRepo, rulesRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, jobDispatcher, sessionStore)
 	importService := services.NewImportService(logger.Named("import_srv"), importRepo, transactionRepo, accountRepo, balanceRepo, investmentRepo, settingsRepo, rulesRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, balanceRepo, settingsRepo, rulesRepo, jobDispatcher)

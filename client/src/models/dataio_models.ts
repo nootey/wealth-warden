@@ -6,6 +6,12 @@ type TxnSample = {
   description: string;
 };
 
+export type PartialMatchInfo = {
+  existing_date: string;
+  existing_description: string;
+  existing_category: string;
+};
+
 export type BankTxn = {
   transaction_type: string;
   amount: string;
@@ -14,6 +20,8 @@ export type BankTxn = {
   category: string;
   description: string;
   external_txn_id: string;
+  category_id?: number | null;
+  partial_match?: PartialMatchInfo | null;
 };
 
 export type BankParseResponse = {
@@ -37,6 +45,7 @@ export type Import = {
   account_id: number;
   name: string;
   status: string;
+  error?: string | null;
   type: string;
   sub_type: string;
   currency: string;

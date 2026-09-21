@@ -3,6 +3,7 @@ package services_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
@@ -4097,4 +4098,140 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_AmountFilte
 	}
 	s.Assert().True(directions[models.TxnDirectionIncome], "income row should match")
 	s.Assert().True(directions[models.TxnDirectionExpense], "expense row should match")
+}
+
+// setCategoryRule builds an active rule that matches when the description
+// contains the given substring and sets the given category.
+func (s *TransactionServiceTestSuite) setCategoryRule(name, contains string, categoryID int64) *models.RuleReq {
+	return &models.RuleReq{
+		Name:       name,
+		MatchType:  models.RuleMatchAll,
+		Conditions: []models.RuleConditionReq{{Field: "description", Operator: "contains", Value: contains}},
+		Actions:    []models.RuleActionReq{{ActionType: models.RuleActionSetCategory, Value: strconv.FormatInt(categoryID, 10)}},
+	}
+}
+
+func (s *TransactionServiceTestSuite) uncategorizedCategoryID(userID int64) int64 {
+	var c models.Category
+	err := s.TC.DB.WithContext(s.Ctx).
+		Where("classification = ? AND user_id = ?", "uncategorized", userID).
+		First(&c).Error
+	s.Require().NoError(err)
+	return c.ID
+}
+
+// Insert with no category should pick the category of the first matching active
+// rule, and fall back to uncategorized when nothing matches.
+func (s *TransactionServiceTestSuite) TestInsertTransaction_AutoAssignsCategoryFromRule() {
+	txnSvc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	rulesSvc := s.TC.App.RulesService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Auto Assign Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	catID, err := txnSvc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	_, err = rulesSvc.InsertRule(s.Ctx, userID, s.setCategoryRule("grocery rule", "spar", catID))
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(1000)
+
+	// Matching description -> rule category.
+	matchDesc := "SPAR market"
+	matched, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:   accID,
+		CategoryID:  nil,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     today,
+		Description: &matchDesc,
+	})
+	s.Require().NoError(err)
+
+	var matchedTxn models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&matchedTxn, matched.ID).Error)
+	s.Require().NotNil(matchedTxn.CategoryID)
+	s.Assert().Equal(catID, *matchedTxn.CategoryID, "rule category should win over uncategorized")
+
+	// No match -> uncategorized fallback.
+	noMatchDesc := "random shop"
+	unmatched, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:   accID,
+		CategoryID:  nil,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     today,
+		Description: &noMatchDesc,
+	})
+	s.Require().NoError(err)
+
+	var unmatchedTxn models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&unmatchedTxn, unmatched.ID).Error)
+	s.Require().NotNil(unmatchedTxn.CategoryID)
+	s.Assert().Equal(s.uncategorizedCategoryID(userID), *unmatchedTxn.CategoryID, "no rule match should stay uncategorized")
+}
+
+// Editing a transaction must not run rule matching, even when a rule now matches
+// its description. Auto-assign is a create-only behaviour.
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_DoesNotApplyRules() {
+	txnSvc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	rulesSvc := s.TC.App.RulesService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Edit No Rules Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	// Insert uncategorized BEFORE the rule exists, so create does not auto-assign.
+	desc := "coffee bar"
+	amount := decimal.NewFromInt(500)
+	inserted, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:   accID,
+		CategoryID:  nil,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     today,
+		Description: &desc,
+	})
+	s.Require().NoError(err)
+	uncategorizedID := s.uncategorizedCategoryID(userID)
+
+	// Now add a rule that would match the description.
+	catID, err := txnSvc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Coffee", Classification: "expense"})
+	s.Require().NoError(err)
+	_, err = rulesSvc.InsertRule(s.Ctx, userID, s.setCategoryRule("coffee rule", "coffee", catID))
+	s.Require().NoError(err)
+
+	// Edit keeps the transaction uncategorized; rules must not fire.
+	newAmount := decimal.NewFromInt(600)
+	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, inserted.ID, &models.TransactionReq{
+		AccountID:   accID,
+		CategoryID:  &uncategorizedID,
+		Direction:   "expense",
+		Amount:      newAmount,
+		TxnDate:     today,
+		Description: &desc,
+	})
+	s.Require().NoError(err)
+
+	var edited models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&edited, inserted.ID).Error)
+	s.Require().NotNil(edited.CategoryID)
+	s.Assert().Equal(uncategorizedID, *edited.CategoryID, "edit must not auto-assign a rule category")
 }

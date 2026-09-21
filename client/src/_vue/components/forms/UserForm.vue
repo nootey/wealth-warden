@@ -299,14 +299,12 @@ async function deleteRecord(id: number) {
             v-if="!readOnly"
             class="main-button"
             :label="(mode == 'create' ? 'Invite' : 'Update') + ' user'"
-            style="height: 42px"
             @click="manageRecord"
           />
           <Button
             v-if="!readOnly && mode == 'update'"
             label="Delete user"
             class="delete-button"
-            style="height: 42px"
             @click="deleteConfirmation(record.id!)"
           />
         </div>
