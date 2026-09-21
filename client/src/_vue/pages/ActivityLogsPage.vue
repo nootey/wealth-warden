@@ -253,7 +253,7 @@ provide("removeFilter", removeFilter);
           background: var(--background-secondary);
         "
       >
-        <ActionRow>
+        <ActionRow pills-last>
           <template #activeFilters>
             <ActiveFilters
               :active-filters="filters"
@@ -263,16 +263,16 @@ provide("removeFilter", removeFilter);
           </template>
           <template #filterButton>
             <div
-              class="hover-icon flex flex-row items-center gap-2"
+              v-tooltip="'Filter'"
+              class="hover-icon flex flex-row items-center justify-center"
               style="
-                padding: 0.5rem 1rem;
+                padding: 0.5rem;
                 border-radius: 8px;
                 border: 1px solid var(--border-color);
               "
               @click="toggleFilterOverlay($event)"
             >
               <i class="pi pi-filter" style="font-size: 0.845rem" />
-              <div>Filter</div>
             </div>
           </template>
         </ActionRow>

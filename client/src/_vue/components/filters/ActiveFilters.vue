@@ -56,16 +56,17 @@ function iconClass(field: string | null): string | null {
 <template>
   <div
     v-if="filters.length > 0"
-    class="flex flex-wrap gap-1 w-full"
-    style="line-height: 1; max-height: 135px; overflow-y: auto"
+    id="active-filters-scroll"
+    class="flex flex-wrap gap-1 w-full text-sm"
+    style="line-height: 1; max-height: 38px; overflow-y: auto"
   >
     <Chip
       v-for="filter in filters"
       :key="filter.originalIndex"
       style="
         background-color: transparent;
-        border: 3px solid var(--border-color);
-        padding: 0.65rem;
+        border: 2px solid var(--border-color);
+        padding: 0.5rem;
       "
     >
       <div class="flex flex-row items-center gap-2">
@@ -115,9 +116,31 @@ function iconClass(field: string | null): string | null {
       </div>
     </Chip>
   </div>
-  <div v-else>
-    <span> {{ "No filters active" }}</span>
+  <div v-else class="w-full flex justify-end">
+    <span style="color: var(--text-secondary)">No filters active</span>
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+#active-filters-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+#active-filters-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+#active-filters-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#active-filters-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 9999px;
+}
+
+#active-filters-scroll::-webkit-scrollbar-button {
+  display: none;
+}
+</style>
