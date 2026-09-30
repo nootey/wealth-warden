@@ -59,6 +59,7 @@ const activeColumns = computed<Column[]>(() => [
     type: "enum",
     options: categories.value,
     optionLabel: "name",
+    optionHint: "classification",
     hideOnMobile: true,
   },
   { field: "amount", header: "Amount", type: "number" },

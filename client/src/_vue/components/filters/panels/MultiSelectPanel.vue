@@ -9,6 +9,7 @@ const props = defineProps<{
   options: Opt[];
   optionLabel?: string;
   optionValue?: string;
+  optionHint?: string;
 }>();
 
 // Normalize options
@@ -30,6 +31,7 @@ const normalizedOptions = computed(() => {
   return (opts as Record<string, any>[]).map((o) => ({
     label: String(o[ol]),
     value: o[ov],
+    hint: props.optionHint ? o[props.optionHint] : undefined,
     raw: o,
   }));
 });
@@ -73,7 +75,16 @@ function remove(value: any) {
       :max-selected-labels="1"
       selected-items-label="{0} selected"
       class="w-full"
-    />
+    >
+      <template #option="{ option }">
+        <div class="flex justify-between w-full gap-2">
+          <span>{{ option.label }}</span>
+          <small v-if="option.hint" class="text-muted-color">
+            {{ option.hint }}
+          </small>
+        </div>
+      </template>
+    </MultiSelect>
 
     <div
       v-if="selectedChips.length"
