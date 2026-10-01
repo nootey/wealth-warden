@@ -156,8 +156,8 @@ export function accentPreset(accent: string) {
 }
 
 export const SEMANTIC_TOKENS = {
-  positive: "--p-green-500",
-  negative: "--p-red-500",
+  positive: "--positive",
+  negative: "--negative",
 };
 
 // Theme-aware neutrals for chart scaffolding (axes, tooltips, guides).

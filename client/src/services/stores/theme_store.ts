@@ -6,11 +6,12 @@ export const useThemeStore = defineStore("theme", {
   state: () => ({
     theme: "system" as "system" | "dark" | "light",
     accent: "blurple" as string,
+    systemDark: window.matchMedia("(prefers-color-scheme: dark)").matches,
   }),
   getters: {
     isDark(): boolean {
       if (this.theme === "system") {
-        return true;
+        return this.systemDark;
       }
       return this.theme === "dark";
     },
@@ -23,7 +24,8 @@ export const useThemeStore = defineStore("theme", {
       // Listen for system theme changes
       window
         .matchMedia("(prefers-color-scheme: dark)")
-        .addEventListener("change", () => {
+        .addEventListener("change", (e) => {
+          this.systemDark = e.matches;
           if (this.theme === "system") {
             this.applyTheme();
           }

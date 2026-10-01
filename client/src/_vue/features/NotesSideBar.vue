@@ -3,7 +3,7 @@
     id="drawer"
     v-model:visible="open"
     header="Notes"
-    position="right"
+    position="left"
     style="width: 100%; max-width: 468px; overflow-y: auto"
   >
     <template #container="{ closeCallback }">

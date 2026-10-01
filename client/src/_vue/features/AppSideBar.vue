@@ -2,8 +2,8 @@
   <Drawer
     id="drawer"
     v-model:visible="open"
-    header="Monthly stats"
-    position="right"
+    header="Monthly overview"
+    position="left"
     style="width: 100%; max-width: 468px"
   >
     <template #container="{ closeCallback }">

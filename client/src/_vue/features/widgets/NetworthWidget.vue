@@ -7,6 +7,7 @@ import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useRouter } from "vue-router";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 import type {
   ChartPoint,
   NetworthResponse,
@@ -74,7 +75,10 @@ const orderedPoints = computed<ChartPoint[]>(() => {
 });
 const hasSeries = computed(() => (payload.value?.points?.length ?? 0) > 0);
 
-const activeColor = ref("#ef4444");
+const { colors } = useChartColors();
+const activeColor = computed(() =>
+  effectiveAbs.value >= 0 ? colors.value.pos : colors.value.neg,
+);
 
 const storageSuffix = computed(() =>
   props.accountId ? `acct_${props.accountId}` : "ALL",
@@ -211,7 +215,6 @@ async function getNetworthData(opts?: {
     }
 
     payload.value = res;
-    activeColor.value = effectiveAbs.value >= 0 ? "#22c55e" : "#ef4444";
   } catch (err) {
     toastStore.errorResponseToast(err);
   }
@@ -231,51 +234,56 @@ onMounted(getData);
 <template>
   <div
     v-if="payload && !isRefreshing"
-    class="w-full flex flex-col justify-center p-2 gap-1"
+    class="w-full flex flex-col justify-center gap-4"
   >
-    <div class="flex flex-row gap-2 w-full justify-between">
-      <div class="flex flex-col gap-2">
-        <div class="flex flex-row"></div>
-        <div class="flex flex-row">
-          <strong>{{
-            vueHelper.displayAsCurrency(payload.current.value)
-          }}</strong>
+    <div
+      class="flex flex-row flex-wrap gap-4 w-full justify-between items-start"
+    >
+      <div class="flex flex-col gap-2 min-w-0">
+        <span class="label">{{ title }}</span>
+        <span
+          class="text-3xl font-semibold tracking-tight leading-none text-ink"
+        >
+          {{ vueHelper.displayAsCurrency(payload.current.value) }}
+        </span>
+
+        <div
+          v-if="payload?.change && hasSeries"
+          class="flex flex-row flex-wrap gap-2 items-center text-sm"
+        >
+          <span
+            class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium"
+            :style="{
+              color: activeColor,
+              backgroundColor: `color-mix(in srgb, ${activeColor}, transparent 88%)`,
+            }"
+          >
+            <i
+              class="text-xs"
+              :class="
+                effectiveAbs >= 0
+                  ? 'pi pi-arrow-up-right'
+                  : 'pi pi-arrow-down-right'
+              "
+            />
+            {{ vueHelper.displayAsCurrency(Math.abs(effectiveAbs)) }}
+            <span class="opacity-80">· {{ pctStr }}</span>
+          </span>
+          <span class="text-muted">
+            {{ displayNetworthChange(periodLabels[selectedKey]) }}
+          </span>
         </div>
       </div>
 
-      <div class="flex flex-col gap-2">
-        <Select
+      <div class="max-w-full overflow-x-auto">
+        <SelectButton
           v-model="selectedDTO"
           size="small"
-          style="width: 90px"
           :options="dateRanges"
           option-label="name"
+          :allow-empty="false"
         />
       </div>
-    </div>
-
-    <div
-      v-if="payload?.change && hasSeries"
-      class="flex flex-row gap-2 items-center"
-      :style="{ color: activeColor }"
-    >
-      <span>{{ vueHelper.displayAsCurrency(Math.abs(effectiveAbs)) }}</span>
-
-      <div class="flex flex-row gap-1 items-center">
-        <i
-          class="text-sm"
-          :class="
-            effectiveAbs >= 0
-              ? 'pi pi-angle-double-up'
-              : 'pi pi-angle-double-down'
-          "
-        />
-        <span>({{ pctStr }})</span>
-      </div>
-
-      <span class="text-sm" style="color: var(--text-secondary)">
-        {{ displayNetworthChange(periodLabels[selectedKey]) }}
-      </span>
     </div>
 
     <NetworthChart

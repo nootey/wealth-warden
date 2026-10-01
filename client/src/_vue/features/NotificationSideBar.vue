@@ -2,7 +2,7 @@
   <Drawer
     id="notif-drawer"
     v-model:visible="open"
-    position="right"
+    position="left"
     style="width: 100%; max-width: 468px; overflow-y: auto"
   >
     <template #container="{ closeCallback }">

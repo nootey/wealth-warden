@@ -1,55 +1,69 @@
-.p-button.main-button {
-  background-color: var(--text-primary);
-  color: var(--background-primary);
-  border: none;
+// Shared button looks. Pages opt in with main-button / ink-button / outline-button / delete-button.
+.p-button.main-button,
+.p-button.ink-button,
+.p-button.outline-button,
+.p-button.delete-button {
   border-radius: 10px;
   font-size: 0.875rem;
-  padding: 0.5rem 1rem;
+  font-weight: 500;
+  padding: 0.55rem 1rem;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+}
+
+.p-button.main-button {
+  background-color: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  border: 1px solid var(--p-primary-color);
+
+  &:not(:disabled):hover {
+    background-color: var(--p-primary-hover-color);
+    border-color: var(--p-primary-hover-color);
+    color: var(--p-primary-contrast-color);
+  }
+}
+
+.p-button.ink-button {
+  background-color: var(--text-primary);
+  color: var(--background-primary);
+  border: 1px solid var(--text-primary);
+
+  &:not(:disabled):hover {
+    background-color: color-mix(in srgb, var(--text-primary), transparent 15%);
+    border-color: color-mix(in srgb, var(--text-primary), transparent 15%);
+    color: var(--background-primary);
+  }
 }
 
 .p-button.outline-button {
-  background-color: transparent;
+  background-color: var(--background-secondary);
   color: var(--text-primary);
-  border: 1px solid var(--text-primary);
-  border-radius: 10px;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+
+  &:not(:disabled):hover {
+    background-color: var(--background-alt);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+  }
 }
 
 .p-button.delete-button {
-  background-color: var(--p-red-500);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-}
-
-button.p-button.main-button:hover {
-  background-color: var(--text-secondary);
-  border-color: var(--border-color);
-  border: none;
-  border-radius: 10px;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-}
-
-button.p-button.outline-button:hover {
   background-color: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--text-secondary);
-  border-radius: 10px;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-}
+  color: var(--negative);
+  border: 1px solid color-mix(in srgb, var(--negative), transparent 55%);
 
-button.p-button.delete-button:hover {
-  background-color: var(--p-red-400);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
+  &:not(:disabled):hover {
+    background-color: var(--negative);
+    border-color: var(--negative);
+    color: #fff;
+  }
 }
 
 button.p-button.accent-button:hover {
@@ -58,37 +72,48 @@ button.p-button.accent-button:hover {
 }
 
 .p-button.auth-accent-button {
-  background-image: linear-gradient(
-    to right,
-    var(--accent-primary) 0%,
-    var(--accent-secondary) 51%,
-    var(--accent-primary) 100%
-  );
-}
-
-.p-button.auth-accent-button {
-  text-align: center;
-  transition: 1s;
-  background-size: 200% auto;
-  color: white;
-  border-radius: 10px;
   display: block;
+  text-align: center;
+  background: var(--p-primary-color);
+  border: 1px solid var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  border-radius: 10px;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
 }
 
-button.p-button.auth-accent-button:hover {
-  background-position: right center;
-  color: white;
-  text-decoration: none;
+button.p-button.auth-accent-button:not(:disabled):hover {
+  background: var(--p-primary-hover-color);
+  border-color: var(--p-primary-hover-color);
+  color: var(--p-primary-contrast-color);
 }
 
 .p-dialog.rounded-dialog {
-  border-radius: 20px;
-  padding: 0.33rem;
+  border-radius: 18px;
+  box-shadow: 0 24px 64px -16px rgb(0 0 0 / 0.35);
 }
 
 .p-popover.rounded-popover {
-  border-radius: 20px;
-  padding: 0.33rem;
+  border-radius: 14px;
+}
+
+.p-panel {
+  box-shadow: var(--shadow-card);
+}
+
+.p-drawer {
+  border-color: var(--border-color);
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+}
+
+.p-toast .p-toast-message {
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
 }
 
 body:has(.p-drawer-mask) {

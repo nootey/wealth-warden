@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useAuthStore } from "./services/stores/auth_store.ts";
 import { useThemeStore } from "./services/stores/theme_store.ts";
 import AppNavBar from "./AppNavBar.vue";
 import { storeToRefs } from "pinia";
 import { useRoute } from "vue-router";
 import AppSideBar from "./_vue/features/AppSideBar.vue";
-import vueHelper from "./utils/vue_helper.ts";
-import router from "./services/router/main.ts";
-import AppFooter from "./AppFooter.vue";
 import AccountSideBar from "./AccountSideBar.vue";
 import NotificationSideBar from "./_vue/features/NotificationSideBar.vue";
 import { useNotificationStore } from "./services/stores/notification_store.ts";
@@ -28,6 +25,9 @@ const requiresAuthView = computed<boolean>(() =>
 const hideNavigation = computed<boolean>(() =>
   route.matched.some((r) => r.meta.hideNavigation),
 );
+const showShell = computed(
+  () => isAuthenticated.value && isInitialized.value && !hideNavigation.value,
+);
 
 const appSidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
 const accSidebarRef = ref<InstanceType<typeof AccountSideBar> | null>(null);
@@ -35,35 +35,28 @@ const notifSidebarRef = ref<InstanceType<typeof NotificationSideBar> | null>(
   null,
 );
 
+const NAV_KEY = "ww_nav_collapsed";
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(NAV_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+const navCollapsed = ref(readCollapsed());
+watch(navCollapsed, (v) => {
+  try {
+    localStorage.setItem(NAV_KEY, String(v));
+  } catch {
+    // Storage can be unavailable; the toggle still works for this session.
+  }
+});
+
 onMounted(async () => {
   if (isAuthenticated.value) {
     await authStore.init();
   }
 });
-
-const pageTitle = computed<string[]>(() => {
-  const path = route.path ?? "";
-  const name = typeof route.name === "string" ? route.name : "";
-
-  const raw = path || name;
-  if (!raw) return ["Home"];
-
-  const delimiter = raw.startsWith("/") ? "/" : ".";
-  const parts = raw
-    .split(delimiter)
-    .filter(Boolean)
-    .map((p) => vueHelper.capitalize(p.replace(/[-_]/g, " ")));
-
-  if (path === "/" || parts.length === 0) {
-    return ["Home", "Dashboard"];
-  }
-
-  return ["Home", ...parts];
-});
-
-const goHome = () => router.push("/");
-
-const isSettingsView = computed(() => route.path.startsWith("/settings"));
 </script>
 
 <template>
@@ -75,32 +68,28 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
         class="flex justify-center items-center p-overlay-mask p-overlay-mask-enter"
       >
         <div
-          class="flex flex-col p-8 gap-6 rounded-lg"
-          style="background-color: var(--background-secondary)"
+          class="flex flex-col p-6 gap-4 rounded-2xl border border-line bg-card shadow-2xl w-[min(420px,calc(100vw-2rem))]"
         >
-          <div class="font-bold text-xl" style="color: var(--text-primary)">
+          <div class="text-xl font-medium tracking-tight text-ink">
             {{ message.header }}
           </div>
           <div
-            style="color: var(--text-primary)"
+            class="text-sm leading-relaxed text-muted"
             v-html="message.message.replace(/\n/g, '<br>')"
           />
-          <div class="flex justify-end gap-2">
+          <div class="flex justify-end gap-2 pt-2">
             <Button
-              class="p-2 rounded-lg"
+              class="outline-button"
               :label="message.rejectProps?.label || 'Cancel'"
-              variant="outlined"
-              style="
-                color: var(--text-primary);
-                border-color: var(--text-primary);
-              "
               @click="rejectCallback"
             />
             <Button
-              class="p-2 rounded-lg"
+              :class="
+                message.acceptProps?.severity === 'danger'
+                  ? 'delete-button'
+                  : 'main-button'
+              "
               :label="message.acceptProps?.label || 'Confirm'"
-              :severity="message.acceptProps?.severity"
-              style="color: var(--text-primary)"
               @click="acceptCallback"
             />
           </div>
@@ -110,125 +99,42 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
   </ConfirmDialog>
 
   <div id="app">
-    <AppNavBar v-if="isAuthenticated && isInitialized && !hideNavigation" />
-
-    <AccountSideBar
-      v-if="isAuthenticated && isInitialized && !hideNavigation"
-      ref="accSidebarRef"
+    <AppNavBar
+      v-if="showShell"
+      v-model:collapsed="navCollapsed"
+      :has-unread="notificationStore.hasUnread"
+      @open-accounts="accSidebarRef?.toggle()"
+      @open-stats="appSidebarRef?.toggle()"
+      @open-notifications="notifSidebarRef?.toggle()"
     />
 
+    <AccountSideBar v-if="showShell" ref="accSidebarRef" />
+
     <div
-      class="flex-1 app-content"
+      :id="showShell ? 'app-content' : 'app-bare'"
+      class="flex-1 min-w-0 transition-[padding] duration-200 ease-out"
       :style="{
-        'margin-left':
-          isAuthenticated && isInitialized && !hideNavigation ? '80px' : '0px',
+        paddingLeft: showShell ? (navCollapsed ? '76px' : '248px') : '0px',
       }"
     >
       <div
         v-if="requiresAuthView && !isInitialized"
-        class="w-full h-full flex items-center justify-center"
+        class="w-full min-h-screen flex items-center justify-center"
       >
-        <i class="pi pi-spin pi-spinner text-2xl" />
+        <i class="pi pi-spin pi-spinner text-2xl text-muted" />
       </div>
-      <div v-else>
-        <div
-          v-if="
-            !isSettingsView &&
-            isAuthenticated &&
-            isInitialized &&
-            !hideNavigation
-          "
-          id="breadcrumb"
-          class="flex flex-row gap-2 mb-2 items-center justify-between"
-          style="max-width: 1000px; margin: 0 auto; padding: 1rem 0.5rem 0 0"
-        >
-          <div id="crumbs" class="flex gap-1 text-center items-center">
-            <i
-              class="pi pi-wallet hover-icon mr-1"
-              @click="accSidebarRef?.toggle && accSidebarRef.toggle()"
-            />
-            <i class="pi pi-ellipsis-v mobile-only text-xs hover-icon" />
-            <template v-for="(part, index) in pageTitle" :key="index">
-              <span
-                class="text-sm"
-                :style="{
-                  color:
-                    index === pageTitle.length - 1
-                      ? 'var(--text-primary)'
-                      : 'var(--text-secondary)',
-                  cursor: part === 'Home' ? 'pointer' : 'default',
-                }"
-                @click="part === 'Home' && goHome()"
-              >
-                {{ part }}
-              </span>
-              <i
-                v-if="index < pageTitle.length - 1"
-                class="pi pi-angle-right"
-              />
-            </template>
-          </div>
-
-          <div id="sidebar-icon" class="flex flex-row gap-4">
-            <span
-              style="
-                position: relative;
-                display: inline-flex;
-                align-items: center;
-              "
-            >
-              <i
-                class="pi pi-bell hover-icon"
-                style="margin-left: 0; color: var(--text-secondary)"
-                @click="notifSidebarRef?.toggle && notifSidebarRef.toggle()"
-              />
-              <span
-                v-if="notificationStore.hasUnread"
-                style="
-                  position: absolute;
-                  top: -2px;
-                  right: -2px;
-                  width: 7px;
-                  height: 7px;
-                  border-radius: 50%;
-                  background: var(--p-red-400);
-                  pointer-events: none;
-                "
-              />
-            </span>
-
-            <i
-              class="pi pi-book hover-icon"
-              style="margin-left: 0"
-              @click="appSidebarRef?.toggle && appSidebarRef.toggle()"
-            />
-          </div>
-        </div>
+      <div v-else :class="showShell ? 'px-4 pt-8 pb-16' : ''">
         <router-view />
       </div>
     </div>
 
-    <AppFooter />
+    <AppSideBar v-if="showShell" ref="appSidebarRef" />
 
-    <AppSideBar
-      v-if="isAuthenticated && isInitialized && !hideNavigation"
-      ref="appSidebarRef"
-    />
-
-    <NotificationSideBar
-      v-if="isAuthenticated && isInitialized && !hideNavigation"
-      ref="notifSidebarRef"
-    />
+    <NotificationSideBar v-if="showShell" ref="notifSidebarRef" />
   </div>
 </template>
 
 <style scoped lang="scss">
-main {
-  @media (max-width: 768px) {
-    padding-left: 0;
-  }
-}
-
 #app {
   display: flex;
   flex-direction: column;
@@ -236,35 +142,10 @@ main {
 }
 
 @media (max-width: 768px) {
-  .app-content {
-    margin-left: 0 !important;
-    padding-bottom: 0;
+  #app-content {
+    padding-left: 0 !important;
+    padding-top: 2.5rem;
+    padding-bottom: 4.5rem;
   }
-  .mobile-only {
-    display: inline-block;
-  }
-  .settings {
-    padding: 0 1rem 0 1rem !important;
-  }
-  .no-mobile {
-    display: none !important;
-  }
-  #breadcrumb {
-    padding: 1rem 0.7rem 0 0.7rem !important;
-  }
-  #crumbs {
-    margin-left: 0.5rem;
-  }
-  #sidebar-icon {
-    margin-right: 0.5rem;
-  }
-}
-@media (max-width: 1111px) {
-  #breadcrumb {
-    padding: 1rem 0.5rem 0 0.5rem !important;
-  }
-}
-.mobile-only {
-  display: none;
 }
 </style>

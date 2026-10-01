@@ -1,2 +1,18 @@
 @import "tailwindcss";
 @plugin "tailwindcss-primeui";
+
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: var(--background-primary);
+  --color-card: var(--background-secondary);
+  --color-sunken: var(--background-alt);
+  --color-ink: var(--text-primary);
+  --color-muted: var(--text-secondary);
+  --color-faint: var(--text-faint);
+  --color-line: var(--border-color);
+  --color-accent: var(--accent-primary);
+  --color-accent-soft: var(--accent-soft);
+  --color-gain: var(--positive);
+  --color-loss: var(--negative);
+}
