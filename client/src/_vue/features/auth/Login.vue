@@ -7,6 +7,7 @@ import ValidationError from "../../components/validation/ValidationError.vue";
 import { useAuthStore } from "../../../services/stores/auth_store.ts";
 import AuthSkeleton from "../../components/layout/AuthSkeleton.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
+import styleHelper from "../../../utils/style_helper.ts";
 import type { AuthForm } from "../../../models/auth_models.ts";
 
 const authStore = useAuthStore();
@@ -69,22 +70,14 @@ async function login() {
     loading.value = false;
   }
 }
-
-function signUp() {
-  router.push({ name: "sign.up" });
-}
-
-function forgotPassword() {
-  router.push({ name: "forgot.password" });
-}
 </script>
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 400px">
-      <div id="hideOnMobile" class="text-center mb-6">
+    <div class="w-full mx-auto" style="max-width: 400px">
+      <div class="mb-8">
         <h2
-          class="m-0 text-2xl sm:text-3xl font-bold"
+          class="m-0 text-3xl font-medium"
           style="color: var(--text-primary); letter-spacing: -0.025em"
         >
           Welcome back
@@ -93,11 +86,11 @@ function forgotPassword() {
           class="mt-2 text-base leading-normal"
           style="color: var(--text-secondary)"
         >
-          Sign in to your account to continue
+          Sign in to your account to continue.
         </p>
       </div>
 
-      <div class="flex flex-col gap-4">
+      <form class="flex flex-col gap-4" @submit.prevent="login">
         <div class="flex flex-row w-full">
           <div class="flex flex-col gap-1 w-full">
             <ValidationError :is-required="true" :message="r$.email.$errors[0]">
@@ -121,13 +114,14 @@ function forgotPassword() {
             >
               <label>Password</label>
             </ValidationError>
-            <InputText
+            <Password
               id="password"
               v-model="form.password"
-              type="password"
               :placeholder="'Password'"
-              class="w-full rounded-xl"
-              @keydown.enter="login"
+              :feedback="false"
+              toggle-mask
+              fluid
+              input-class="rounded-xl"
             />
           </div>
         </div>
@@ -138,6 +132,7 @@ function forgotPassword() {
               v-model="form.remember_me"
               input-id="rememberMe"
               :binary="true"
+              :dt="styleHelper.neutralControlDt"
               class="scale-90"
             />
             <label
@@ -149,19 +144,22 @@ function forgotPassword() {
             </label>
           </div>
 
-          <span class="text-sm hover-icon hover-dim" @click="forgotPassword">
-            Forgot password?</span
+          <router-link
+            :to="{ name: 'forgot.password' }"
+            class="text-sm text-ink font-medium no-underline hover:opacity-80"
           >
+            Forgot password?
+          </router-link>
         </div>
 
         <Button
           :label="loading ? 'Signing in...' : 'Sign in'"
           :icon="loading ? 'pi pi-spin pi-spinner mr-2' : ''"
-          class="w-full auth-accent-button"
+          class="w-full main-button"
           :disabled="loading || r$.$error"
-          @click="login"
+          type="submit"
         />
-      </div>
+      </form>
 
       <div
         class="flex items-center justify-center gap-2 mt-6 pt-4"
@@ -170,25 +168,13 @@ function forgotPassword() {
         <span class="text-sm" style="color: var(--text-secondary)">
           Don't have an account?
         </span>
-        <span class="text-sm hover-icon hover-dim" @click="signUp">
-          Create account</span
+        <router-link
+          :to="{ name: 'sign.up' }"
+          class="text-sm text-ink font-medium no-underline hover:opacity-80"
         >
+          Create account
+        </router-link>
       </div>
     </div>
   </AuthSkeleton>
 </template>
-
-<style scoped>
-@media (max-width: 768px) {
-  #hideOnMobile {
-    display: none;
-  }
-}
-
-.hover-dim {
-  color: var(--accent-primary);
-}
-.hover-dim:hover {
-  color: var(--accent-secondary);
-}
-</style>

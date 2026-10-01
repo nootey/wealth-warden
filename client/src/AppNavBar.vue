@@ -165,7 +165,7 @@ function handleMenuClick(item: ActionItem) {
           <img
             src="./assets/images/logo.png"
             alt="Wealth Warden"
-            class="w-5 brightness-0 opacity-85"
+            class="w-5 brightness-0 invert"
           />
         </router-link>
         <div v-if="!collapsed" class="flex flex-col leading-tight min-w-0">
@@ -309,7 +309,7 @@ function handleMenuClick(item: ActionItem) {
           <img
             src="./assets/images/logo.png"
             alt="Wealth Warden"
-            class="w-4 brightness-0 opacity-85"
+            class="w-4 brightness-0 invert"
           />
         </span>
         <span class="font-semibold tracking-tight text-ink">

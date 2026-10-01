@@ -57,23 +57,6 @@ button.p-button.accent-button:hover {
   border-color: var(--accent-secondary);
 }
 
-.p-button.auth-accent-button {
-  display: block;
-  text-align: center;
-  background: var(--p-primary-color);
-  border: 1px solid var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-  border-radius: 10px;
-  font-weight: 500;
-  transition: background-color 0.15s ease;
-}
-
-button.p-button.auth-accent-button:not(:disabled):hover {
-  background: var(--p-primary-hover-color);
-  border-color: var(--p-primary-hover-color);
-  color: var(--p-primary-contrast-color);
-}
-
 .p-dialog.rounded-dialog {
   border-radius: 18px;
   box-shadow: 0 24px 64px -16px rgb(0 0 0 / 0.35);

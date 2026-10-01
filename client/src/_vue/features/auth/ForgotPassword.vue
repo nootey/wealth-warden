@@ -29,23 +29,23 @@ async function requestPasswordReset() {
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 400px">
-      <div class="text-center mb-6">
+    <div class="w-full mx-auto" style="max-width: 400px">
+      <div class="mb-8">
         <h2
-          class="m-0 text-2xl sm:text-3xl font-bold"
+          class="m-0 text-3xl font-medium"
           style="color: var(--text-primary); letter-spacing: -0.025em"
         >
-          {{ "Hey " + (authStore.user?.display_name ?? "user") }}
+          Reset password
         </h2>
         <p
-          class="mt-2 leading-normal text-base"
+          class="mt-2 text-base leading-normal"
           style="color: var(--text-secondary)"
         >
           Request a password reset for your account.
         </p>
       </div>
 
-      <div class="flex flex-col gap-4">
+      <form class="flex flex-col gap-4" @submit.prevent="requestPasswordReset">
         <div class="flex flex-row w-full">
           <div class="flex flex-col gap-1 w-full">
             <label>Email</label>
@@ -61,11 +61,11 @@ async function requestPasswordReset() {
 
         <Button
           label="Request password reset"
-          class="w-full auth-accent-button"
+          class="w-full main-button"
           :disabled="loading"
-          @click="requestPasswordReset"
+          type="submit"
         />
-      </div>
+      </form>
 
       <div
         class="flex items-center justify-center gap-2 mt-6 pt-4"
@@ -74,28 +74,13 @@ async function requestPasswordReset() {
         <span class="text-sm" style="color: var(--text-secondary)">
           Sign in with a different account?
         </span>
-        <span
-          class="text-sm hover-icon hover-dim"
-          @click="router.push('/login')"
+        <router-link
+          :to="{ name: 'login' }"
+          class="text-sm text-ink font-medium no-underline hover:opacity-80"
         >
-          Log in</span
-        >
+          Log in
+        </router-link>
       </div>
     </div>
   </AuthSkeleton>
 </template>
-
-<style scoped>
-@media (max-width: 768px) {
-  #hideOnMobile {
-    display: none;
-  }
-}
-
-.hover-dim {
-  color: var(--accent-primary);
-}
-.hover-dim:hover {
-  color: var(--accent-secondary);
-}
-</style>
