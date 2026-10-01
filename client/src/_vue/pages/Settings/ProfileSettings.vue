@@ -6,6 +6,7 @@ import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import { useThemeStore } from "../../../services/stores/theme_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import searchHelper from "../../../utils/search_helper.ts";
+import { ACCENT_OPTIONS } from "../../../models/settings_models.ts";
 import type {
   CurrencyInfo,
   LanguageInfo,
@@ -37,7 +38,7 @@ const themeOptions = ref([
   { value: "light", label: "Light" },
 ]);
 
-const accentOptions = ref([{ value: "blurple", label: "Blurple" }]);
+const accentOptions = ref(ACCENT_OPTIONS);
 
 const separatorOptions = ref([
   { value: ";", label: "Semicolon ( ; )" },

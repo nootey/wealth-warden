@@ -1,4 +1,6 @@
 import { defineStore } from "pinia";
+import { updatePreset } from "@primeuix/themes";
+import { accentPreset } from "../../style/theme/tokens.ts";
 
 export const useThemeStore = defineStore("theme", {
   state: () => ({
@@ -42,8 +44,8 @@ export const useThemeStore = defineStore("theme", {
         rootEl.classList.remove("my-app-dark");
       }
 
-      // Apply accent color
-      // rootEl.style.setProperty('--accent-color', this.accent);
+      updatePreset(accentPreset(this.accent));
+      rootEl.dataset.accent = this.accent;
     },
   },
 });

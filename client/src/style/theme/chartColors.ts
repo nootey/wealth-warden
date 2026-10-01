@@ -1,14 +1,17 @@
 import { computed } from "vue";
 import { useThemeStore } from "../../services/stores/theme_store.ts";
 import {
-  categoryPalette,
+  accentTokens,
   tokenColor,
   SEMANTIC_TOKENS,
-  FLOW_TOKENS,
   neutrals,
 } from "./tokens.ts";
 
-export { categoryPalette };
+export function categoryPalette(): string[] {
+  return accentTokens(useThemeStore().accent).category.map((token) =>
+    tokenColor(token),
+  );
+}
 
 export function useChartColors() {
   const themeStore = useThemeStore();
@@ -16,6 +19,7 @@ export function useChartColors() {
 
   const colors = computed(() => {
     const n = neutrals(isDark.value);
+    const flow = accentTokens(themeStore.accent).flow;
     return {
       // Common scaffolding (theme-aware neutrals)
       axisText: n.axisText,
@@ -34,9 +38,9 @@ export function useChartColors() {
 
       // Cash-flow (sankey) targets
       flow: {
-        savings: tokenColor(FLOW_TOKENS.savings),
-        investments: tokenColor(FLOW_TOKENS.investments),
-        debt: tokenColor(FLOW_TOKENS.debt),
+        savings: tokenColor(flow.savings),
+        investments: tokenColor(flow.investments),
+        debt: tokenColor(flow.debt),
         unallocated: n.unallocated,
       },
 

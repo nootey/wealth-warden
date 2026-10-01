@@ -7,10 +7,17 @@
   --background-alt: var(--p-surface-300);
   --text-primary: var(--p-surface-950);
   --text-secondary: var(--p-surface-600);
-  --accent-primary: var(--p-primary-600); /* #4f46e5, 6.3:1 on light */
-  --accent-secondary: var(--p-primary-700); /* #4338ca, 7.9:1 on light */
+  --accent-primary: var(--p-primary-600); /* >= 6.3:1 on light */
+  --accent-secondary: var(--p-primary-700); /* >= 7.9:1 on light */
   --border-color: var(--p-surface-200);
   --sidebar-width: 300px;
+}
+
+// Amber and green 600 are ~3.2:1 on light, so text accents step one shade darker.
+:root[data-accent="amber"]:not(.my-app-dark),
+:root[data-accent="green"]:not(.my-app-dark) {
+  --accent-primary: var(--p-primary-700); /* 5:1 on light */
+  --accent-secondary: var(--p-primary-800); /* 7.1:1 on light */
 }
 
 .my-app-dark {
@@ -20,8 +27,8 @@
   --background-alt: var(--p-surface-800);
   --text-primary: var(--p-surface-50);
   --text-secondary: var(--p-surface-300);
-  --accent-primary: var(--p-primary-400); /* #818cf8, 6.7:1 on dark */
-  --accent-secondary: var(--p-primary-300); /* #a5b4fc, 10:1 on dark */
+  --accent-primary: var(--p-primary-400); /* >= 6.6:1 on dark */
+  --accent-secondary: var(--p-primary-300); /* >= 9.9:1 on dark */
   --border-color: var(--p-surface-700);
 }
 

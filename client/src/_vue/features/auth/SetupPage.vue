@@ -10,6 +10,7 @@ import { useRouter } from "vue-router";
 import { getTimezone } from "countries-and-timezones";
 import countryToCurrency from "country-to-currency";
 import searchHelper from "../../../utils/search_helper.ts";
+import { ACCENT_OPTIONS } from "../../../models/settings_models.ts";
 import type {
   CurrencyInfo,
   LanguageInfo,
@@ -51,7 +52,7 @@ const themeOptions = ref([
   { value: "light", label: "Light" },
 ]);
 
-const accentOptions = ref([{ value: "blurple", label: "Blurple" }]);
+const accentOptions = ref(ACCENT_OPTIONS);
 
 const selectedCurrency = computed({
   get: () =>
