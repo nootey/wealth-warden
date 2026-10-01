@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import AccountBasicStats from "../features/AccountBasicStats.vue";
+import PageHeader from "../components/layout/PageHeader.vue";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
 import NewReportModule from "../features/reports/NewReportModule.vue";
@@ -35,41 +37,21 @@ const activeTab = ref("overview");
   >
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-md"
+      class="flex flex-col justify-center w-full gap-6"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
-          <div style="font-weight: bold">Analytics</div>
-          <div>Comprehensive insights into your financial health.</div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Insights"
+        title="Analytics"
+        description="Comprehensive insights into your financial health."
+      />
 
-      <div class="flex flex-row gap-4 p-2">
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'overview'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'overview'"
-        >
-          Overview
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'reports'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'reports'"
-        >
-          Reports
-        </div>
-      </div>
+      <SegmentedTabs
+        v-model="activeTab"
+        :options="[
+          { key: 'overview', label: 'Overview' },
+          { key: 'reports', label: 'Reports' },
+        ]"
+      />
 
       <Transition name="fade" mode="out-in">
         <div

@@ -69,7 +69,7 @@ async function backfillBalances() {
       >
         <template v-if="onboarded === true" #actions>
           <Button
-            class="ink-button"
+            class="main-button"
             :disabled="backfilling"
             @click="backfillBalances"
           >

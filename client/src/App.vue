@@ -123,7 +123,7 @@ onMounted(async () => {
       >
         <i class="pi pi-spin pi-spinner text-2xl text-muted" />
       </div>
-      <div v-else :class="showShell ? 'px-4 pt-8 pb-16' : ''">
+      <div v-else :class="showShell ? 'px-4 pt-8 pb-4' : ''">
         <router-view />
       </div>
     </div>

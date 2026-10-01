@@ -93,7 +93,7 @@ async function getData(page = 1) {
   <div class="flex flex-col gap-3 w-full py-3">
     <div class="flex items-baseline justify-between gap-2">
       <span class="label">{{ title }}</span>
-      <span class="text-xl font-medium tracking-tight text-ink">
+      <span class="text-lg font-medium tracking-tight text-ink">
         {{ vueHelper.displayAsCurrency(totalAmount) }}
       </span>
     </div>

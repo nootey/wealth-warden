@@ -284,7 +284,11 @@ async function handleEmit(type: string) {
     <Divider />
 
     <SlotSkeleton class="w-full">
-      <NetworthWidget :account-id="account.id" :chart-height="200" />
+      <NetworthWidget
+        :account-id="account.id"
+        title="Balance"
+        :chart-height="200"
+      />
     </SlotSkeleton>
 
     <div v-if="account.is_active" class="w-full flex flex-col gap-2">

@@ -1,6 +1,4 @@
-// Shared button looks. Pages opt in with main-button / ink-button / outline-button / delete-button.
 .p-button.main-button,
-.p-button.ink-button,
 .p-button.outline-button,
 .p-button.delete-button {
   border-radius: 10px;
@@ -19,18 +17,6 @@
 }
 
 .p-button.main-button {
-  background-color: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-  border: 1px solid var(--p-primary-color);
-
-  &:not(:disabled):hover {
-    background-color: var(--p-primary-hover-color);
-    border-color: var(--p-primary-hover-color);
-    color: var(--p-primary-contrast-color);
-  }
-}
-
-.p-button.ink-button {
   background-color: var(--text-primary);
   color: var(--background-primary);
   border: 1px solid var(--text-primary);
@@ -43,26 +29,26 @@
 }
 
 .p-button.outline-button {
-  background-color: var(--background-secondary);
+  background-color: transparent;
   color: var(--text-primary);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--text-primary);
 
   &:not(:disabled):hover {
-    background-color: var(--background-alt);
-    color: var(--text-primary);
-    border-color: var(--border-color);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border-color: var(--text-secondary);
   }
 }
 
 .p-button.delete-button {
-  background-color: transparent;
-  color: var(--negative);
-  border: 1px solid color-mix(in srgb, var(--negative), transparent 55%);
+  background-color: var(--p-red-500);
+  color: white;
+  border: 1px solid var(--p-red-500);
 
   &:not(:disabled):hover {
-    background-color: var(--negative);
-    border-color: var(--negative);
-    color: #fff;
+    background-color: var(--p-red-400);
+    border-color: var(--p-red-400);
+    color: white;
   }
 }
 

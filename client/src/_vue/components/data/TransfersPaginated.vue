@@ -221,13 +221,7 @@ defineExpose({ refresh });
   </Dialog>
 
   <div class="flex flex-col w-full gap-4">
-    <div
-      class="flex flex-col w-full rounded-2xl"
-      style="
-        padding: 0.25rem 0.25rem 0 0.25rem;
-        border: 1px solid var(--border-color);
-      "
-    >
+    <div class="flex flex-col w-full">
       <DataTable
         data-key="id"
         class="w-full enhanced-table"
@@ -328,7 +322,7 @@ defineExpose({ refresh });
 
 <style scoped>
 .hover {
-  font-weight: bold;
+  font-weight: 500;
 }
 .hover:hover {
   cursor: pointer;

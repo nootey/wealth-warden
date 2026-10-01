@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import { computed, onMounted, ref } from "vue";
 import UserForm from "../components/forms/UserForm.vue";
 import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
@@ -134,32 +135,13 @@ async function handleEmit(emitType: any) {
         </Button>
       </div>
 
-      <div class="flex flex-row gap-4 p-2">
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'users'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'users'"
-        >
-          Users
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'invitations'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'invitations'"
-        >
-          Invitations
-        </div>
-      </div>
+      <SegmentedTabs
+        v-model="activeTab"
+        :options="[
+          { key: 'users', label: 'Users' },
+          { key: 'invitations', label: 'Invitations' },
+        ]"
+      />
 
       <Transition name="fade" mode="out-in">
         <div

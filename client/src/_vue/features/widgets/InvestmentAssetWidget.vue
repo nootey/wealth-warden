@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 import { ref, computed, watch, onMounted } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
@@ -89,7 +90,10 @@ const isProfit = computed(() => {
   return Number(mv[mv.length - 1]!.value) >= Number(cb[cb.length - 1]!.value);
 });
 
-const activeColor = computed(() => (isProfit.value ? "#22c55e" : "#ef4444"));
+const { colors } = useChartColors();
+const activeColor = computed(() =>
+  isProfit.value ? colors.value.pos : colors.value.neg,
+);
 
 const unrealizedPnL = computed(() => {
   const mv = marketValuePoints.value;
@@ -173,7 +177,10 @@ onMounted(getData);
         <div
           v-if="periodChange && hasSeries"
           class="flex flex-row gap-2 items-center text-xs"
-          :style="{ color: periodChange.abs >= 0 ? '#22c55e' : '#ef4444' }"
+          :style="{
+            color:
+              periodChange.abs >= 0 ? 'var(--positive)' : 'var(--negative)',
+          }"
         >
           <span>{{
             vueHelper.displayAsCurrency(

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import TransactionForm from "../components/forms/TransactionForm.vue";
 import { computed, onMounted, ref } from "vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
@@ -12,6 +13,7 @@ import TransactionsPaginated from "../components/data/TransactionsPaginated.vue"
 import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import TransactionTemplatesPaginated from "../components/data/TransactionTemplatesPaginated.vue";
+import PageHeader from "../components/layout/PageHeader.vue";
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -211,71 +213,58 @@ async function handleEmit(emitType: any) {
   <main class="flex flex-col w-full items-center">
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-xl"
+      class="flex flex-col justify-center w-full gap-6"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
-          <div class="flex flex-row gap-2 items-center w-full">
-            <div style="font-weight: bold">Activity</div>
-            <i
-              v-if="hasPermission('manage_data')"
-              v-tooltip="'Go to categories settings.'"
-              class="pi pi-external-link hover-icon mr-auto text-sm"
-              @click="router.push('settings/categories')"
-            />
-          </div>
-          <div>A complete record of your financial activity.</div>
-        </div>
-        <Button
-          class="outline-button w-3/12"
-          @click="manipulateDialog('openTemplateView', true)"
-        >
-          <div class="flex flex-row gap-1 items-center">
-            <i class="pi pi-database" />
-            <span
-              ><span class="mobile-hide"> Templates </span>
-              {{ "(" + trTemplateCount + ")" }}</span
-            >
-          </div>
-        </Button>
-        <Button
-          class="main-button w-3/12"
-          @click="manipulateDialog('addTransaction', true)"
-        >
-          <div class="flex flex-row gap-1 items-center">
-            <i class="pi pi-plus" />
-            <span> New </span>
-            <span class="mobile-hide"> Transaction </span>
-          </div>
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Ledger"
+        title="Transactions"
+        description="A complete record of your financial activity."
+      >
+        <template #title-suffix>
+          <button
+            v-if="hasPermission('manage_data')"
+            v-tooltip="'Go to categories settings.'"
+            type="button"
+            class="size-8 grid place-items-center rounded-lg text-muted hover:bg-sunken hover:text-ink cursor-pointer"
+            @click="router.push('settings/categories')"
+          >
+            <i class="pi pi-external-link text-sm" />
+          </button>
+        </template>
+        <template #actions>
+          <Button
+            class="outline-button"
+            @click="manipulateDialog('openTemplateView', true)"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-clone" />
+              <span class="mobile-hide">Templates</span>
+              <span
+                class="rounded-full bg-sunken px-1.5 text-xs font-medium tabular-nums"
+              >
+                {{ trTemplateCount }}
+              </span>
+            </div>
+          </Button>
+          <Button
+            class="main-button"
+            @click="manipulateDialog('addTransaction', true)"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-plus" />
+              <span>New<span class="mobile-hide"> transaction</span></span>
+            </div>
+          </Button>
+        </template>
+      </PageHeader>
 
-      <div class="flex flex-row gap-4 p-2">
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'transactions'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'transactions'"
-        >
-          Transactions
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'transfers'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'transfers'"
-        >
-          Transfers
-        </div>
-      </div>
+      <SegmentedTabs
+        v-model="activeTab"
+        :options="[
+          { key: 'transactions', label: 'Transactions' },
+          { key: 'transfers', label: 'Transfers' },
+        ]"
+      />
 
       <Transition name="fade" mode="out-in">
         <div
@@ -284,13 +273,8 @@ async function handleEmit(emitType: any) {
           class="flex flex-col justify-center w-full gap-4"
         >
           <div
-            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
-            style="
-              background-color: var(--background-secondary);
-              border: 1px solid var(--border-color);
-            "
+            class="flex flex-col w-full p-4 gap-4 rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]"
           >
-            <span class="font-bold">Transactions</span>
             <TransactionsPaginated
               ref="txRef"
               :read-only="false"
@@ -301,13 +285,8 @@ async function handleEmit(emitType: any) {
         </div>
         <div v-else key="transfers" class="w-full">
           <div
-            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
-            style="
-              background-color: var(--background-secondary);
-              border: 1px solid var(--border-color);
-            "
+            class="flex flex-col w-full p-4 gap-4 rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]"
           >
-            <span class="font-bold">Transfers</span>
             <TransfersPaginated ref="trRef" />
           </div>
         </div>

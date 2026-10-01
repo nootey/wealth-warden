@@ -242,7 +242,7 @@ onMounted(getData);
       <div class="flex flex-col gap-2 min-w-0">
         <span class="label">{{ title }}</span>
         <span
-          class="text-3xl font-semibold tracking-tight leading-none text-ink"
+          class="text-2xl font-semibold tracking-tight leading-none text-ink"
         >
           {{ vueHelper.displayAsCurrency(payload.current.value) }}
         </span>

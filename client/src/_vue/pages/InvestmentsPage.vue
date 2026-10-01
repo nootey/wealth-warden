@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
+import PageHeader from "../components/layout/PageHeader.vue";
 import { ref } from "vue";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import InvestmentAssetForm from "../components/forms/InvestmentAssetForm.vue";
@@ -181,91 +183,45 @@ async function handleEmit(emitType: any) {
   <main class="flex flex-col w-full items-center">
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-xl"
+      class="flex flex-col justify-center w-full gap-6"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
-          <div style="font-weight: bold">Investments</div>
-          <div>A detailed look into your investments.</div>
-        </div>
-        <Button class="main-button" @click="manipulateDialog('addAsset', true)">
-          <div class="flex flex-row gap-1 items-center">
-            <i class="pi pi-plus" />
-            <span class="mobile-hide"> Add </span>
-            <span> Asset </span>
-          </div>
-        </Button>
-        <Button class="main-button" @click="manipulateDialog('addTrade', true)">
-          <div class="flex flex-row gap-1 items-center">
-            <i class="pi pi-plus" />
-            <span class="mobile-hide"> Add </span>
-            <span> Trade </span>
-          </div>
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Portfolio"
+        title="Investments"
+        description="A detailed look into your investments."
+      >
+        <template #actions>
+          <Button
+            class="outline-button"
+            @click="manipulateDialog('addAsset', true)"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-plus" />
+              <span><span class="mobile-hide">Add </span>asset</span>
+            </div>
+          </Button>
+          <Button
+            class="main-button"
+            @click="manipulateDialog('addTrade', true)"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-plus" />
+              <span><span class="mobile-hide">Add </span>trade</span>
+            </div>
+          </Button>
+        </template>
+      </PageHeader>
 
-      <div class="flex flex-row gap-4 p-2">
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'assets'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'assets'"
-        >
-          Assets
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'trades'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'trades'"
-        >
-          Trades
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'allocation'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'allocation'"
-        >
-          Allocation
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'returns'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'returns'"
-        >
-          Return
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'tax'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'tax'"
-        >
-          Tax
-        </div>
-      </div>
+      <SegmentedTabs
+        v-model="activeTab"
+        :options="[
+          { key: 'assets', label: 'Assets' },
+          { key: 'trades', label: 'Trades' },
+          { key: 'allocation', label: 'Allocation' },
+          { key: 'returns', label: 'Return' },
+          { key: 'tax', label: 'Tax' },
+        ]"
+      />
 
       <Transition name="fade" mode="out-in">
         <div
