@@ -50,6 +50,7 @@ async function checkSavingsAccount() {
     const all = await accountStore.getAccountsBySubtype("savings");
     hasSavingsAccount.value = (all as Account[]).some((a) => a.is_active);
   } catch (err) {
+    hasSavingsAccount.value = true;
     toastStore.errorResponseToast(err);
   }
 }

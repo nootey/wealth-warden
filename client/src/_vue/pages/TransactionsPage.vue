@@ -104,6 +104,7 @@ async function checkHasRecords() {
     ]);
     hasRecords.value = txCount > 0 || trCount > 0;
   } catch (error) {
+    hasRecords.value = true;
     toastStore.errorResponseToast(error);
   }
 }

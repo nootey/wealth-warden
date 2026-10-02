@@ -9,6 +9,7 @@ import AppSideBar from "./_vue/features/AppSideBar.vue";
 import AccountSideBar from "./AccountSideBar.vue";
 import NotificationSideBar from "./_vue/features/NotificationSideBar.vue";
 import { useNotificationStore } from "./services/stores/notification_store.ts";
+import { NAV_WIDTH } from "./models/shared_models.ts";
 
 const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
@@ -27,6 +28,9 @@ const hideNavigation = computed<boolean>(() =>
 );
 const showShell = computed(
   () => isAuthenticated.value && isInitialized.value && !hideNavigation.value,
+);
+const navWidth = computed(() =>
+  navCollapsed.value ? NAV_WIDTH.collapsed : NAV_WIDTH.expanded,
 );
 
 const appSidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
@@ -114,7 +118,7 @@ onMounted(async () => {
       :id="showShell ? 'app-content' : 'app-bare'"
       class="flex-1 min-w-0 transition-[padding] duration-200 ease-out"
       :style="{
-        paddingLeft: showShell ? (navCollapsed ? '76px' : '248px') : '0px',
+        paddingLeft: showShell ? navWidth : '0px',
       }"
     >
       <div

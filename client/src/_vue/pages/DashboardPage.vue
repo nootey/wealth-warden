@@ -24,10 +24,16 @@ const backfilling = ref(false);
 const onboarded = ref<boolean | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
 
+const DAY_PARTS = [
+  { until: 12, label: "morning" },
+  { until: 18, label: "afternoon" },
+  { until: 24, label: "evening" },
+];
+
 const today = dayjs().format("dddd, D MMMM YYYY");
 const greeting = computed(() => {
   const hour = dayjs().hour();
-  const part = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  const part = DAY_PARTS.find((p) => hour < p.until)!.label;
   const first = authStore.user?.display_name?.split(" ")[0];
   return first ? `Good ${part}, ${first}` : `Good ${part}`;
 });

@@ -21,6 +21,7 @@ onMounted(async () => {
   try {
     hasTransactions.value = (await transactionStore.getTransactionCount()) > 0;
   } catch (error) {
+    hasTransactions.value = true;
     toastStore.errorResponseToast(error);
   }
 });

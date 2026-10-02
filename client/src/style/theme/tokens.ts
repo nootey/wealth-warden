@@ -16,7 +16,6 @@ export function tokenColor(token: string, fallback = "#6b7280"): string {
 }
 
 type AccentTokens = {
-  // PrimeVue palette swapped in as --p-primary-*
   primary: string;
   // Light-mode button text; white fails contrast on amber
   lightContrast: string;

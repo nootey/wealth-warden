@@ -52,6 +52,7 @@ async function checkInvestmentAccount() {
       ["investment", "crypto"].includes(a.account_type?.type),
     );
   } catch (error) {
+    hasInvestmentAccount.value = true;
     toastStore.errorResponseToast(error);
   }
 }
@@ -60,6 +61,7 @@ async function checkHasAssets() {
   try {
     hasAssets.value = (await investmentStore.getAssetCount()) > 0;
   } catch (error) {
+    hasAssets.value = true;
     toastStore.errorResponseToast(error);
   }
 }

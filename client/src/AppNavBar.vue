@@ -6,6 +6,7 @@ import { useRoute, useRouter } from "vue-router";
 import { usePermissions } from "./utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
 import NotesSideBar from "./_vue/features/NotesSideBar.vue";
+import { NAV_WIDTH } from "./models/shared_models.ts";
 
 defineProps<{ hasUnread: boolean }>();
 
@@ -59,6 +60,7 @@ interface ActionItem {
   action: () => void;
   permission?: string;
   danger?: boolean;
+  activePrefix?: string;
 }
 
 const quickViews = computed<ActionItem[]>(() => [
@@ -78,6 +80,7 @@ const quickViews = computed<ActionItem[]>(() => [
 const settingsItem: ActionItem = {
   icon: "pi-cog",
   text: "Settings",
+  activePrefix: "/settings",
   action: () => router.push("/settings"),
 };
 
@@ -85,6 +88,7 @@ const backofficeItem: ActionItem = {
   icon: "pi-briefcase",
   text: "Backoffice",
   permission: "access_backoffice",
+  activePrefix: "/backoffice",
   action: () => router.push("/backoffice"),
 };
 
@@ -130,9 +134,7 @@ function isActive(to: string) {
 }
 
 function isSystemActive(item: ActionItem) {
-  if (item.text === "Settings") return route.path.startsWith("/settings");
-  if (item.text === "Backoffice") return route.path.startsWith("/backoffice");
-  return false;
+  return !!item.activePrefix && route.path.startsWith(item.activePrefix);
 }
 
 function toggleProfileMenu(event: Event) {
@@ -152,7 +154,9 @@ function handleMenuClick(item: ActionItem) {
     <aside
       id="app-sidebar"
       class="fixed inset-y-0 left-0 z-30 flex flex-col border-r border-line bg-canvas transition-[width] duration-200 ease-out"
-      :style="{ width: collapsed ? '76px' : '248px' }"
+      :style="{
+        width: collapsed ? NAV_WIDTH.collapsed : NAV_WIDTH.expanded,
+      }"
     >
       <div
         class="flex items-center h-16 shrink-0 gap-3"
