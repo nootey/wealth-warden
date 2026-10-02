@@ -12,6 +12,7 @@ import {
 } from "chart.js";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
+import EmptyState from "../base/EmptyState.vue";
 import type { YearlyCashFlowResponse } from "../../../models/analytics_models.ts";
 
 ChartJS.register(
@@ -242,17 +243,10 @@ function toNumber(v: string | string[] | undefined): number {
     :options="chartOptions"
     style="width: 100%; height: 400px"
   />
-  <div
+  <EmptyState
     v-else
-    class="flex flex-col items-center justify-center mt-4 p-4 w-6/12"
-    style="
-      border: 1px dashed var(--border-color);
-      border-radius: 16px;
-      margin: 0 auto;
-    "
-  >
-    <span class="text-sm" style="color: var(--text-secondary)">
-      No cash flow data available for {{ props.data.year }}.
-    </span>
-  </div>
+    icon="pi pi-chart-bar"
+    :title="`No inflows or outflows in ${props.data.year}.`"
+    description="Add income or expense transactions to a checking account to see this chart."
+  />
 </template>

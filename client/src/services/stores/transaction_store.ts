@@ -75,6 +75,12 @@ export const useTransactionStore = defineStore("transaction", {
       });
       return response.data?.total_records ?? 0;
     },
+    async getTransferCount(): Promise<number> {
+      const response = await apiClient.get(`${this.apiPrefix}/transfers`, {
+        params: { page: 1, rowsPerPage: 1 },
+      });
+      return response.data?.total_records ?? 0;
+    },
     async seedDefaultCategories() {
       const response = await apiClient.post(
         `${this.apiPrefix}/categories/seed-defaults`,

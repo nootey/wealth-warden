@@ -5,6 +5,7 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import type { Account } from "../../../models/account_models.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
+import EmptyState from "../../components/base/EmptyState.vue";
 import YearlyCashFlowBreakdownChart from "../../components/charts/YearlyCashFlowBreakdownChart.vue";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import type { YearlyCashFlowResponse } from "../../../models/analytics_models.ts";
@@ -37,7 +38,7 @@ const seriesOptions = [
   { label: "Debt Repayments", value: "Debt Repayments" },
 ];
 
-const isLoadingStats = ref(false);
+const isLoadingStats = ref(true);
 
 async function getData(year: number | null, account: number | null = null) {
   isLoadingStats.value = true;
@@ -95,6 +96,10 @@ onMounted(async () => {
   if (defaultChecking) {
     selectedAccountID.value = defaultChecking.id;
   }
+  if (!accounts.value.length || !years.value.length) {
+    isLoadingStats.value = false;
+    return;
+  }
   await getData(null, selectedAccountID.value);
 });
 
@@ -110,7 +115,7 @@ watch(
 <template>
   <div class="flex flex-col w-full p-2 gap-4">
     <div
-      v-if="years.length > 0"
+      v-if="accounts.length > 0 && years.length > 0"
       class="flex flex-row gap-2 w-full justify-between items-center"
     >
       <div class="mobile-hide flex flex-col gap-1">
@@ -168,12 +173,30 @@ watch(
     </div>
 
     <ShowLoading v-if="isLoadingStats" :num-fields="7" />
+    <EmptyState
+      v-else-if="!accounts.length"
+      icon="pi pi-wallet"
+      title="No checking account yet."
+      description="Cash flow is computed from checking accounts. Create one to see this chart."
+    />
+    <EmptyState
+      v-else-if="!years.length"
+      icon="pi pi-chart-bar"
+      title="No transactions yet."
+      description="Add income and expenses to a checking account to see your cash flow."
+    />
     <YearlyCashFlowBreakdownChart
       v-else-if="cashFlow.months.length > 0"
       :key="`chart-${selectedYear}-${selectedAccountID ?? 'all'}-${cashFlow.months.length}`"
       :is-mobile="isMobile"
       :data="cashFlow"
       :selected-series="selectedSeries"
+    />
+    <EmptyState
+      v-else
+      icon="pi pi-chart-bar"
+      :title="`No inflows or outflows in ${selectedYear}.`"
+      description="Add income or expense transactions to a checking account to see this chart."
     />
   </div>
 </template>

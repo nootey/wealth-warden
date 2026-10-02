@@ -14,6 +14,8 @@ import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import TransactionTemplatesPaginated from "../components/data/TransactionTemplatesPaginated.vue";
 import PageHeader from "../components/layout/PageHeader.vue";
+import EmptyState from "../components/base/EmptyState.vue";
+import ShowLoading from "../components/base/ShowLoading.vue";
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -23,6 +25,7 @@ onMounted(async () => {
   await transactionStore.getCategories();
   await accountStore.getAllAccounts(false, true);
   await getTrTemplateCount();
+  await checkHasRecords();
 });
 
 const router = useRouter();
@@ -39,6 +42,7 @@ const updateTransactionID = ref(null);
 const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const trTemplateCount = ref<number>(0);
+const hasRecords = ref<boolean | null>(null);
 
 const activeTab = ref("transactions");
 
@@ -92,6 +96,18 @@ async function getTrTemplateCount() {
   }
 }
 
+async function checkHasRecords() {
+  try {
+    const [txCount, trCount] = await Promise.all([
+      transactionStore.getTransactionCount(),
+      transactionStore.getTransferCount(),
+    ]);
+    hasRecords.value = txCount > 0 || trCount > 0;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
     case "addTransaction": {
@@ -140,11 +156,13 @@ async function handleEmit(emitType: any) {
       createModal.value = false;
       updateModal.value = false;
       txRef.value?.refresh();
+      await checkHasRecords();
       break;
     }
     case "completeTrOperation": {
       createModal.value = false;
       trRef.value?.refresh();
+      await checkHasRecords();
       break;
     }
     case "refreshTemplateCount": {
@@ -155,6 +173,7 @@ async function handleEmit(emitType: any) {
       createModal.value = false;
       updateModal.value = false;
       txRef.value?.refresh();
+      await checkHasRecords();
       break;
     }
     default: {
@@ -233,6 +252,7 @@ async function handleEmit(emitType: any) {
         </template>
         <template #actions>
           <Button
+            v-if="hasRecords"
             class="outline-button"
             @click="manipulateDialog('openTemplateView', true)"
           >
@@ -258,7 +278,17 @@ async function handleEmit(emitType: any) {
         </template>
       </PageHeader>
 
+      <ShowLoading v-if="hasRecords === null" :num-fields="5" />
+
+      <EmptyState
+        v-else-if="!hasRecords"
+        icon="pi pi-receipt"
+        title="No transactions yet."
+        description="Add your first transaction to start tracking your activity."
+      />
+
       <SegmentedTabs
+        v-else
         v-model="activeTab"
         :options="[
           { key: 'transactions', label: 'Transactions' },
@@ -266,7 +296,7 @@ async function handleEmit(emitType: any) {
         ]"
       />
 
-      <Transition name="fade" mode="out-in">
+      <Transition v-if="hasRecords" name="fade" mode="out-in">
         <div
           v-if="activeTab === 'transactions'"
           key="transactions"

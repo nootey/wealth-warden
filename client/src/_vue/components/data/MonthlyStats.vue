@@ -8,6 +8,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import EmptyState from "../base/EmptyState.vue";
 import ComparativePieChart from "../charts/ComparativePieChart.vue";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 
@@ -15,7 +16,7 @@ const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
 const { colors } = useChartColors();
 
-const loading = ref(false);
+const loading = ref(true);
 const monthlyStats = ref<MonthlyStats | null>(null);
 
 const now = new Date();
@@ -40,6 +41,10 @@ const monthOptions = computed(() => {
 
 onMounted(async () => {
   await loadAvailableYears();
+  if (!availableYears.value.length) {
+    loading.value = false;
+    return;
+  }
   await loadStats();
 });
 
@@ -178,7 +183,7 @@ const pieOptions = computed(() => ({
           accounts.
         </span>
       </div>
-      <div class="grid grid-cols-2 gap-2">
+      <div v-if="availableYears.length" class="grid grid-cols-2 gap-2">
         <Select
           v-model="selectedYear"
           :options="yearOptions"
@@ -200,6 +205,13 @@ const pieOptions = computed(() => ({
     </div>
 
     <ShowLoading v-if="loading" :num-fields="7" />
+
+    <EmptyState
+      v-else-if="!availableYears.length"
+      icon="pi pi-calendar"
+      title="No transactions yet."
+      description="Add transactions to see your monthly overview."
+    />
 
     <template v-else-if="monthlyStats">
       <div
@@ -313,19 +325,18 @@ const pieOptions = computed(() => ({
             :labels="outflowLabels"
           />
         </div>
-        <div
+        <EmptyState
           v-else
-          class="flex items-center justify-center rounded-xl border border-dashed border-line p-6"
-        >
-          <span class="text-sm text-muted">
-            No expenses found for this month.
-          </span>
-        </div>
+          icon="pi pi-chart-pie"
+          title="No expenses found for this month."
+        />
       </div>
     </template>
 
-    <span v-else class="text-sm text-muted">
-      No checking accounts are currently available.
-    </span>
+    <EmptyState
+      v-else
+      icon="pi pi-wallet"
+      title="No checking accounts are currently available."
+    />
   </section>
 </template>

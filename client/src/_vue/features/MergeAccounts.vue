@@ -5,6 +5,7 @@ import type { Account } from "../../models/account_models.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import UserJobsRunner from "./UserJobsRunner.vue";
+import EmptyState from "../components/base/EmptyState.vue";
 
 defineProps<{
   kind: string;
@@ -49,6 +50,8 @@ function confirmMerge() {
   });
 }
 
+defineExpose({ refresh: loadAccounts });
+
 async function doMerge() {
   merging.value = true;
   try {
@@ -80,7 +83,14 @@ async function doMerge() {
       </div>
     </div>
 
-    <div class="flex flex-row gap-4 w-full">
+    <EmptyState
+      v-if="accounts.length < 2"
+      icon="pi pi-arrow-right-arrow-left"
+      title="Merging needs at least two accounts."
+      description="Create another account to merge them."
+    />
+
+    <div v-else class="flex flex-row gap-4 w-full">
       <div class="flex flex-col gap-1 w-full">
         <label>Source account</label>
         <Select
@@ -107,7 +117,7 @@ async function doMerge() {
       </div>
     </div>
 
-    <div class="flex flex-row gap-2 w-full">
+    <div v-if="accounts.length >= 2" class="flex flex-row gap-2 w-full">
       <div id="expand" class="flex flex-col gap-2 ml-auto">
         <Button
           class="main-button"

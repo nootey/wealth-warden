@@ -101,17 +101,13 @@
             </div>
           </div>
 
-          <div
+          <EmptyState
             v-if="notifications.length === 0"
-            class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-8"
-          >
-            <i class="pi pi-bell text-xl text-faint" />
-            <span class="text-sm text-muted">
-              {{
-                onlyUnread ? "No unread notifications" : "No notifications yet"
-              }}
-            </span>
-          </div>
+            icon="pi pi-bell"
+            :title="
+              onlyUnread ? 'No unread notifications.' : 'No notifications yet.'
+            "
+          />
 
           <SimplePaginator
             :current-page="page"
@@ -133,6 +129,7 @@ import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useWsStore } from "../../services/stores/ws_store.ts";
 import dateHelper from "../../utils/date_helper.ts";
 import SimplePaginator from "../components/base/SimplePaginator.vue";
+import EmptyState from "../components/base/EmptyState.vue";
 import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import type {
   Notification,

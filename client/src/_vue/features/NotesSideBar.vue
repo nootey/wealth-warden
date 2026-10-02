@@ -142,13 +142,11 @@
             </div>
           </div>
 
-          <div
+          <EmptyState
             v-if="notes.length === 0"
-            class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-8"
-          >
-            <i class="pi pi-file-edit text-xl text-faint" />
-            <span class="text-sm text-muted">No notes yet</span>
-          </div>
+            icon="pi pi-file-edit"
+            title="No notes yet."
+          />
 
           <SimplePaginator
             v-if="paginator.total > paginator.rowsPerPage"
@@ -171,6 +169,7 @@ import type { Note } from "../../models/notes_models.ts";
 import dateHelper from "../../utils/date_helper.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import SimplePaginator from "../components/base/SimplePaginator.vue";
+import EmptyState from "../components/base/EmptyState.vue";
 import type { PaginatorState } from "../../models/shared_models.ts";
 
 const notesStore = useNotesStore();

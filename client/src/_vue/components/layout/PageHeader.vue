@@ -7,9 +7,7 @@ defineProps<{
 </script>
 
 <template>
-  <header
-    class="w-full flex flex-row items-end justify-between gap-4 pb-2"
-  >
+  <header class="w-full flex flex-row items-end justify-between gap-4 pb-2">
     <div class="flex flex-col gap-1.5 min-w-0 flex-1">
       <span v-if="eyebrow" class="label">{{ eyebrow }}</span>
       <div class="flex items-center gap-2">
@@ -24,7 +22,10 @@ defineProps<{
         {{ description }}
       </p>
     </div>
-    <div v-if="$slots.actions" class="flex flex-row items-center gap-2 shrink-0">
+    <div
+      v-if="$slots.actions"
+      class="flex flex-row items-center gap-2 shrink-0"
+    >
       <slot name="actions" />
     </div>
   </header>

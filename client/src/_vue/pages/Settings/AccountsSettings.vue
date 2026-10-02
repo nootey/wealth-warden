@@ -17,6 +17,7 @@ const sharedStore = useSharedStore();
 const { hasPermission } = usePermissions();
 
 const accRef = ref<InstanceType<typeof AccountsPanel> | null>(null);
+const mergeRef = ref<InstanceType<typeof MergeAccounts> | null>(null);
 
 const createModal = ref(false);
 
@@ -35,6 +36,7 @@ function openCreate() {
 async function handleCreate() {
   createModal.value = false;
   await accRef.value?.refresh?.();
+  await mergeRef.value?.refresh();
 }
 
 async function handleMerge() {
@@ -73,6 +75,7 @@ async function closeAccount(id: number) {
     let response = await sharedStore.deleteRecord("accounts", id);
     toastStore.successResponseToast(response);
     accRef.value?.refresh();
+    mergeRef.value?.refresh();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -125,15 +128,16 @@ async function closeAccount(id: number) {
       </div>
     </SettingsSkeleton>
 
-    <SettingsSkeleton class="w-full">
+    <SettingsSkeleton v-if="accRef?.hasAccounts" class="w-full">
       <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <DefaultAccounts />
       </div>
     </SettingsSkeleton>
 
-    <SettingsSkeleton class="w-full">
+    <SettingsSkeleton v-if="accRef?.hasAccounts" class="w-full">
       <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <MergeAccounts
+          ref="mergeRef"
           kind="merge_accounts"
           @complete-operation="handleMerge"
         />

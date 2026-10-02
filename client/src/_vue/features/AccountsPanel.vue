@@ -9,6 +9,7 @@ import vueHelper from "../../utils/vue_helper.ts";
 import type { Account } from "../../models/account_models.ts";
 import AccountDetails from "../components/data/AccountDetails.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
+import EmptyState from "../components/base/EmptyState.vue";
 import { colorForAccountType } from "../../style/theme/accountColors.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 
@@ -201,7 +202,9 @@ async function onToggleEnabled(acc: Account, nextValue: boolean) {
   }
 }
 
-defineExpose({ refresh: getData });
+const hasAccounts = computed(() => accounts.value.length > 0);
+
+defineExpose({ refresh: getData, hasAccounts });
 </script>
 
 <template>
@@ -239,7 +242,7 @@ defineExpose({ refresh: getData });
 
   <div class="flex flex-col w-full gap-4">
     <div
-      v-if="advanced"
+      v-if="advanced && (loading || hasAccounts)"
       id="balance-row"
       class="grid grid-cols-3 w-full gap-2"
       style="max-width: 1000px"
@@ -272,13 +275,12 @@ defineExpose({ refresh: getData });
         <ShowLoading :num-fields="10" />
       </template>
 
-      <div
+      <EmptyState
         v-else-if="groupedAccounts.length === 0"
-        class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-8"
-      >
-        <i class="pi pi-wallet text-xl text-faint" />
-        <span class="text-sm text-muted">No accounts available</span>
-      </div>
+        icon="pi pi-wallet"
+        title="No accounts yet."
+        description="Create an account to start tracking your balances."
+      />
 
       <TransitionGroup v-else name="list-anim" tag="div" class="relative">
         <div

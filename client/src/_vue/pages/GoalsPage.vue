@@ -9,9 +9,11 @@ import { usePermissions } from "../../utils/use_permissions.ts";
 import SavingGoalForm from "../components/forms/SavingGoalForm.vue";
 import SavingContributionForm from "../components/forms/SavingContributionForm.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
+import EmptyState from "../components/base/EmptyState.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import dateHelper from "../../utils/date_helper.ts";
 import type { SavingGoalWithProgress } from "../../models/savings_models.ts";
+import type { Account } from "../../models/account_models.ts";
 import SavingGoalDetails from "../components/data/SavingGoalDetails.vue";
 import savingsHelper from "../../utils/savings_helper.ts";
 import Decimal from "decimal.js";
@@ -23,6 +25,11 @@ const { hasPermission } = usePermissions();
 
 const loading = ref(false);
 const goals = ref<SavingGoalWithProgress[]>([]);
+const hasSavingsAccount = ref<boolean | null>(null);
+
+const showGoals = computed(
+  () => !loading.value && !!hasSavingsAccount.value && goals.value.length > 0,
+);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -33,9 +40,19 @@ const addContribModal = ref(false);
 const selectedGoal = ref<SavingGoalWithProgress | null>(null);
 
 onMounted(async () => {
+  await checkSavingsAccount();
   await loadGoals();
   await accountStore.getAllAccountsWithBalance();
 });
+
+async function checkSavingsAccount() {
+  try {
+    const all = await accountStore.getAccountsBySubtype("savings");
+    hasSavingsAccount.value = (all as Account[]).some((a) => a.is_active);
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
 
 async function loadGoals() {
   loading.value = true;
@@ -323,7 +340,11 @@ const onTrackBreakdown = computed(() => {
         description="Scope your savings goals and plan ahead."
       >
         <template #actions>
-          <Button class="main-button" @click="openCreate">
+          <Button
+            v-if="hasSavingsAccount"
+            class="main-button"
+            @click="openCreate"
+          >
             <div class="flex flex-row gap-2 items-center">
               <i class="pi pi-plus" />
               <span>New<span class="mobile-hide"> goal</span></span>
@@ -332,11 +353,7 @@ const onTrackBreakdown = computed(() => {
         </template>
       </PageHeader>
 
-      <div
-        v-if="!loading && goals.length > 0"
-        id="goal-stats"
-        class="w-full flex flex-row gap-4"
-      >
+      <div v-if="showGoals" id="goal-stats" class="w-full flex flex-row gap-4">
         <div
           class="flex-1 flex flex-col gap-1 p-5 rounded-2xl border border-line bg-card"
         >
@@ -380,7 +397,10 @@ const onTrackBreakdown = computed(() => {
         </div>
       </div>
 
-      <div class="w-full flex flex-row gap-2 items-center text-sm text-muted">
+      <div
+        v-if="showGoals"
+        class="w-full flex flex-row gap-2 items-center text-sm text-muted"
+      >
         <i class="pi pi-info-circle shrink-0" />
         <div>
           Goals with a monthly allocation are funded automatically. Ensure your
@@ -390,28 +410,29 @@ const onTrackBreakdown = computed(() => {
       </div>
 
       <SegmentedTabs
-        v-if="!loading && goals.length > 0"
+        v-if="showGoals"
         v-model="activeFilter"
         :options="filterOptions"
       />
 
       <div class="flex-1 w-full rounded-xl overflow-y-auto">
-        <template v-if="loading">
+        <template v-if="loading || hasSavingsAccount === null">
           <ShowLoading :num-fields="5" />
         </template>
 
-        <div
+        <EmptyState
+          v-else-if="!hasSavingsAccount"
+          icon="pi pi-wallet"
+          title="No savings account yet."
+          description="Create an active savings account to start setting goals."
+        />
+
+        <EmptyState
           v-else-if="goals.length === 0"
-          class="flex flex-row p-2 w-full justify-center"
-        >
-          <div class="flex flex-col gap-2 justify-center items-center">
-            <i
-              style="color: var(--text-secondary)"
-              class="pi pi-flag text-4xl"
-            />
-            <span>No goals yet - create one to get started</span>
-          </div>
-        </div>
+          icon="pi pi-flag"
+          title="No goals yet."
+          description="Create one to get started."
+        />
 
         <div
           v-else-if="filteredGroups.length === 0"

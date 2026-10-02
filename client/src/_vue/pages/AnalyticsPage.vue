@@ -6,7 +6,24 @@ import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
 import NewReportModule from "../features/reports/NewReportModule.vue";
 import ReportsPaginated from "../components/data/ReportsPaginated.vue";
-import { ref } from "vue";
+import EmptyState from "../components/base/EmptyState.vue";
+import ShowLoading from "../components/base/ShowLoading.vue";
+import { useTransactionStore } from "../../services/stores/transaction_store.ts";
+import { useToastStore } from "../../services/stores/toast_store.ts";
+import { onMounted, ref } from "vue";
+
+const transactionStore = useTransactionStore();
+const toastStore = useToastStore();
+
+const hasTransactions = ref<boolean | null>(null);
+
+onMounted(async () => {
+  try {
+    hasTransactions.value = (await transactionStore.getTransactionCount()) > 0;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+});
 
 const newReportModal = ref(false);
 const reportsPaginated = ref<InstanceType<typeof ReportsPaginated>>();
@@ -45,7 +62,17 @@ const activeTab = ref("overview");
         description="Comprehensive insights into your financial health."
       />
 
+      <ShowLoading v-if="hasTransactions === null" :num-fields="5" />
+
+      <EmptyState
+        v-else-if="!hasTransactions"
+        icon="pi pi-chart-bar"
+        title="No transactions yet."
+        description="Add transactions to see insights into your finances."
+      />
+
       <SegmentedTabs
+        v-else
         v-model="activeTab"
         :options="[
           { key: 'overview', label: 'Overview' },
@@ -53,7 +80,7 @@ const activeTab = ref("overview");
         ]"
       />
 
-      <Transition name="fade" mode="out-in">
+      <Transition v-if="hasTransactions" name="fade" mode="out-in">
         <div
           v-if="activeTab === 'overview'"
           key="overview"

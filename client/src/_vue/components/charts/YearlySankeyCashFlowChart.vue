@@ -5,6 +5,7 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 import { Chart as ChartJS } from "chart.js";
 import { SankeyController, Flow } from "chartjs-chart-sankey";
+import EmptyState from "../base/EmptyState.vue";
 import type { YearlySankeyData } from "../../../models/analytics_models.ts";
 
 ChartJS.register(SankeyController, Flow);
@@ -171,17 +172,10 @@ onUnmounted(() => {
       style="width: 100%; height: 600px"
     />
   </div>
-  <div
+  <EmptyState
     v-else
-    class="flex flex-col items-center justify-center mt-4 p-4 w-6/12"
-    style="
-      border: 1px dashed var(--border-color);
-      border-radius: 16px;
-      margin: 0 auto;
-    "
-  >
-    <span class="text-sm" style="color: var(--text-secondary)">
-      No cash flow data available for {{ props.data.year }}.
-    </span>
-  </div>
+    icon="pi pi-sitemap"
+    :title="`No income recorded in ${props.data.year}.`"
+    description="The chart starts from your income. Add an income transaction to a checking account to see where your money goes."
+  />
 </template>
