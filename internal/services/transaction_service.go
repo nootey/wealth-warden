@@ -310,7 +310,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, account)
 		}
 
-		if !resultingBalance.IsNegative() {
+		if account.CreditLimit == nil {
 			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
 			if err != nil {
 				if ownsTx {
@@ -515,7 +515,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, fromAcc)
 		}
 
-		if !resultingBalance.IsNegative() {
+		if fromAcc.CreditLimit == nil {
 			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
 			if err != nil {
 				tx.Rollback()
@@ -950,29 +950,39 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		newEffect = req.Amount
 	}
 
-	netChange := newEffect.Sub(oldEffect)
+	type balanceChange struct {
+		account *models.Account
+		delta   decimal.Decimal
+	}
+	changesToCheck := []balanceChange{{newAccount, newEffect.Sub(oldEffect)}}
+	if oldAccount.ID != newAccount.ID {
+		changesToCheck = []balanceChange{{oldAccount, oldEffect.Neg()}, {newAccount, newEffect}}
+	}
 
-	// If net change is negative (balance going down), validate
-	if netChange.IsNegative() {
-		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, newAccount.ID, userID)
+	for _, bc := range changesToCheck {
+		if !bc.delta.IsNegative() {
+			continue
+		}
+
+		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, bc.account.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 
-		resultingBalance := latestBalance.Add(netChange)
-		if utils.AccountBelowLimit(resultingBalance, newAccount) {
+		resultingBalance := latestBalance.Add(bc.delta)
+		if utils.AccountBelowLimit(resultingBalance, bc.account) {
 			tx.Rollback()
-			return 0, utils.AccountLimitError(resultingBalance, newAccount)
+			return 0, utils.AccountLimitError(resultingBalance, bc.account)
 		}
 
-		if !resultingBalance.IsNegative() {
-			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, newAccount.ID, userID)
+		if bc.account.CreditLimit == nil {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, bc.account.ID, userID)
 			if err != nil {
 				tx.Rollback()
 				return 0, err
 			}
-			if err := utils.CheckGoalAllocation(netChange.Neg(), uncategorized, newAccount.AccountType.Classification); err != nil {
+			if err := utils.CheckGoalAllocation(bc.delta.Neg(), uncategorized, bc.account.AccountType.Classification); err != nil {
 				tx.Rollback()
 				return 0, err
 			}
@@ -1219,7 +1229,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 			return utils.AccountLimitError(resultingBalance, account)
 		}
 
-		if !resultingBalance.IsNegative() {
+		if account.CreditLimit == nil {
 			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
 			if err != nil {
 				tx.Rollback()
@@ -1419,7 +1429,7 @@ func (s *TransactionService) bulkSetCategory(ctx context.Context, tx *gorm.DB, u
 				tx.Rollback()
 				return nil, utils.AccountLimitError(resultingBalance, account)
 			}
-			if !resultingBalance.IsNegative() {
+			if account.CreditLimit == nil {
 				uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
 				if err != nil {
 					tx.Rollback()
@@ -1545,7 +1555,7 @@ func (s *TransactionService) bulkDelete(ctx context.Context, tx *gorm.DB, userID
 				return nil, utils.AccountLimitError(resultingBalance, account)
 			}
 
-			if !resultingBalance.IsNegative() {
+			if account.CreditLimit == nil {
 				uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
 				if err != nil {
 					tx.Rollback()
@@ -1696,7 +1706,7 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 			return utils.AccountLimitError(resultingBalance, fromAcc)
 		}
 
-		if !resultingBalance.IsNegative() {
+		if fromAcc.CreditLimit == nil {
 			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
 			if err != nil {
 				tx.Rollback()

@@ -30,6 +30,7 @@ var (
 type AccountServiceInterface interface {
 	FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error)
 	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.AccountBalance, error)
+	FetchAvailableBalance(ctx context.Context, accID, userID int64) (*models.AvailableBalance, error)
 	FetchAccountByID(ctx context.Context, userID int64, id int64) (*models.Account, error)
 	FetchAccountWithOpening(ctx context.Context, userID int64, id int64) (*models.AccountWithOpening, error)
 	FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error)
@@ -170,6 +171,33 @@ func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID i
 	}
 
 	return record, nil
+}
+
+func (s *AccountService) FetchAvailableBalance(ctx context.Context, accID, userID int64) (*models.AvailableBalance, error) {
+
+	acc, err := s.repo.FindAccountByID(ctx, nil, accID, userID, true)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAccountNotFound
+		}
+		return nil, err
+	}
+
+	res := &models.AvailableBalance{
+		AccountID: acc.ID,
+		Balance:   acc.Balance.Balance,
+	}
+
+	if acc.AccountType.Classification == "liability" || acc.CreditLimit != nil || acc.Balance.Balance.IsNegative() {
+		res.Available = acc.Balance.Balance
+	} else {
+		res.Available, err = s.savingsRepo.GetUncategorizedBalance(ctx, nil, acc.ID, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return res, nil
 }
 
 func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id int64) (*models.Account, error) {
@@ -565,7 +593,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 		delta = desired.Sub(latestBalance)
 
-		if delta.IsNegative() {
+		if delta.IsNegative() && req.CreditLimit == nil {
 			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, exAcc.ID, userID)
 			if err != nil {
 				tx.Rollback()

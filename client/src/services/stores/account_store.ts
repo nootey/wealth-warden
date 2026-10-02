@@ -81,6 +81,12 @@ export const useAccountStore = defineStore("account", {
       );
       return response.data;
     },
+    async getAvailableBalance(id: number) {
+      const response = await apiClient.get(
+        `${this.apiPrefix}/balances/${id}/available`,
+      );
+      return response.data;
+    },
     async getAllDefaultAccounts() {
       const response = await apiClient.get(`${this.apiPrefix}/defaults/all`);
       return response.data;

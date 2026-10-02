@@ -993,6 +993,80 @@ func (_c *MockAccountServiceInterface_FetchAllAccounts_Call) RunAndReturn(run fu
 	return _c
 }
 
+// FetchAvailableBalance provides a mock function for the type MockAccountServiceInterface
+func (_mock *MockAccountServiceInterface) FetchAvailableBalance(ctx context.Context, accID int64, userID int64) (*models.AvailableBalance, error) {
+	ret := _mock.Called(ctx, accID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FetchAvailableBalance")
+	}
+
+	var r0 *models.AvailableBalance
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) (*models.AvailableBalance, error)); ok {
+		return returnFunc(ctx, accID, userID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) *models.AvailableBalance); ok {
+		r0 = returnFunc(ctx, accID, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.AvailableBalance)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
+		r1 = returnFunc(ctx, accID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockAccountServiceInterface_FetchAvailableBalance_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FetchAvailableBalance'
+type MockAccountServiceInterface_FetchAvailableBalance_Call struct {
+	*mock.Call
+}
+
+// FetchAvailableBalance is a helper method to define mock.On call
+//   - ctx context.Context
+//   - accID int64
+//   - userID int64
+func (_e *MockAccountServiceInterface_Expecter) FetchAvailableBalance(ctx any, accID any, userID any) *MockAccountServiceInterface_FetchAvailableBalance_Call {
+	return &MockAccountServiceInterface_FetchAvailableBalance_Call{Call: _e.mock.On("FetchAvailableBalance", ctx, accID, userID)}
+}
+
+func (_c *MockAccountServiceInterface_FetchAvailableBalance_Call) Run(run func(ctx context.Context, accID int64, userID int64)) *MockAccountServiceInterface_FetchAvailableBalance_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAvailableBalance_Call) Return(availableBalance *models.AvailableBalance, err error) *MockAccountServiceInterface_FetchAvailableBalance_Call {
+	_c.Call.Return(availableBalance, err)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAvailableBalance_Call) RunAndReturn(run func(ctx context.Context, accID int64, userID int64) (*models.AvailableBalance, error)) *MockAccountServiceInterface_FetchAvailableBalance_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FetchLatestBalance provides a mock function for the type MockAccountServiceInterface
 func (_mock *MockAccountServiceInterface) FetchLatestBalance(ctx context.Context, accID int64, userID int64) (*models.AccountBalance, error) {
 	ret := _mock.Called(ctx, accID, userID)

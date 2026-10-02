@@ -32,6 +32,7 @@ import TransferForm from "./TransferForm.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import AvailableBalance from "../base/AvailableBalance.vue";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
@@ -617,6 +618,12 @@ async function deleteRecord(id: number, tx_type: string) {
             :currency="settingsStore.defaultCurrency"
             :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
             :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
+          />
+          <AvailableBalance
+            v-if="
+              mode === 'create' && selectedParentCategory?.name === 'expense'
+            "
+            :account="record.account"
           />
         </div>
       </div>

@@ -16,6 +16,7 @@ import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
 import searchHelper from "../../../utils/search_helper.ts";
+import AvailableBalance from "../base/AvailableBalance.vue";
 
 const props = defineProps<{
   accounts: Account[];
@@ -176,6 +177,10 @@ defineExpose({ r$, localTransfer });
           :currency="settingsStore.defaultCurrency"
           :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
           :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
+        />
+        <AvailableBalance
+          v-if="mode !== 'update'"
+          :account="localTransfer.source"
         />
       </div>
     </div>
