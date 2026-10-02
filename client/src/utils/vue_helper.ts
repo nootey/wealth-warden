@@ -128,6 +128,23 @@ const vueHelper = {
       return num.toFixed(decimals) + " " + cur;
     }
   },
+  groupPieSlices(
+    items: { label: string; value: number }[],
+    maxSlices: number,
+  ): { labels: string[]; values: number[] } {
+    const sorted = [...items].sort((a, b) => b.value - a.value);
+    if (sorted.length > maxSlices) {
+      const rest = sorted.splice(maxSlices - 1);
+      sorted.push({
+        label: "Other",
+        value: rest.reduce((sum, c) => sum + c.value, 0),
+      });
+    }
+    return {
+      labels: sorted.map((c) => c.label),
+      values: sorted.map((c) => c.value),
+    };
+  },
   formatChanges(payload: unknown): Change[] | null {
     if (!payload) return null;
 

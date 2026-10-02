@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import { computed, ref } from "vue";
+import PageHeader from "../components/layout/PageHeader.vue";
 import { useBackofficeStore } from "../../services/stores/backoffice_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
@@ -69,33 +71,15 @@ async function runZeroCostMigration() {
   >
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-md"
+      class="flex flex-col justify-center w-full gap-6"
     >
-      <div
-        class="w-full flex flex-row justify-between p-1 gap-2 items-center mt-2"
-      >
-        <div class="w-full flex flex-col gap-2">
-          <div style="font-weight: bold">Backoffice</div>
-          <div>Watch your step - fragile grounds.</div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Administration"
+        title="Backoffice"
+        description="Watch your step - fragile grounds."
+      />
 
-      <div class="flex flex-row gap-4 p-2">
-        <div
-          v-for="tab in visibleTabs"
-          :key="tab.key"
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === tab.key
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = tab.key"
-        >
-          {{ tab.label }}
-        </div>
-      </div>
+      <SegmentedTabs v-model="activeTab" :options="visibleTabs" />
 
       <Transition name="fade" mode="out-in">
         <div v-if="activeTab === 'logs'" key="logs">

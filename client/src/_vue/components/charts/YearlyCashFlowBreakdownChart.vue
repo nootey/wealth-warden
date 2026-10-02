@@ -12,6 +12,7 @@ import {
 } from "chart.js";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
+import EmptyState from "../base/EmptyState.vue";
 import type { YearlyCashFlowResponse } from "../../../models/analytics_models.ts";
 
 ChartJS.register(
@@ -83,31 +84,36 @@ const allDatasets = computed(() => [
   {
     label: "Inflows",
     data: inflowsArr.value,
-    backgroundColor: "#3b82f6",
+    backgroundColor: colors.value.pos,
+    borderRadius: 4,
     stack: "stack0",
   },
   {
     label: "Outflows",
     data: outflowsArr.value.map((v) => Math.abs(v)),
-    backgroundColor: "#8b5cf6",
+    backgroundColor: colors.value.neg,
+    borderRadius: 4,
     stack: "stack0",
   },
   {
     label: "Investments",
     data: investmentsArr.value,
-    backgroundColor: "#ec4899",
+    backgroundColor: colors.value.flow.investments,
+    borderRadius: 4,
     stack: "stack0",
   },
   {
     label: "Savings",
     data: savingsArr.value,
-    backgroundColor: "#eab308",
+    backgroundColor: colors.value.flow.savings,
+    borderRadius: 4,
     stack: "stack0",
   },
   {
     label: "Debt Repayments",
     data: debtArr.value,
-    backgroundColor: "#06b6d4",
+    backgroundColor: colors.value.flow.debt,
+    borderRadius: 4,
     stack: "stack0",
   },
 ]);
@@ -237,17 +243,10 @@ function toNumber(v: string | string[] | undefined): number {
     :options="chartOptions"
     style="width: 100%; height: 400px"
   />
-  <div
+  <EmptyState
     v-else
-    class="flex flex-col items-center justify-center mt-4 p-4 w-6/12"
-    style="
-      border: 1px dashed var(--border-color);
-      border-radius: 16px;
-      margin: 0 auto;
-    "
-  >
-    <span class="text-sm" style="color: var(--text-secondary)">
-      No cash flow data available for {{ props.data.year }}.
-    </span>
-  </div>
+    icon="pi pi-chart-bar"
+    :title="`No inflows or outflows in ${props.data.year}.`"
+    description="Add income or expense transactions to a checking account to see this chart."
+  />
 </template>

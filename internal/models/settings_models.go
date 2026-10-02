@@ -47,7 +47,7 @@ type CurrencyInfo struct {
 
 type PreferenceSettingsReq struct {
 	Theme                 string  `json:"theme"`
-	Accent                *string `json:"accent"`
+	Accent                *string `json:"accent" validate:"omitempty,oneof=blurple amber green"`
 	Language              string  `json:"language"`
 	Timezone              string  `json:"timezone"`
 	DefaultCurrency       string  `json:"default_currency"`
@@ -59,7 +59,7 @@ type CompleteSetupReq struct {
 	Timezone        string `json:"timezone" validate:"required"`
 	Language        string `json:"language" validate:"required"`
 	Theme           string `json:"theme" validate:"required"`
-	Accent          string `json:"accent"`
+	Accent          string `json:"accent" validate:"omitempty,oneof=blurple amber green"`
 }
 
 type ProfileSettingsReq struct {

@@ -1,9 +1,11 @@
 import styleHelper from "../../utils/style_helper.ts";
-import { ACCOUNT_TOKENS, tokenColor } from "./tokens.ts";
+import { useThemeStore } from "../../services/stores/theme_store.ts";
+import { accentTokens, tokenColor } from "./tokens.ts";
 
 function baseColorFor(type?: string): string {
   const t = (type || "other_asset").toLowerCase();
-  const token = ACCOUNT_TOKENS[t] ?? ACCOUNT_TOKENS.other_asset!;
+  const tokens = accentTokens(useThemeStore().accent).account;
+  const token = tokens[t] ?? tokens.other_asset!;
   return tokenColor(token);
 }
 

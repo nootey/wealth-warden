@@ -4,7 +4,9 @@ import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import NetworthWidget from "../features/widgets/NetworthWidget.vue";
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import dayjs from "dayjs";
+import PageHeader from "../components/layout/PageHeader.vue";
 import AccountAllocations from "../features/AccountAllocations.vue";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
 import YearlyCashFlowWidget from "../features/widgets/YearlyCashFlowWidget.vue";
@@ -21,6 +23,20 @@ const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 const backfilling = ref(false);
 const onboarded = ref<boolean | null>(null);
 const isMobile = ref(window.innerWidth <= 768);
+
+const DAY_PARTS = [
+  { until: 12, label: "morning" },
+  { until: 18, label: "afternoon" },
+  { until: 24, label: "evening" },
+];
+
+const today = dayjs().format("dddd, D MMMM YYYY");
+const greeting = computed(() => {
+  const hour = dayjs().hour();
+  const part = DAY_PARTS.find((p) => hour < p.until)!.label;
+  const first = authStore.user?.display_name?.split(" ")[0];
+  return first ? `Good ${part}, ${first}` : `Good ${part}`;
+});
 
 const handleResize = () => {
   isMobile.value = window.innerWidth <= 768;
@@ -50,47 +66,60 @@ async function backfillBalances() {
 </script>
 
 <template>
-  <main
-    class="flex flex-col w-full items-center"
-    style="padding: 0 0.5rem 0 0.5rem"
-  >
-    <div
-      id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-md"
-    >
-      <SlotSkeleton bg="transparent">
-        <div
-          class="w-full flex flex-row justify-between p-1 gap-2 items-center"
-        >
-          <div class="w-full flex flex-col gap-2">
-            <div style="font-weight: bold">
-              Welcome back {{ authStore?.user?.display_name }}
-            </div>
-            <div>Here's what's happening with your finances.</div>
-          </div>
+  <main class="flex flex-col w-full items-center">
+    <div id="mobile-container" class="flex flex-col w-full gap-6">
+      <PageHeader
+        :eyebrow="today"
+        :title="greeting"
+        description="Here's where your money stands today."
+      >
+        <template v-if="onboarded === true" #actions>
           <Button
-            v-if="onboarded === true"
-            label="Refresh"
-            icon="pi pi-refresh"
             class="main-button"
             :disabled="backfilling"
             @click="backfillBalances"
-          />
-        </div>
-      </SlotSkeleton>
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-refresh" :class="{ 'pi-spin': backfilling }" />
+              <span>Refresh</span>
+            </div>
+          </Button>
+        </template>
+      </PageHeader>
 
       <GettingStartedCard @ready="onboarded = $event" />
 
       <template v-if="onboarded === true">
-        <Panel :collapsed="false" header="Net worth">
-          <SlotSkeleton bg="transparent">
+        <div id="dash-hero" class="grid gap-6">
+          <section
+            class="min-w-0 rounded-2xl border border-line bg-card p-6 shadow-[var(--shadow-card)]"
+          >
             <NetworthWidget
               ref="nWidgetRef"
-              :chart-height="400"
+              :chart-height="320"
               :is-refreshing="backfilling"
             />
-          </SlotSkeleton>
-        </Panel>
+          </section>
+
+          <section
+            class="min-w-0 flex flex-col gap-2 rounded-2xl border border-line bg-card p-6 shadow-[var(--shadow-card)]"
+          >
+            <div class="flex flex-col gap-1">
+              <span class="text-lg font-medium tracking-tight">
+                Balance sheet
+              </span>
+              <span class="text-sm text-muted">
+                What you own against what you owe.
+              </span>
+            </div>
+            <AccountAllocations title="Assets" classification="asset" />
+            <div class="h-px bg-line" />
+            <AccountAllocations
+              title="Liabilities"
+              classification="liability"
+            />
+          </section>
+        </div>
 
         <Panel :collapsed="false" header="Yearly overview" toggleable>
           <SlotSkeleton bg="transparent">
@@ -105,30 +134,14 @@ async function backfillBalances() {
         </Panel>
 
         <Panel :collapsed="false" header="Overview by category" toggleable>
-          <div class="w-full flex flex-row justify-between p-1">
-            <span style="color: var(--text-secondary)" class="text-sm">
-              View and compare how your money moves through out different years
-              and categories. You can compare up to 5 years at a time, with the
-              option to filter by any income or expense category. Totals and
-              average over time include ALL of your data.
-            </span>
-          </div>
+          <p class="text-sm text-muted m-0 pb-2 max-w-3xl">
+            Compare how your money moves across years and categories. Compare up
+            to 5 years at a time, and filter by any income or expense category.
+            Totals and averages over time include all of your data.
+          </p>
 
           <SlotSkeleton bg="transparent">
             <MonthlyCategoryBreakdownWidget :is-mobile="isMobile" />
-          </SlotSkeleton>
-        </Panel>
-
-        <Panel :collapsed="false" header="Balance sheet" toggleable>
-          <SlotSkeleton bg="transparent">
-            <AccountAllocations title="Assets" classification="asset" />
-          </SlotSkeleton>
-
-          <SlotSkeleton bg="transparent">
-            <AccountAllocations
-              title="Liabilities"
-              classification="liability"
-            />
           </SlotSkeleton>
         </Panel>
       </template>
@@ -136,4 +149,20 @@ async function backfillBalances() {
   </main>
 </template>
 
-<style scoped></style>
+<style scoped>
+#dash-hero {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+@media (max-width: 1100px) {
+  #dash-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  #dash-hero > section {
+    padding: 1.25rem;
+  }
+}
+</style>

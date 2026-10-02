@@ -2,103 +2,119 @@
   <Drawer
     id="notif-drawer"
     v-model:visible="open"
-    position="right"
-    style="width: 100%; max-width: 468px; overflow-y: auto"
+    position="left"
+    style="width: 100%; max-width: 468px"
   >
     <template #container="{ closeCallback }">
-      <div class="flex flex-col w-full p-4 gap-4">
-        <div class="flex flex-row justify-between items-center p-2">
-          <h3>Notifications</h3>
-          <i class="pi pi-times hover-icon" @click="closeCallback" />
+      <div class="flex flex-col h-full overflow-y-auto bg-canvas">
+        <div
+          class="sticky top-0 z-10 flex flex-row items-center justify-between gap-2 px-5 py-4 border-b border-line bg-canvas"
+        >
+          <div class="flex flex-col gap-0.5">
+            <span class="label">Inbox</span>
+            <span class="text-lg font-medium tracking-tight text-ink">
+              Notifications
+            </span>
+          </div>
+          <button
+            type="button"
+            class="flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+            aria-label="Close"
+            @click="closeCallback"
+          >
+            <i class="pi pi-times text-sm" />
+          </button>
         </div>
 
-        <div class="flex flex-row justify-between items-center">
+        <div class="flex flex-col gap-4 p-4">
+          <div class="flex flex-row items-center justify-between gap-2">
+            <SegmentedTabs v-model="filter" :options="filterOptions" />
+            <button
+              v-if="notifications.some((n) => !n.read_at)"
+              type="button"
+              class="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+              @click="markAllAsRead"
+            >
+              <i class="pi pi-check text-xs" />
+              <span>Mark all as read</span>
+            </button>
+          </div>
+
           <div
-            class="flex flex-row items-center gap-2 text-sm"
-            style="cursor: pointer; color: var(--text-secondary)"
-            @click="toggleUnreadFilter"
+            v-for="n in notifications"
+            :key="n.id"
+            class="flex flex-row gap-3 rounded-2xl border p-4"
+            :class="
+              n.read_at
+                ? 'border-transparent bg-sunken'
+                : 'border-line bg-card shadow-[var(--shadow-card)]'
+            "
           >
-            <i :class="['pi', onlyUnread ? 'pi-filter-fill' : 'pi-filter']" />
-            <span>{{ onlyUnread ? "Unread only" : "All" }}</span>
-          </div>
-          <span
-            v-if="notifications.some((n) => !n.read_at)"
-            class="text-xs"
-            style="cursor: pointer; color: var(--text-secondary)"
-            @click="markAllAsRead"
-          >
-            Mark all as read
-          </span>
-        </div>
-
-        <SimplePaginator
-          :current-page="page"
-          :total-records="paginator.total"
-          :rows-per-page="paginator.rowsPerPage"
-          @page-change="loadNotifications"
-        />
-
-        <div
-          v-for="n in notifications"
-          :key="n.id"
-          class="p-4 rounded-xl"
-          :style="{
-            backgroundColor: n.read_at
-              ? 'var(--background-secondary)'
-              : 'var(--background-primary)',
-            border: '1px solid var(--border-color)',
-          }"
-        >
-          <div class="flex flex-col gap-2">
-            <div class="flex flex-row items-center gap-2">
-              <i
-                :class="['pi', typeIcon(n.type)]"
-                :style="{ color: typeColor(n.type), fontSize: '0.9rem' }"
-              />
-              <span
-                class="font-semibold text-sm"
-                :style="{
-                  color: n.read_at
-                    ? 'var(--text-secondary)'
-                    : 'var(--text-primary)',
-                }"
-              >
-                {{ n.title }}
-              </span>
-            </div>
-
-            <p
-              class="text-sm m-0"
-              style="
-                color: var(--text-secondary);
-                line-height: 1.4;
-                white-space: pre-line;
-              "
-            >
-              {{ n.message }}
-            </p>
-
             <div
-              class="flex flex-row justify-between items-center text-xs"
-              style="color: var(--text-secondary)"
+              class="flex items-center justify-center shrink-0 w-8 h-8 rounded-full"
+              :style="{
+                backgroundColor: `color-mix(in srgb, ${typeColor(n.type)}, transparent 85%)`,
+                opacity: n.read_at ? 0.6 : 1,
+              }"
             >
-              <span>{{ dateHelper.formatDate(n.created_at) }}</span>
               <i
-                v-if="!n.read_at"
-                v-tooltip="'Mark as read'"
-                class="pi pi-check-square text-sm hover-icon"
-                @click="markAsRead(n.id)"
+                :class="['pi', typeIcon(n.type), 'text-sm']"
+                :style="{ color: typeColor(n.type) }"
               />
             </div>
-          </div>
-        </div>
 
-        <div
-          v-if="notifications.length === 0"
-          class="text-center p-6"
-          style="color: var(--text-secondary)"
-        >
-          {{ onlyUnread ? "No unread notifications" : "No notifications yet" }}
+            <div class="flex flex-col gap-1.5 min-w-0 flex-1">
+              <div class="flex flex-row items-start justify-between gap-2">
+                <span
+                  class="text-sm font-medium"
+                  :class="n.read_at ? 'text-muted' : 'text-ink'"
+                >
+                  {{ n.title }}
+                </span>
+                <span
+                  v-if="!n.read_at"
+                  class="shrink-0 mt-1.5 w-2 h-2 rounded-full bg-accent"
+                />
+              </div>
+
+              <p
+                class="text-sm text-muted m-0 leading-snug whitespace-pre-line"
+              >
+                {{ n.message }}
+              </p>
+
+              <div class="flex flex-row items-center justify-between gap-2">
+                <span class="text-xs text-faint">
+                  {{ dateHelper.formatDate(n.created_at) }}
+                </span>
+                <button
+                  v-if="!n.read_at"
+                  v-tooltip.top="'Mark as read'"
+                  type="button"
+                  class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+                  aria-label="Mark as read"
+                  @click="markAsRead(n.id)"
+                >
+                  <i class="pi pi-check text-xs" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <EmptyState
+            v-if="notifications.length === 0"
+            icon="pi pi-bell"
+            :title="
+              onlyUnread ? 'No unread notifications.' : 'No notifications yet.'
+            "
+          />
+
+          <SimplePaginator
+            :current-page="page"
+            :total-records="paginator.total"
+            :rows-per-page="paginator.rowsPerPage"
+            @page-change="loadNotifications"
+          />
         </div>
       </div>
     </template>
@@ -106,18 +122,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useNotificationStore } from "../../services/stores/notification_store.ts";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useWsStore } from "../../services/stores/ws_store.ts";
+import dateHelper from "../../utils/date_helper.ts";
+import SimplePaginator from "../components/base/SimplePaginator.vue";
+import EmptyState from "../components/base/EmptyState.vue";
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import type {
   Notification,
   NotificationType,
 } from "../../models/notification_models.ts";
 import type { PaginatorState } from "../../models/shared_models.ts";
-import dateHelper from "../../utils/date_helper.ts";
-import SimplePaginator from "../components/base/SimplePaginator.vue";
 
 const notificationStore = useNotificationStore();
 const sharedStore = useSharedStore();
@@ -163,10 +181,18 @@ const loadNotifications = async (page_num = 1) => {
   }
 };
 
-const toggleUnreadFilter = async () => {
-  onlyUnread.value = !onlyUnread.value;
-  await loadNotifications(1);
-};
+const filterOptions = [
+  { key: "all", label: "All" },
+  { key: "unread", label: "Unread" },
+] as const;
+
+const filter = computed({
+  get: () => (onlyUnread.value ? "unread" : "all"),
+  set: (value) => {
+    onlyUnread.value = value === "unread";
+    loadNotifications(1);
+  },
+});
 
 const markAsRead = async (id: number) => {
   try {

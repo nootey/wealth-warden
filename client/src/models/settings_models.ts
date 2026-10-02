@@ -1,3 +1,11 @@
+export type Accent = "blurple" | "amber" | "green";
+
+export const ACCENT_OPTIONS: { value: Accent; label: string }[] = [
+  { value: "blurple", label: "Blurple" },
+  { value: "amber", label: "Amber" },
+  { value: "green", label: "Green" },
+];
+
 export type UserSettings = {
   language: string;
   timezone: string;

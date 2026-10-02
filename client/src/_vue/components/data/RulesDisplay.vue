@@ -128,7 +128,7 @@ function completeDelete() {
 
 <style scoped>
 .hover {
-  font-weight: bold;
+  font-weight: 500;
 }
 .hover:hover {
   cursor: pointer;

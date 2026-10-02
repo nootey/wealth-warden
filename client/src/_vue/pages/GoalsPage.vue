@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import PageHeader from "../components/layout/PageHeader.vue";
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useSavingsStore } from "../../services/stores/savings_store.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
@@ -7,9 +9,11 @@ import { usePermissions } from "../../utils/use_permissions.ts";
 import SavingGoalForm from "../components/forms/SavingGoalForm.vue";
 import SavingContributionForm from "../components/forms/SavingContributionForm.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
+import EmptyState from "../components/base/EmptyState.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import dateHelper from "../../utils/date_helper.ts";
 import type { SavingGoalWithProgress } from "../../models/savings_models.ts";
+import type { Account } from "../../models/account_models.ts";
 import SavingGoalDetails from "../components/data/SavingGoalDetails.vue";
 import savingsHelper from "../../utils/savings_helper.ts";
 import Decimal from "decimal.js";
@@ -21,6 +25,11 @@ const { hasPermission } = usePermissions();
 
 const loading = ref(false);
 const goals = ref<SavingGoalWithProgress[]>([]);
+const hasSavingsAccount = ref<boolean | null>(null);
+
+const showGoals = computed(
+  () => !loading.value && !!hasSavingsAccount.value && goals.value.length > 0,
+);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -31,9 +40,20 @@ const addContribModal = ref(false);
 const selectedGoal = ref<SavingGoalWithProgress | null>(null);
 
 onMounted(async () => {
+  await checkSavingsAccount();
   await loadGoals();
   await accountStore.getAllAccountsWithBalance();
 });
+
+async function checkSavingsAccount() {
+  try {
+    const all = await accountStore.getAccountsBySubtype("savings");
+    hasSavingsAccount.value = (all as Account[]).some((a) => a.is_active);
+  } catch (err) {
+    hasSavingsAccount.value = true;
+    toastStore.errorResponseToast(err);
+  }
+}
 
 async function loadGoals() {
   loading.value = true;
@@ -173,7 +193,9 @@ const groupedGoals = computed(() => {
   }));
 });
 
-const filterOptions = ["All", "On track", "Behind", "Paused", "Completed"];
+const filterOptions = ["All", "On track", "Behind", "Paused", "Completed"].map(
+  (f) => ({ key: f, label: f }),
+);
 const activeFilter = ref("All");
 
 function matchesFilter(goal: SavingGoalWithProgress): boolean {
@@ -311,42 +333,38 @@ const onTrackBreakdown = computed(() => {
   <main class="flex flex-col w-full items-center">
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-xl"
+      class="flex flex-col justify-center w-full gap-6"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
-          <div class="flex flex-row gap-2 items-center w-full">
-            <div class="font-bold">Goals</div>
-          </div>
-          <div>Scope your savings goals and plan ahead.</div>
-        </div>
-        <Button class="main-button" @click="openCreate">
-          <div class="flex flex-row gap-1 items-center">
-            <i class="pi pi-plus" />
-            <span> New </span>
-            <span class="mobile-hide"> Goal </span>
-          </div>
-        </Button>
-      </div>
-
-      <div
-        v-if="!loading && goals.length > 0"
-        id="goal-stats"
-        class="w-full flex flex-row gap-4 p-1"
+      <PageHeader
+        eyebrow="Savings"
+        title="Goals"
+        description="Scope your savings goals and plan ahead."
       >
+        <template #actions>
+          <Button
+            v-if="hasSavingsAccount"
+            class="main-button"
+            @click="openCreate"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-plus" />
+              <span>New<span class="mobile-hide"> goal</span></span>
+            </div>
+          </Button>
+        </template>
+      </PageHeader>
+
+      <div v-if="showGoals" id="goal-stats" class="w-full flex flex-row gap-4">
         <div
-          class="flex-1 flex flex-col gap-1 p-4 rounded-xl bordered"
-          :style="{ background: 'var(--background-secondary)' }"
+          class="flex-1 flex flex-col gap-1 p-5 rounded-2xl border border-line bg-card"
         >
-          <div class="text-xs uppercase" style="color: var(--text-secondary)">
-            Needs this month
-          </div>
-          <div class="text-xl font-bold">
+          <div class="label">Needs this month</div>
+          <div class="text-xl font-medium tracking-tight text-ink">
             {{
               vueHelper.displayAsCurrency(goalStats.needsThisMonth.toString())
             }}
           </div>
-          <div class="text-sm" style="color: var(--text-secondary)">
+          <div class="text-sm text-muted">
             {{
               goalStats.behind > 0
                 ? `${goalStats.behind} goal${goalStats.behind === 1 ? "" : "s"} behind pace`
@@ -355,34 +373,24 @@ const onTrackBreakdown = computed(() => {
           </div>
         </div>
         <div
-          class="flex-1 flex flex-col gap-1 p-4 rounded-xl bordered"
-          :style="{ background: 'var(--background-secondary)' }"
+          class="flex-1 flex flex-col gap-1 p-5 rounded-2xl border border-line bg-card"
         >
-          <div class="text-xs uppercase" style="color: var(--text-secondary)">
-            Goals on track
-          </div>
-          <div class="text-xl font-bold">
+          <div class="label">Goals on track</div>
+          <div class="text-xl font-medium tracking-tight text-ink">
             {{ goalStats.onTrack }} of {{ goalStats.activeCount }}
           </div>
-          <div
-            v-if="onTrackBreakdown"
-            class="text-sm"
-            style="color: var(--text-secondary)"
-          >
+          <div v-if="onTrackBreakdown" class="text-sm text-muted">
             {{ onTrackBreakdown }}
           </div>
         </div>
         <div
-          class="flex-1 flex flex-col gap-1 p-4 rounded-xl bordered"
-          :style="{ background: 'var(--background-secondary)' }"
+          class="flex-1 flex flex-col gap-1 p-5 rounded-2xl border border-line bg-card"
         >
-          <div class="text-xs uppercase" style="color: var(--text-secondary)">
-            Total allocated
-          </div>
-          <div class="text-xl font-bold">
+          <div class="label">Total allocated</div>
+          <div class="text-xl font-medium tracking-tight text-ink">
             {{ vueHelper.displayAsCurrency(goalStats.allocated.toString()) }}
           </div>
-          <div class="text-sm" style="color: var(--text-secondary)">
+          <div class="text-sm text-muted">
             across
             {{ groupedGoals.length }}
             account{{ groupedGoals.length === 1 ? "" : "s" }}
@@ -390,45 +398,42 @@ const onTrackBreakdown = computed(() => {
         </div>
       </div>
 
-      <div class="w-full flex flex-row gap-2 p-1 items-center text-sm">
-        <i class="pi pi-info-circle" style="flex-shrink: 0" />
-        <div style="color: var(--text-secondary)">
+      <div
+        v-if="showGoals"
+        class="w-full flex flex-row gap-2 items-center text-sm text-muted"
+      >
+        <i class="pi pi-info-circle shrink-0" />
+        <div>
           Goals with a monthly allocation are funded automatically. Ensure your
           account has enough uncategorized balance before the configured fund
           day.
         </div>
       </div>
 
-      <div v-if="!loading && goals.length > 0" class="w-full flex flex-row p-1">
-        <SelectButton
-          v-model="activeFilter"
-          size="small"
-          style="font-size: 0.875rem"
-          :options="filterOptions"
-          :allow-empty="false"
-        />
-      </div>
+      <SegmentedTabs
+        v-if="showGoals"
+        v-model="activeFilter"
+        :options="filterOptions"
+      />
 
-      <div
-        class="flex-1 w-full rounded-xl overflow-y-auto"
-        :style="{ maxWidth: '1000px' }"
-      >
-        <template v-if="loading">
+      <div class="flex-1 w-full rounded-xl overflow-y-auto">
+        <template v-if="loading || hasSavingsAccount === null">
           <ShowLoading :num-fields="5" />
         </template>
 
-        <div
+        <EmptyState
+          v-else-if="!hasSavingsAccount"
+          icon="pi pi-wallet"
+          title="No savings account yet."
+          description="Create an active savings account to start setting goals."
+        />
+
+        <EmptyState
           v-else-if="goals.length === 0"
-          class="flex flex-row p-2 w-full justify-center"
-        >
-          <div class="flex flex-col gap-2 justify-center items-center">
-            <i
-              style="color: var(--text-secondary)"
-              class="pi pi-flag text-4xl"
-            />
-            <span>No goals yet - create one to get started</span>
-          </div>
-        </div>
+          icon="pi pi-flag"
+          title="No goals yet."
+          description="Create one to get started."
+        />
 
         <div
           v-else-if="filteredGroups.length === 0"
@@ -440,49 +445,34 @@ const onTrackBreakdown = computed(() => {
         </div>
 
         <div v-else class="flex flex-col gap-6">
-          <div
+          <section
             v-for="group in filteredGroups"
             :key="group.accountID"
-            class="flex flex-col gap-4"
+            class="flex flex-col rounded-2xl border border-line bg-card divide-y divide-line"
           >
-            <div class="flex flex-row items-center justify-between gap-2 px-1">
-              <div class="font-bold">{{ group.accountName }}</div>
-              <div
-                class="flex flex-row gap-4 text-sm"
-                style="color: var(--text-secondary)"
-              >
+            <div
+              class="flex flex-row flex-wrap items-center justify-between gap-2 px-5 py-4"
+            >
+              <div class="text-lg font-medium tracking-tight text-ink">
+                {{ group.accountName }}
+              </div>
+              <div class="flex flex-row gap-4 text-sm text-muted">
                 <span>
-                  <span
-                    class="font-medium"
-                    style="color: var(--text-primary)"
-                    >{{
-                      vueHelper.displayAsCurrency(group.allocated.toString())
-                    }}</span
-                  >
+                  {{ vueHelper.displayAsCurrency(group.allocated.toString()) }}
                   allocated
                 </span>
                 <span>
-                  <span
-                    class="font-medium"
-                    style="color: var(--text-primary)"
-                    >{{
-                      vueHelper.displayAsCurrency(
-                        group.uncategorized.toString(),
-                      )
-                    }}</span
-                  >
+                  <span class="font-medium text-ink">{{
+                    vueHelper.displayAsCurrency(group.uncategorized.toString())
+                  }}</span>
                   free
                 </span>
                 <span v-if="group.monthlyAutoFund.gt(0)">
-                  <span
-                    class="font-medium"
-                    style="color: var(--text-primary)"
-                    >{{
-                      vueHelper.displayAsCurrency(
-                        group.monthlyAutoFund.toString(),
-                      ) + "/mo"
-                    }}</span
-                  >
+                  {{
+                    vueHelper.displayAsCurrency(
+                      group.monthlyAutoFund.toString(),
+                    ) + "/mo"
+                  }}
                   auto
                 </span>
               </div>
@@ -491,22 +481,15 @@ const onTrackBreakdown = computed(() => {
             <div
               v-for="goal in group.goals"
               :key="goal.id"
-              class="flex flex-col p-4 gap-4 rounded-xl bordered"
+              class="flex flex-col px-5 py-4 gap-3"
               :style="{
-                background: 'var(--background-secondary)',
                 opacity: savingsHelper.isGoalDimmed(goal.status) ? '0.55' : '1',
               }"
             >
               <div class="flex flex-row items-center justify-between gap-2">
                 <div class="flex flex-row items-center gap-2 flex-1 min-w-0">
                   <div
-                    class="font-bold"
-                    style="
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      cursor: pointer;
-                    "
+                    class="font-medium tracking-tight text-ink truncate cursor-pointer"
                     @click="openContributions(goal)"
                   >
                     {{ goal.name }}
@@ -519,8 +502,7 @@ const onTrackBreakdown = computed(() => {
                       goal.months_remaining &&
                       goal.track_status !== 'completed'
                     "
-                    class="text-sm"
-                    style="color: var(--text-secondary); white-space: nowrap"
+                    class="text-sm text-muted whitespace-nowrap"
                   >
                     {{ goal.months_remaining }} mo left
                   </span>
@@ -542,16 +524,14 @@ const onTrackBreakdown = computed(() => {
                   />
                   <i
                     v-if="hasPermission('manage_data')"
-                    class="pi pi-pencil hover-icon text-sm"
-                    style="color: var(--text-secondary)"
+                    class="pi pi-pencil hover-icon text-sm text-muted"
                     @click="openUpdate(goal)"
                   />
                   <i
                     v-if="
                       hasPermission('manage_data') && goal.status === 'active'
                     "
-                    class="pi pi-plus hover-icon text-sm"
-                    style="color: var(--text-secondary)"
+                    class="pi pi-plus hover-icon text-sm text-muted"
                     @click="openAddContribution(goal)"
                   />
                 </div>
@@ -559,21 +539,24 @@ const onTrackBreakdown = computed(() => {
 
               <ProgressBar
                 :value="savingsHelper.progressPercent(goal)"
-                style="height: 14px"
-                :pt="{ label: { style: 'color: white' } }"
+                :show-value="false"
+                style="height: 6px"
               />
 
               <div class="flex flex-row justify-between items-center">
-                <div class="text-sm">
-                  <span class="font-bold">{{
+                <div class="text-sm text-muted">
+                  <span class="font-medium text-ink">{{
                     vueHelper.displayAsCurrency(goal.current_amount)
                   }}</span>
-                  <span style="color: var(--text-secondary)">
+                  <span>
                     /
                     {{ vueHelper.displayAsCurrency(goal.target_amount) }}</span
                   >
+                  <span>
+                    &middot; {{ savingsHelper.progressPercent(goal) }}%</span
+                  >
                 </div>
-                <div class="text-sm" style="color: var(--text-secondary)">
+                <div class="text-sm text-muted">
                   <span v-if="goal.target_date">{{
                     dateHelper.formatDate(goal.target_date, false, "MMM YYYY")
                   }}</span>
@@ -583,8 +566,7 @@ const onTrackBreakdown = computed(() => {
 
               <div
                 v-if="goal.monthly_needed && goal.track_status !== 'completed'"
-                class="text-sm"
-                style="color: var(--text-secondary)"
+                class="text-sm text-muted"
               >
                 {{
                   vueHelper.displayAsCurrency(goal.monthly_allocation ?? "0")
@@ -592,7 +574,7 @@ const onTrackBreakdown = computed(() => {
                 {{ vueHelper.displayAsCurrency(goal.monthly_needed) }}/mo
               </div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>

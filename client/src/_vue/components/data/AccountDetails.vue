@@ -11,7 +11,6 @@ import type { Column } from "../../../services/filter_registry.ts";
 import { useConfirm } from "primevue/useconfirm";
 import NetworthWidget from "../../features/widgets/NetworthWidget.vue";
 import AccountBasicStats from "../../features/AccountBasicStats.vue";
-import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import dateHelper from "../../../utils/date_helper.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -147,28 +146,63 @@ async function handleEmit(type: string) {
   </Dialog>
 
   <div v-if="account" class="flex flex-col w-full gap-4">
-    <div class="flex flex-row gap-2 items-center text-center">
-      <i
-        :class="[
-          'pi',
-          account.account_type.classification === 'liability'
-            ? 'pi-credit-card'
-            : 'pi-wallet',
-        ]"
-      />
-      <h3>{{ account.name }}</h3>
-      <Tag
-        :severity="!account.is_active ? 'secondary' : 'success'"
-        style="transform: scale(0.8)"
+    <div class="flex flex-row items-center gap-3">
+      <div
+        class="flex items-center justify-center w-10 h-10 shrink-0 rounded-xl bg-sunken text-muted"
       >
-        {{ !account.is_active ? "Inactive" : "Active" }}
-      </Tag>
+        <i
+          :class="[
+            'pi',
+            account.account_type.classification === 'liability'
+              ? 'pi-credit-card'
+              : 'pi-wallet',
+          ]"
+        />
+      </div>
+      <div class="flex flex-col gap-1 min-w-0">
+        <span class="text-lg font-medium tracking-tight text-ink truncate">
+          {{ account.name }}
+        </span>
+        <div class="flex flex-row flex-wrap items-center gap-2 text-xs">
+          <span
+            class="rounded-full px-2 py-0.5 font-medium"
+            :class="
+              account.is_active ? 'bg-sunken text-gain' : 'bg-sunken text-muted'
+            "
+          >
+            {{ account.is_active ? "Active" : "Inactive" }}
+          </span>
+          <span
+            class="rounded-full px-2 py-0.5 font-medium bg-sunken"
+            :class="
+              account.account_type.classification === 'liability'
+                ? 'text-loss'
+                : 'text-gain'
+            "
+          >
+            {{ vueHelper.capitalize(account.account_type.classification) }}
+          </span>
+          <span class="text-faint">{{ account.currency }}</span>
+          <span
+            v-if="
+              ['investment', 'crypto', 'other_asset'].includes(
+                account.account_type.type,
+              )
+            "
+            class="text-muted"
+          >
+            · Cash
+            <span class="font-medium text-ink">
+              {{ vueHelper.displayAsCurrency(latestBalance?.balance ?? null) }}
+            </span>
+          </span>
+        </div>
+      </div>
       <Button
         v-if="advanced"
         size="small"
         label="Close account"
-        class="delete-button"
-        style="margin-left: auto"
+        class="delete-button ml-auto"
         @click="confirmCloseAccount(account.id!)"
       >
         <div class="flex flex-row gap-1 items-center">
@@ -178,155 +212,120 @@ async function handleEmit(type: string) {
       </Button>
     </div>
 
-    <div
-      v-if="!account.is_active"
-      class="flex flex-row gap-2 items-center text-center pl-1"
-    >
-      <small style="color: var(--text-secondary)"
-        >Account is inactive, some aspects will not be shown.</small
-      >
-    </div>
+    <span v-if="!account.is_active" class="text-xs text-muted">
+      Account is inactive, some aspects will not be shown.
+    </span>
 
-    <SlotSkeleton class="w-full" bg="opt">
-      <div class="flex flex-col gap-2 p-4 w-full">
-        <div class="flex flex-row gap-1 items-center">
-          <h4>KPI</h4>
-          ·
-          <span style="color: var(--text-secondary)">{{
-            account.currency
-          }}</span>
-        </div>
-        <span>
-          Start balance:
-          <b>{{ vueHelper.displayAsCurrency(account.start_balance) }} </b>
-        </span>
-        <span
-          v-if="
-            ['investment', 'crypto', 'other_asset'].includes(
-              account.account_type.type,
+    <div id="account-tiles" class="grid grid-cols-3 gap-2">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+        <span class="label">Type</span>
+        <span class="text-base font-medium tracking-tight text-ink truncate">
+          {{
+            vueHelper.capitalize(
+              vueHelper.denormalize(account.account_type.type),
             )
-          "
-        >
-          Cash:
-          <b>{{
-            vueHelper.displayAsCurrency(latestBalance?.balance ?? null)
-          }}</b>
-        </span>
-
-        <span>
-          Opened: <b>{{ dateHelper.formatDate(account.opened_at!, false) }} </b>
-        </span>
-        <span v-if="account.closed_at">
-          Closed: <b>{{ dateHelper.formatDate(account.closed_at!, true) }} </b>
+          }}
+          <span class="text-muted">
+            · {{ vueHelper.capitalize(account.account_type.sub_type) }}
+          </span>
         </span>
       </div>
-    </SlotSkeleton>
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+        <span class="label">Start balance</span>
+        <span class="text-base font-medium tracking-tight text-ink truncate">
+          {{ vueHelper.displayAsCurrency(account.start_balance) }}
+        </span>
+      </div>
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+        <span class="label">Opened</span>
+        <span class="text-base font-medium tracking-tight text-ink truncate">
+          {{ dateHelper.formatDate(account.opened_at!, false) }}
+        </span>
+      </div>
+      <div
+        v-if="account.closed_at"
+        class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0"
+      >
+        <span class="label">Closed</span>
+        <span class="text-base font-medium tracking-tight text-ink truncate">
+          {{ dateHelper.formatDate(account.closed_at!, true) }}
+        </span>
+      </div>
+    </div>
 
-    <SlotSkeleton class="w-full" bg="opt">
-      <div class="flex flex-col gap-2 p-4 w-full">
-        <div class="flex flex-row gap-1 items-center">
-          <h4>Details</h4>
-          ·
-          <span style="color: var(--text-secondary)">
-            <Tag
-              :severity="
-                account.account_type.classification === 'liability'
-                  ? 'danger'
-                  : 'success'
-              "
-              style="transform: scale(0.8)"
-            >
-              {{ vueHelper.capitalize(account.account_type.classification) }}
-            </Tag>
+    <section
+      v-if="account.is_active"
+      class="flex flex-col gap-3 rounded-2xl border border-line p-4"
+    >
+      <div class="flex flex-row items-center justify-between">
+        <span class="label">Projections</span>
+        <button
+          v-tooltip="'Edit account projections'"
+          type="button"
+          class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+          aria-label="Edit account projections"
+          @click="openModal('editProjection')"
+        >
+          <i class="pi pi-pen-to-square text-xs" />
+        </button>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+          <span class="text-xs text-muted">Expected balance</span>
+          <span class="text-base font-medium tracking-tight text-ink truncate">
+            {{ vueHelper.displayAsCurrency(account.expected_balance!) }}
           </span>
         </div>
-        <span>
-          Type:
-          <b
-            >{{
-              vueHelper.capitalize(
-                vueHelper.denormalize(account.account_type.type),
-              )
-            }}
-          </b>
-        </span>
-        <span>
-          Subtype:
-          <b>{{ vueHelper.capitalize(account.account_type.sub_type) }} </b>
-        </span>
-      </div>
-    </SlotSkeleton>
-
-    <SlotSkeleton v-if="account.is_active" class="w-full" bg="opt">
-      <div class="flex flex-col gap-2 p-4 w-full">
-        <div class="flex flex-row gap-1 items-center text-center">
-          <h4>Projections</h4>
-          ·
-          <i
-            v-tooltip="'Edit account projections'"
-            class="pi pi-pen-to-square hover-icon text-xs"
-            @click="openModal('editProjection')"
-          />
-        </div>
-        <span>
-          Expected balance:
-          <b> {{ vueHelper.displayAsCurrency(account.expected_balance!) }} </b>
-        </span>
-        <span>
-          Difference:
-          <b :style="{ color: differenceColor }">
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+          <span class="text-xs text-muted">Difference</span>
+          <span
+            class="text-base font-medium tracking-tight truncate"
+            :style="{ color: differenceColor }"
+          >
             {{ vueHelper.displayAsCurrency(expectedDifference) }}
-          </b>
-        </span>
+          </span>
+        </div>
       </div>
-    </SlotSkeleton>
+    </section>
 
-    <Divider />
+    <section class="flex flex-col rounded-2xl border border-line p-4">
+      <NetworthWidget
+        :account-id="account.id"
+        title="Balance"
+        :chart-height="200"
+      />
+    </section>
 
-    <SlotSkeleton class="w-full">
-      <NetworthWidget :account-id="account.id" :chart-height="200" />
-    </SlotSkeleton>
-
-    <div v-if="account.is_active" class="w-full flex flex-col gap-2">
-      <h3 style="color: var(--text-primary)">Stats</h3>
-    </div>
-    <SlotSkeleton v-if="account.is_active" class="w-full">
+    <section
+      v-if="account.is_active"
+      class="flex flex-col gap-2 rounded-2xl border border-line p-4"
+    >
+      <span class="label">Stats</span>
       <AccountBasicStats :acc-i-d="account.id" :pie-chart-size="250" />
-    </SlotSkeleton>
+    </section>
 
-    <div class="w-full flex flex-col gap-2">
-      <h3 style="color: var(--text-primary)">Activity</h3>
-    </div>
-    <SlotSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-4">
-        <div class="w-full flex flex-col gap-2">
-          <h4 style="color: var(--text-primary)">Transactions</h4>
-        </div>
+    <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+      <span class="label">Transactions</span>
+      <TransactionsPaginated
+        ref="txRef"
+        :acc-i-d="accID"
+        :read-only="true"
+        :columns="transactionColumns"
+      />
+    </section>
 
-        <div class="flex flex-row gap-2">
-          <TransactionsPaginated
-            ref="txRef"
-            :acc-i-d="accID"
-            :read-only="true"
-            :columns="transactionColumns"
-          />
-        </div>
-      </div>
-    </SlotSkeleton>
-
-    <SlotSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-4">
-        <div class="w-full flex flex-col gap-2">
-          <h4 style="color: var(--text-primary)">Transfers</h4>
-        </div>
-
-        <div class="flex flex-row gap-2">
-          <TransfersPaginated ref="trRef" :acc-i-d="accID" />
-        </div>
-      </div>
-    </SlotSkeleton>
+    <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+      <span class="label">Transfers</span>
+      <TransfersPaginated ref="trRef" :acc-i-d="accID" />
+    </section>
   </div>
   <ShowLoading v-else :num-fields="7" />
 </template>
 
-<style scoped></style>
+<style scoped>
+@media (max-width: 640px) {
+  #account-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>

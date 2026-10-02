@@ -36,33 +36,37 @@ async function loadStats() {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col p-2 gap-2">
-    <span class="mobile-hide" style="color: var(--text-secondary)"
-      >View your daily spending activity.</span
-    >
-    <div v-if="dailyStats" class="flex flex-col mt-2">
-      <div class="flex flex-col w-full gap-2">
-        <div class="flex flex-row gap-2 items-center">
-          <span>Inflows:</span>
-          <span
-            ><b>{{ vueHelper.displayAsCurrency(dailyStats?.inflow!) }}</b></span
-          >
-        </div>
-        <div class="flex flex-row gap-2 items-center">
-          <span>Outflows:</span>
-          <span
-            ><b>{{
-              vueHelper.displayAsCurrency(dailyStats?.outflow!)
-            }}</b></span
-          >
-        </div>
+  <section
+    class="flex flex-col gap-3 rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]"
+  >
+    <div class="flex items-baseline justify-between gap-2">
+      <span class="label">Today</span>
+      <span class="text-xs text-faint">Checking accounts</span>
+    </div>
+
+    <ShowLoading v-if="loading" :num-fields="2" />
+
+    <div v-else-if="dailyStats" class="grid grid-cols-2 gap-2">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+        <span class="text-xs text-muted">Inflows</span>
+        <span class="text-lg font-medium tracking-tight text-gain">
+          {{
+            vueHelper.displayAsCurrency(dailyStats.inflow, dailyStats.currency)
+          }}
+        </span>
+      </div>
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+        <span class="text-xs text-muted">Outflows</span>
+        <span class="text-lg font-medium tracking-tight text-loss">
+          {{
+            vueHelper.displayAsCurrency(dailyStats.outflow, dailyStats.currency)
+          }}
+        </span>
       </div>
     </div>
-    <div v-else>
-      <span>Currently, no stats can be shown.</span>
-    </div>
-  </div>
-  <ShowLoading v-else :num-fields="7" />
-</template>
 
-<style scoped></style>
+    <span v-else class="text-sm text-muted">
+      Currently, no stats can be shown.
+    </span>
+  </section>
+</template>

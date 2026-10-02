@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useRoute, RouterLink, useRouter } from "vue-router";
+import { computed } from "vue";
+import { useRoute, RouterLink } from "vue-router";
 import vueHelper from "../../utils/vue_helper.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
+import PageHeader from "../components/layout/PageHeader.vue";
 
-const router = useRouter();
 const route = useRoute();
 const { hasPermission } = usePermissions();
 
@@ -66,25 +66,7 @@ const items: SettingsMenuItem[] = [
 
 const visibleItems = computed(() => items.filter((item) => !item.block));
 
-const settingsMenuRef = ref<any>(null);
-
 const isActive = (name: SettingsMenuItem["name"]) => route.name === name;
-
-function goBack() {
-  const hasBack = !!(
-    router.options.history.state && router.options.history.state.back
-  );
-  if (hasBack) router.back();
-  else router.push({ name: "dashboard" });
-}
-
-function toggleOverlay(event: any) {
-  if (window.innerWidth > 1000) {
-    router.push({ name: "settings.profile" });
-  } else {
-    settingsMenuRef.value.toggle(event);
-  }
-}
 
 const pageTitle = computed(() => {
   if (!route.name) return "Settings";
@@ -95,158 +77,79 @@ const pageTitle = computed(() => {
 </script>
 
 <template>
-  <div class="settings flex p-2 w-full">
-    <aside class="no-mobile text-white h-full flex flex-col gap-2 p-4 w-48">
-      <div
-        class="flex flex-row gap-2 p-2 mb-2 items-center cursor-pointer font-bold hoverable"
-        style="color: var(--text-primary)"
-      >
-        <i class="pi pi-angle-left" />
-        <span @click="goBack">Back</span>
+  <main class="flex flex-col w-full items-center">
+    <div id="mobile-container" class="flex flex-col w-full gap-6">
+      <PageHeader
+        eyebrow="Settings"
+        :title="pageTitle"
+        description="Manage your profile, data and how Wealth Warden works for you."
+      />
+
+      <div id="settings-layout" class="grid gap-8">
+        <nav id="settings-nav" class="flex flex-col gap-0.5 self-start">
+          <span class="label px-3 mb-2" style="color: var(--text-faint)">
+            General
+          </span>
+
+          <template v-for="item in visibleItems" :key="item.name ?? item.label">
+            <span
+              v-if="item.separator"
+              class="label px-3 mt-5 mb-2"
+              style="color: var(--text-faint)"
+            >
+              {{ item.label }}
+            </span>
+
+            <RouterLink
+              v-else
+              :to="{ name: item.name }"
+              class="flex items-center gap-3 h-9 px-3 shrink-0 rounded-lg text-sm font-medium no-underline transition-colors"
+              :class="
+                isActive(item.name!)
+                  ? 'bg-card text-ink shadow-sm ring-1 ring-line'
+                  : 'text-muted hover:bg-sunken hover:text-ink'
+              "
+            >
+              <i
+                class="pi text-sm"
+                :class="[item.icon, isActive(item.name!) ? 'text-accent' : '']"
+              />
+              <span>{{ item.label }}</span>
+            </RouterLink>
+          </template>
+        </nav>
+
+        <section class="min-w-0 w-full" style="max-width: 880px">
+          <router-view />
+        </section>
       </div>
-
-      <h6
-        class="text-xs font-bold uppercase mb-2"
-        style="color: var(--text-primary)"
-      >
-        General
-      </h6>
-
-      <template v-for="item in visibleItems" :key="item.name ?? item.label">
-        <h6
-          v-if="item.separator"
-          class="text-xs font-bold uppercase mb-2 mt-4"
-          style="color: var(--text-primary)"
-        >
-          {{ item.label }}
-        </h6>
-
-        <RouterLink
-          v-else
-          :to="{ name: item.name }"
-          class="flex items-center text-center gap-2 p-2 cursor-pointer"
-          :class="{ active: isActive(item.name!) }"
-          style="
-            text-decoration: none;
-            transition: all 0.2s ease;
-            color: var(--text-primary);
-          "
-        >
-          <i
-            class="pi text-sm"
-            :class="item.icon"
-            style="color: var(--text-secondary)"
-          />
-          <span class="no-mobile">{{ item.label }}</span>
-        </RouterLink>
-      </template>
-    </aside>
-
-    <main
-      class="w-full flex-1 min-w-0 pt-4"
-      style="max-width: 850px; margin: 0 auto"
-    >
-      <div class="flex flex-row gap-2 mb-2 items-center text-center">
-        <i
-          class="pi pi-ellipsis-v mobile-only text-xs"
-          style="cursor: pointer"
-          @click="toggleOverlay"
-        />
-        <span
-          class="text-sm hover-icon"
-          style="color: var(--text-secondary)"
-          @click="toggleOverlay"
-        >
-          Settings
-        </span>
-        <i class="pi pi-angle-right" />
-        <span style="color: var(--text-primary)">{{ pageTitle }}</span>
-      </div>
-
-      <router-view />
-    </main>
-
-    <Popover
-      ref="settingsMenuRef"
-      class="rounded-popover"
-      :style="{ width: '200px' }"
-      :breakpoints="{ '226px': '90vw' }"
-    >
-      <div
-        class="flex flex-row gap-2 p-2 mb-2 items-center cursor-pointer font-bold hoverable"
-        style="color: var(--text-primary)"
-      >
-        <i class="pi pi-angle-left" />
-        <span @click="goBack">Back</span>
-      </div>
-
-      <h6
-        class="text-xs font-bold uppercase mb-2"
-        style="color: var(--text-primary)"
-      >
-        General
-      </h6>
-
-      <template v-for="item in visibleItems" :key="item.name ?? item.label">
-        <h6
-          v-if="item.separator"
-          class="text-xs font-bold uppercase mb-2 mt-4"
-          style="color: var(--text-primary)"
-        >
-          {{ item.label }}
-        </h6>
-
-        <RouterLink
-          v-else
-          :to="{ name: item.name }"
-          class="flex items-center text-center gap-2 p-2 cursor-pointer"
-          :class="{ active: isActive(item.name!) }"
-          style="
-            text-decoration: none;
-            transition: all 0.2s ease;
-            color: var(--text-primary);
-          "
-          @click="toggleOverlay"
-        >
-          <i
-            class="pi text-sm"
-            :class="item.icon"
-            style="color: var(--text-secondary)"
-          />
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </template>
-    </Popover>
-  </div>
+    </div>
+  </main>
 </template>
 
 <style scoped>
-.settings {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 1rem;
-}
-.active,
-.hoverable:hover {
-  font-weight: bold;
-  background-color: var(--background-secondary);
-  border-radius: 8px;
+#settings-layout {
+  grid-template-columns: 200px minmax(0, 1fr);
 }
 
-.mobile-only {
-  display: none;
+#settings-nav {
+  position: sticky;
+  top: 2rem;
 }
 
 @media (max-width: 1000px) {
-  .mobile-only {
-    display: inline-block;
+  #settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
   }
-  .settings {
-    grid-template-columns: 1fr;
-    padding: 0 1rem 0 1rem !important;
+  #settings-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
   }
-  .no-mobile {
-    display: none !important;
+  #settings-nav > span {
+    display: none;
   }
 }
 </style>

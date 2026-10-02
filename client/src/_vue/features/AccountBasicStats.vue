@@ -117,38 +117,75 @@ const toNumber = (val?: string | null) => {
   return isNaN(n) ? 0 : n;
 };
 
-const inflowLabels = computed<string[]>(() => {
-  if (!accBasicStats.value?.categories?.length) return [];
-  return accBasicStats.value.categories
-    .filter((c: CategoryStat) => toNumber(c.inflow) > 0)
-    .map((c: CategoryStat) => c.category_name ?? `Category ${c.category_id}`);
+const MAX_SLICES = 8;
+
+const inflowData = computed(() =>
+  vueHelper.groupPieSlices(
+    (accBasicStats.value?.categories ?? [])
+      .filter((c: CategoryStat) => toNumber(c.inflow) > 0)
+      .map((c: CategoryStat) => ({
+        label: c.category_name ?? `Category ${c.category_id}`,
+        value: toNumber(c.inflow),
+      })),
+    MAX_SLICES,
+  ),
+);
+
+const outflowData = computed(() =>
+  vueHelper.groupPieSlices(
+    (accBasicStats.value?.categories ?? [])
+      .filter((c: CategoryStat) => toNumber(c.outflow) !== 0)
+      .map((c: CategoryStat) => ({
+        label: c.category_name ?? `Category ${c.category_id}`,
+        value: Math.abs(toNumber(c.outflow)),
+      })),
+    MAX_SLICES,
+  ),
+);
+
+const pieViews = [
+  { label: "Inflows", value: "inflows" },
+  { label: "Outflows", value: "outflows" },
+];
+const pieView = ref<"inflows" | "outflows">("inflows");
+
+const hasInflowData = computed(() => inflowData.value.values.length > 0);
+const hasOutflowData = computed(() => outflowData.value.values.length > 0);
+
+const pieData = computed(() =>
+  pieView.value === "inflows" ? inflowData.value : outflowData.value,
+);
+
+const statTiles = computed(() => {
+  const s = accBasicStats.value;
+  if (!s) return [];
+  return [
+    { label: "Total inflows", value: s.inflow, tone: "text-gain" },
+    { label: "Total outflows", value: s.outflow, tone: "text-loss" },
+    {
+      label: "Avg. monthly inflows",
+      value: s.avg_monthly_inflow,
+      tone: "text-gain",
+    },
+    {
+      label: "Avg. monthly outflows",
+      value: s.avg_monthly_outflow,
+      tone: "text-loss",
+    },
+    { label: "Take home", value: s.take_home, tone: "text-ink" },
+    { label: "Overflow", value: s.overflow, tone: "text-ink" },
+    {
+      label: "Avg. monthly take home",
+      value: s.avg_monthly_take_home,
+      tone: "text-ink",
+    },
+    {
+      label: "Avg. monthly overflow",
+      value: s.avg_monthly_overflow,
+      tone: "text-ink",
+    },
+  ];
 });
-
-const inflowValues = computed<number[]>(() => {
-  if (!accBasicStats.value?.categories?.length) return [];
-  return accBasicStats.value.categories
-    .filter((c: CategoryStat) => toNumber(c.inflow) > 0)
-    .map((c: CategoryStat) => toNumber(c.inflow));
-});
-
-const outflowLabels = computed<string[]>(() => {
-  if (!accBasicStats.value?.categories?.length) return [];
-  return accBasicStats.value.categories
-    .filter((c: CategoryStat) => toNumber(c.outflow) !== 0)
-    .map((c: CategoryStat) => c.category_name ?? `Category ${c.category_id}`);
-});
-
-const outflowValues = computed<number[]>(() => {
-  if (!accBasicStats.value?.categories?.length) return [];
-  return accBasicStats.value.categories
-    .filter((c: CategoryStat) => toNumber(c.outflow) !== 0)
-    .map((c: CategoryStat) => Math.abs(toNumber(c.outflow)));
-});
-
-const chartItems = [{ type: "inflows" }, { type: "outflows" }];
-
-const hasInflowData = computed(() => inflowValues.value?.length > 0);
-const hasOutflowData = computed(() => outflowValues.value?.length > 0);
 
 const pieOptions = computed(() => ({
   plugins: {
@@ -242,101 +279,62 @@ const pieOptions = computed(() => ({
       </div>
     </div>
 
-    <div id="stats-row" class="flex flex-row w-full justify-center p-1">
-      <div class="flex flex-col w-6/12 gap-4">
-        <div class="flex flex-row gap-2">
-          <span>Total inflows:</span>
-          <b>{{ vueHelper.displayAsCurrency(accBasicStats.inflow) }}</b>
-        </div>
-        <div class="flex flex-row gap-2">
-          <span>Total outflows:</span>
-          <b>{{ vueHelper.displayAsCurrency(accBasicStats.outflow) }}</b>
-        </div>
-        <div class="flex flex-row gap-2">
-          <span>Avg. monthly inflows:</span>
-          <b>{{
-            vueHelper.displayAsCurrency(accBasicStats.avg_monthly_inflow)
-          }}</b>
-        </div>
-        <div class="flex flex-row gap-2">
-          <span>Avg. monthly outflows:</span>
-          <b>{{
-            vueHelper.displayAsCurrency(accBasicStats.avg_monthly_outflow)
-          }}</b>
-        </div>
-        <div class="flex flex-row gap-2">
-          <span>Take home:</span>
-          <b>{{ vueHelper.displayAsCurrency(accBasicStats.take_home) }}</b>
-        </div>
-        <div class="flex flex-row gap-2">
-          <span>Overflow:</span>
-          <b>{{ vueHelper.displayAsCurrency(accBasicStats.overflow) }}</b>
-        </div>
-        <div class="flex flex-row gap-2">
-          <span>Avg. monthly take home:</span>
-          <b>{{
-            vueHelper.displayAsCurrency(accBasicStats.avg_monthly_take_home)
-          }}</b>
-        </div>
-        <div class="flex flex-row gap-2">
-          <span>Avg. monthly overflow:</span>
-          <b>{{
-            vueHelper.displayAsCurrency(accBasicStats.avg_monthly_overflow)
-          }}</b>
+    <div id="stats-row" class="flex flex-row w-full gap-6 p-1">
+      <div class="grid grid-cols-2 gap-3 flex-1 min-w-0 content-start">
+        <div
+          v-for="tile in statTiles"
+          :key="tile.label"
+          class="flex flex-col gap-1.5 rounded-xl bg-sunken px-4 py-3.5 min-w-0"
+        >
+          <span class="text-xs text-muted leading-snug">{{ tile.label }}</span>
+          <span class="text-base font-medium truncate" :class="tile.tone">
+            {{ vueHelper.displayAsCurrency(tile.value) }}
+          </span>
         </div>
       </div>
 
-      <div class="flex flex-col w-6/12 justify-center items-center gap-2">
-        <div class="flex flex-col justify-center w-full">
-          <ShowLoading v-if="isLoading" :num-fields="4" />
-          <template v-else>
-            <Carousel
-              v-if="hasInflowData && hasOutflowData"
-              id="stats-carousel"
-              :value="chartItems"
-              :num-visible="1"
-              :num-scroll="1"
-            >
-              <template #item="slotProps">
-                <div class="flex flex-col justify-center items-center">
-                  {{ vueHelper.capitalize(slotProps.data.type) }}
-                </div>
-                <div class="flex flex-col justify-center items-center">
-                  <ComparativePieChart
-                    v-if="slotProps.data.type === 'inflows'"
-                    :size="pieChartSize"
-                    :show-legend="false"
-                    :options="pieOptions"
-                    :values="inflowValues"
-                    :labels="inflowLabels"
-                  />
-                  <ComparativePieChart
-                    v-else
-                    :size="pieChartSize"
-                    :show-legend="false"
-                    :options="pieOptions"
-                    :values="outflowValues"
-                    :labels="outflowLabels"
-                  />
-                </div>
-              </template>
-            </Carousel>
-            <div
-              v-else
-              class="flex flex-col items-center justify-center p-4"
-              style="
-                border: 1px dashed var(--border-color);
-                border-radius: 16px;
-              "
-            >
-              <span class="text-sm" style="color: var(--text-secondary)">
-                Not enough transactions found for {{ selectedYear }}.
-              </span>
-              <span class="text-sm" style="color: var(--text-secondary)">
-                Keep inserting transactions to see the chart.
-              </span>
-            </div>
-          </template>
+      <div
+        class="flex flex-col flex-1 min-w-0 items-center justify-center gap-5"
+      >
+        <ShowLoading v-if="isLoading" :num-fields="4" />
+        <template v-else-if="hasInflowData || hasOutflowData">
+          <SelectButton
+            v-model="pieView"
+            size="small"
+            :options="pieViews"
+            option-label="label"
+            option-value="value"
+            :allow-empty="false"
+          />
+          <ComparativePieChart
+            v-if="pieData.values.length"
+            :key="pieView"
+            :size="pieChartSize"
+            :show-legend="false"
+            :show-total="true"
+            :options="pieOptions"
+            :values="pieData.values"
+            :labels="pieData.labels"
+          />
+          <div
+            v-else
+            class="flex items-center justify-center w-full rounded-xl border border-dashed border-line p-6"
+          >
+            <span class="text-sm text-muted">
+              No {{ pieView }} found for {{ selectedYear }}.
+            </span>
+          </div>
+        </template>
+        <div
+          v-else
+          class="flex flex-col items-center justify-center gap-1 w-full rounded-xl border border-dashed border-line p-6"
+        >
+          <span class="text-sm text-muted">
+            Not enough transactions found for {{ selectedYear }}.
+          </span>
+          <span class="text-xs text-faint">
+            Keep inserting transactions to see the chart.
+          </span>
         </div>
       </div>
     </div>
@@ -345,53 +343,12 @@ const pieOptions = computed(() => ({
 </template>
 
 <style scoped>
-:deep([data-pc-section="indicatorlist"]) {
-  margin-top: 6px;
-  gap: 6px;
-}
-:deep([data-pc-section="content"]) {
-  padding: 0;
-}
-:deep([data-pc-section="indicatorbutton"]) {
-  transform: scale(0.6);
-  background-color: var(--border-color);
-  border-radius: 50%;
-}
-:deep([data-p-active="true"] [data-pc-section="indicatorbutton"]) {
-  background-color: var(--text-primary);
-}
-
 @media (max-width: 768px) {
   #stats-row {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    min-width: 0 !important;
+    flex-direction: column;
   }
   #stats-row > div {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-  #stats-row > div:last-child {
-    margin-top: 1rem;
-  }
-
-  :deep(#stats-carousel button[aria-label="Previous Page"]),
-  :deep(#stats-carousel button[aria-label="Next Page"]),
-  :deep(#stats-carousel button[data-pc-group="navigator"]) {
-    display: none !important;
-  }
-
-  :deep(#stats-carousel .flex.justify-center.items-center) {
-    width: 100% !important;
-    height: auto !important;
-    padding: 0 !important;
-    transform: scale(0.9);
-    transform-origin: center top;
-  }
-
-  :deep(#stats-carousel canvas) {
-    width: 100% !important;
-    height: auto !important;
+    width: 100%;
   }
 }
 </style>

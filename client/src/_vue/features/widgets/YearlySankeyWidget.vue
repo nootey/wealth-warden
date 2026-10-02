@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
+import EmptyState from "../../components/base/EmptyState.vue";
 import YearlySankeyCashFlowChart from "../../components/charts/YearlySankeyCashFlowChart.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
@@ -25,10 +26,11 @@ const accStore = useAccountStore();
 const years = ref<number[]>([]);
 const selectedYear = ref<number>(new Date().getFullYear());
 const sankeyData = ref<YearlySankeyData | null>(null);
-const isLoadingStats = ref(false);
+const isLoadingStats = ref(true);
 
 const accounts = ref<Account[]>([]);
 const selectedAccountID = ref<number | null>(null);
+const hasDefaultChecking = ref(false);
 
 async function fetchSankeyData(year: number, account: number | null = null) {
   isLoadingStats.value = true;
@@ -77,6 +79,11 @@ onMounted(async () => {
   );
   if (defaultChecking) {
     selectedAccountID.value = defaultChecking.id;
+    hasDefaultChecking.value = true;
+  }
+  if (!accounts.value.length || !years.value.length) {
+    isLoadingStats.value = false;
+    return;
   }
   await fetchSankeyData(selectedYear.value, selectedAccountID.value);
 });
@@ -112,9 +119,16 @@ watch(
       </div>
     </div>
 
-    <div class="flex flex-row gap-2 w-full justify-between items-center">
+    <div
+      v-if="accounts.length > 0 && years.length > 0"
+      class="flex flex-row gap-2 w-full justify-between items-center"
+    >
       <div class="flex flex-col gap-2">
-        <span class="text-sm" style="color: var(--text-secondary)">
+        <span
+          v-if="hasDefaultChecking"
+          class="text-sm"
+          style="color: var(--text-secondary)"
+        >
           A default checking account was found. The stats are representative of
           the cash flow to this account.
         </span>
@@ -153,6 +167,18 @@ watch(
     </div>
 
     <ShowLoading v-if="isLoadingStats" :num-fields="7" />
+    <EmptyState
+      v-else-if="!accounts.length"
+      icon="pi pi-wallet"
+      title="No checking account yet."
+      description="Cash flow is computed from checking accounts. Create one to see this chart."
+    />
+    <EmptyState
+      v-else-if="!years.length"
+      icon="pi pi-sitemap"
+      title="No transactions yet."
+      description="Add income and expenses to a checking account to see your cash flow."
+    />
     <YearlySankeyCashFlowChart
       v-else-if="sankeyData"
       :key="`sankey-${selectedYear}-${selectedAccountID ?? 'all'}`"

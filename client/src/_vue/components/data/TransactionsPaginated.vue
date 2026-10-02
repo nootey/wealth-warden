@@ -291,32 +291,19 @@ defineExpose({ refresh });
   <div class="flex flex-col w-full gap-4">
     <div
       id="balance-row"
-      class="flex w-full p-4 gap-2 rounded-xl bordered justify-between items-center"
-      style="max-width: 1000px; border: 1px solid var(--border-color)"
+      class="grid grid-cols-2 w-full rounded-xl border border-line divide-x divide-line"
     >
-      <div
-        class="flex-1 text-center px-4"
-        style="border-right: 1px solid var(--border-color)"
-      >
-        <div class="text-sm" style="color: var(--text-secondary)">Total</div>
-        <div class="font-bold">
-          {{ totals?.count }}
-        </div>
-      </div>
-      <div
-        class="flex-1 text-center px-4"
-        style="border-right: 1px solid var(--border-color)"
-      >
-        <div class="text-sm" style="color: var(--text-secondary)">Income</div>
-        <div class="font-bold">
+      <div class="flex flex-col gap-1 px-5 py-4 min-w-0">
+        <span class="label">Income</span>
+        <span class="text-xl font-medium tracking-tight truncate text-gain">
           {{ vueHelper.displayAsCurrency(totals?.income!) }}
-        </div>
+        </span>
       </div>
-      <div class="flex-1 text-center px-4">
-        <div class="text-sm" style="color: var(--text-secondary)">Expenses</div>
-        <div class="font-bold">
+      <div class="flex flex-col gap-1 px-5 py-4 min-w-0">
+        <span class="label">Expenses</span>
+        <span class="text-xl font-medium tracking-tight truncate">
           {{ vueHelper.displayAsCurrency(totals?.expenses!) }}
-        </div>
+        </span>
       </div>
     </div>
 
@@ -416,13 +403,7 @@ defineExpose({ refresh });
       </Button>
     </div>
 
-    <div
-      class="flex flex-col w-full rounded-2xl"
-      style="
-        padding: 0.25rem 0.25rem 0 0.25rem;
-        border: 1px solid var(--border-color);
-      "
-    >
+    <div class="flex flex-col w-full">
       <DataTable
         v-model:selection="selected"
         data-key="id"
@@ -473,33 +454,21 @@ defineExpose({ refresh });
           </template>
           <template #body="{ data }">
             <template v-if="col.field === 'amount'">
-              <div class="flex flex-row gap-2 items-center">
-                <i
-                  class="text-xs"
-                  :class="
-                    (data.direction === 'expense'
-                      ? data.amount * -1
-                      : data.amount) >= 0
-                      ? 'pi pi-angle-up'
-                      : 'pi pi-angle-down'
-                  "
-                  :style="{
-                    color:
-                      (data.direction === 'expense'
-                        ? data.amount * -1
-                        : data.amount) >= 0
-                        ? colors.pos
-                        : colors.neg,
-                  }"
-                />
-                <span>{{
+              <span
+                class="font-medium tabular-nums whitespace-nowrap"
+                :style="{
+                  color: data.direction === 'expense' ? undefined : colors.pos,
+                }"
+              >
+                {{ data.direction === "expense" ? "" : "+"
+                }}{{
                   vueHelper.displayAsCurrency(
                     data.direction == "expense"
                       ? data.amount * -1
                       : data.amount,
                   )
-                }}</span>
-              </div>
+                }}
+              </span>
             </template>
             <template v-else-if="col.field === 'txn_date'">
               {{ dateHelper.formatDate(data.txn_date, false) }}
@@ -602,13 +571,22 @@ defineExpose({ refresh });
 <style scoped>
 @media (max-width: 768px) {
   #balance-row {
-    padding: 1rem !important;
-    font-size: 80%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #balance-row > div {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.75rem 1rem;
+    border-inline-width: 0;
+  }
+  #balance-row > div + div {
+    border-top: 1px solid var(--border-color);
   }
 }
 
 .hover {
-  font-weight: bold;
+  font-weight: 500;
 }
 .hover:hover {
   cursor: pointer;

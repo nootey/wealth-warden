@@ -124,13 +124,7 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <div
-    class="flex flex-col w-full rounded-2xl"
-    style="
-      padding: 0.25rem 0.25rem 0 0.25rem;
-      border: 1px solid var(--border-color);
-    "
-  >
+  <div class="flex flex-col w-full">
     <DataTable
       data-key="id"
       class="w-full enhanced-table"
@@ -206,22 +200,15 @@ defineExpose({ refresh });
             </div>
           </template>
           <template v-else-if="col.field == 'profit_loss'">
-            <div class="flex flex-row gap-2 items-center">
-              <i
-                class="text-xs"
-                :class="
-                  data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'
-                "
-                :style="{
-                  color: data[col.field] >= 0 ? colors.pos : colors.neg,
-                }"
-              />
-              <span>
-                {{
-                  vueHelper.displayAsCurrency(data[col.field], data["currency"])
-                }}
-              </span>
-            </div>
+            <span
+              class="font-medium tabular-nums whitespace-nowrap"
+              :style="{ color: data[col.field] > 0 ? colors.pos : undefined }"
+            >
+              {{ data[col.field] > 0 ? "+" : ""
+              }}{{
+                vueHelper.displayAsCurrency(data[col.field], data["currency"])
+              }}
+            </span>
           </template>
           <template v-else-if="col.field === 'account'">
             <div class="flex flex-row gap-2 items-center account-row">
@@ -246,7 +233,7 @@ defineExpose({ refresh });
 
 <style scoped>
 .hover {
-  font-weight: bold;
+  font-weight: 500;
 }
 .hover:hover {
   cursor: pointer;

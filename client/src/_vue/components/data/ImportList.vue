@@ -134,13 +134,7 @@ async function deleteRecord(id: number) {
   </ConfirmDialog>
 
   <div class="flex flex-col w-full gap-4">
-    <div
-      class="flex flex-col w-full rounded-2xl"
-      style="
-        padding: 0.25rem 0.25rem 0 0.25rem;
-        border: 1px solid var(--border-color);
-      "
-    >
+    <div class="flex flex-col w-full">
       <DataTable
         v-model:expanded-rows="expandedRows"
         data-key="id"

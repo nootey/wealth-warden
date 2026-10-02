@@ -322,7 +322,7 @@ defineExpose({ refresh });
         >
           {{ "Projected expenses" }}
         </div>
-        <div class="font-bold" :style="{ color: colors.neg }">
+        <div class="font-bold">
           {{
             loadingSummary
               ? "—"
@@ -441,36 +441,21 @@ defineExpose({ refresh });
               {{ data[col.field]?.name }}
             </template>
             <template v-else-if="col.field === 'amount'">
-              <div class="flex flex-row gap-2 items-center">
-                <i
-                  v-if="activeTab !== 'transfer'"
-                  class="text-xs"
-                  :class="
-                    (data.direction === 'expense'
+              <span
+                class="font-medium tabular-nums whitespace-nowrap"
+                :style="{
+                  color: data.direction === 'income' ? colors.pos : undefined,
+                }"
+              >
+                {{ data.direction === "income" ? "+" : ""
+                }}{{
+                  vueHelper.displayAsCurrency(
+                    data.direction == "expense"
                       ? data.amount * -1
-                      : data.amount) >= 0
-                      ? 'pi pi-angle-up'
-                      : 'pi pi-angle-down'
-                  "
-                  :style="{
-                    color:
-                      (data.direction === 'expense'
-                        ? data.amount * -1
-                        : data.amount) >= 0
-                        ? colors.pos
-                        : colors.neg,
-                  }"
-                />
-                <span>
-                  {{
-                    vueHelper.displayAsCurrency(
-                      data.direction == "expense"
-                        ? data.amount * -1
-                        : data.amount,
-                    )
-                  }}
-                </span>
-              </div>
+                      : data.amount,
+                  )
+                }}
+              </span>
             </template>
             <template v-else-if="col.field === 'category'">
               {{ data[col.field]?.display_name }}
@@ -502,7 +487,7 @@ defineExpose({ refresh });
 }
 
 .hover {
-  font-weight: bold;
+  font-weight: 500;
 }
 .hover:hover {
   cursor: pointer;

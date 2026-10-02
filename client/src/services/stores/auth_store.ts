@@ -107,7 +107,7 @@ export const useAuthStore = defineStore("auth", {
       sessionStorage.clear();
 
       const themeStore = useThemeStore();
-      themeStore.setTheme("dark");
+      themeStore.setTheme("dark", "blurple");
 
       router.push("/login").then();
     },

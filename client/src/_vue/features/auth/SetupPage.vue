@@ -10,6 +10,8 @@ import { useRouter } from "vue-router";
 import { getTimezone } from "countries-and-timezones";
 import countryToCurrency from "country-to-currency";
 import searchHelper from "../../../utils/search_helper.ts";
+import styleHelper from "../../../utils/style_helper.ts";
+import { ACCENT_OPTIONS } from "../../../models/settings_models.ts";
 import type {
   CurrencyInfo,
   LanguageInfo,
@@ -51,7 +53,7 @@ const themeOptions = ref([
   { value: "light", label: "Light" },
 ]);
 
-const accentOptions = ref([{ value: "blurple", label: "Blurple" }]);
+const accentOptions = ref(ACCENT_OPTIONS);
 
 const selectedCurrency = computed({
   get: () =>
@@ -178,16 +180,16 @@ async function completeSetup() {
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 420px">
-      <div class="text-center mb-6">
+    <div class="w-full mx-auto" style="max-width: 420px">
+      <div class="mb-8">
         <h2
-          class="m-0 text-2xl sm:text-3xl font-bold"
+          class="m-0 text-3xl font-medium"
           style="color: var(--text-primary); letter-spacing: -0.025em"
         >
           Welcome, {{ authStore.user?.display_name ?? "there" }}
         </h2>
         <p
-          class="mt-2 leading-normal text-base"
+          class="mt-2 text-base leading-normal"
           style="color: var(--text-secondary)"
         >
           {{
@@ -280,7 +282,7 @@ async function completeSetup() {
 
           <Button
             label="Next"
-            class="w-full auth-accent-button mt-2"
+            class="w-full main-button mt-2"
             :disabled="!form.default_currency || !form.timezone"
             @click="step = 2"
           />
@@ -300,7 +302,7 @@ async function completeSetup() {
             :style="{
               border:
                 categoryChoice === 'defaults'
-                  ? '1px solid var(--accent-primary)'
+                  ? '1px solid var(--text-primary)'
                   : '1px solid var(--border-color)',
             }"
             @click="categoryChoice = 'defaults'"
@@ -309,6 +311,7 @@ async function completeSetup() {
               v-model="categoryChoice"
               input-id="cat_defaults"
               value="defaults"
+              :dt="styleHelper.neutralControlDt"
             />
             <label for="cat_defaults" class="flex flex-col cursor-pointer">
               <span style="font-weight: 500; color: var(--text-primary)">
@@ -325,7 +328,7 @@ async function completeSetup() {
             :style="{
               border:
                 categoryChoice === 'own'
-                  ? '1px solid var(--accent-primary)'
+                  ? '1px solid var(--text-primary)'
                   : '1px solid var(--border-color)',
             }"
             @click="categoryChoice = 'own'"
@@ -334,6 +337,7 @@ async function completeSetup() {
               v-model="categoryChoice"
               input-id="cat_own"
               value="own"
+              :dt="styleHelper.neutralControlDt"
             />
             <label for="cat_own" class="flex flex-col cursor-pointer">
               <span style="font-weight: 500; color: var(--text-primary)">
@@ -354,7 +358,7 @@ async function completeSetup() {
             />
             <Button
               label="Complete setup"
-              class="w-full auth-accent-button"
+              class="w-full main-button"
               :disabled="saving"
               :loading="saving"
               @click="completeSetup"
@@ -374,23 +378,14 @@ async function completeSetup() {
         <span class="text-sm" style="color: var(--text-secondary)">
           Wrong account?
         </span>
-        <span
-          class="text-sm hover-dim"
-          style="cursor: pointer"
+        <button
+          type="button"
+          class="text-sm text-ink font-medium bg-transparent border-0 p-0 cursor-pointer hover:opacity-80"
           @click="authStore.logoutUser()"
         >
           Log out
-        </span>
+        </button>
       </div>
     </div>
   </AuthSkeleton>
 </template>
-
-<style scoped>
-.hover-dim {
-  color: var(--accent-primary);
-}
-.hover-dim:hover {
-  color: var(--accent-secondary);
-}
-</style>
