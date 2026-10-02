@@ -11,7 +11,6 @@ import type {
   InvestmentType,
   TickerData,
 } from "../../../models/investment_models.ts";
-import currencyHelper from "../../../utils/currency_helper.ts";
 import { required } from "@regle/rules";
 import {
   decimalMax,
@@ -32,6 +31,7 @@ import InvestmentIncomeForm from "./InvestmentIncomeForm.vue";
 import InvestmentIncomePaginated from "../data/InvestmentIncomePaginated.vue";
 import searchHelper from "../../../utils/search_helper.ts";
 import tickerHelper from "../../../utils/ticker_helper.ts";
+import Decimal from "decimal.js";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -65,15 +65,6 @@ const record = ref<InvestmentAsset>(initData());
 const filteredAccounts = ref<Account[]>([]);
 const infoTooltipRef = ref<any>(null);
 
-const quantitytRef = computed({
-  get: () => record.value.quantity,
-  set: (v) => (record.value.quantity = v),
-});
-const { number: quantityNumber } = currencyHelper.useMoneyField(
-  quantitytRef,
-  2,
-);
-
 const investmentTypes = ref<string[]>(["Crypto", "Stock", "ETF"]);
 
 const selectedInvestmentType = ref<string>(
@@ -96,6 +87,89 @@ const availableAccounts = computed(() => {
     allowedSubtypes.includes(acc.account_type.sub_type),
   );
 });
+
+const hasHoldings = computed(() => parseFloat(record.value.quantity) > 0);
+
+const investmentTypeLabel = computed(() =>
+  record.value.investment_type === "etf"
+    ? "ETF"
+    : vueHelper.capitalize(record.value.investment_type),
+);
+
+const pnlClass = computed(() => {
+  const pnl = new Decimal(record.value.profit_loss || 0);
+  if (pnl.isZero()) return "text-muted";
+  return pnl.isPositive() ? "text-gain" : "text-loss";
+});
+
+const factTiles = computed(() => {
+  const r = record.value;
+  const tiles = [
+    {
+      label: "Quantity",
+      value: new Decimal(r.quantity || 0).toString(),
+    },
+    {
+      label: "Average price",
+      value: vueHelper.displayAsCurrency(r.average_buy_price!, r.currency),
+    },
+    {
+      label: "Current price",
+      value: vueHelper.displayAssetPrice(
+        r.latest_price!,
+        r.investment_type,
+        r.latest_price_currency!,
+      ),
+    },
+    {
+      label: "Value at buy",
+      value: vueHelper.displayAsCurrency(r.value_at_buy!, r.currency),
+    },
+    {
+      label: "Fees",
+      value: vueHelper.displayAsCurrency(r.total_fees!, r.currency),
+    },
+    {
+      label: "Price updated",
+      value: dateHelper.formatDate(r.last_price_update!, true),
+    },
+  ];
+
+  if (r.tax_summary) {
+    tiles.push(
+      {
+        label: "After-tax P&L",
+        value: vueHelper.displayAsCurrency(
+          r.tax_summary.after_tax_pnl,
+          r.currency,
+        ),
+      },
+      {
+        label: "Est. tax due",
+        value: vueHelper.displayAsCurrency(
+          r.tax_summary.estimated_tax_due,
+          r.currency,
+        ),
+      },
+      {
+        label: "Tax bracket",
+        value:
+          r.tax_summary.taxable_percent !== null
+            ? `${Number(r.tax_summary.taxable_percent)} %`
+            : null,
+      },
+    );
+  }
+
+  return tiles;
+});
+
+const detailTiles = computed(() => [
+  { label: "Account", value: record.value.account?.name },
+  { label: "Ticker", value: tickerData.value.name },
+  { label: "Currency", value: record.value.currency },
+  { label: "Exchange", value: tickerData.value.exchange },
+]);
 
 const tickerData = ref<TickerData>({
   name: "",
@@ -398,385 +472,310 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     :disabled="isReadOnly"
     @submit="manageRecord"
   >
-    <div v-if="!isReadOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col">
+    <template v-if="isReadOnly">
+      <div class="flex flex-row items-center gap-3">
+        <div
+          class="flex items-center justify-center w-10 h-10 shrink-0 rounded-xl bg-sunken text-muted"
+        >
+          <i
+            :class="[
+              'pi',
+              record.investment_type === 'crypto'
+                ? 'pi-bitcoin'
+                : 'pi-chart-line',
+            ]"
+          />
+        </div>
+        <div class="flex flex-col gap-1 min-w-0">
+          <span class="text-lg font-medium tracking-tight text-ink truncate">
+            {{ record.name }}
+          </span>
+          <div class="flex flex-row flex-wrap items-center gap-2 text-xs">
+            <span
+              class="rounded-full px-2 py-0.5 font-medium bg-sunken text-ink"
+            >
+              {{ record.ticker }}
+            </span>
+            <span
+              class="rounded-full px-2 py-0.5 font-medium bg-sunken text-muted"
+            >
+              {{ investmentTypeLabel }}
+            </span>
+            <span class="text-faint">{{ record.currency }}</span>
+            <span v-if="record.account" class="text-muted">
+              · {{ record.account.name }}
+            </span>
+          </div>
+        </div>
+        <div class="flex flex-row items-center gap-1 ml-auto">
+          <button
+            v-tooltip="'Fetch latest price and recalculate PnL'"
+            type="button"
+            class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+            aria-label="Sync asset price"
+            @click="syncAssetPrice(record?.id!)"
+          >
+            <i class="pi pi-sync text-xs" />
+          </button>
+          <button
+            v-tooltip="'Recalculate PnL for all assets in this account'"
+            type="button"
+            class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+            aria-label="Sync account assets"
+            @click="syncAssetAccountBalance(record?.account?.id!)"
+          >
+            <i class="pi pi-wallet text-xs" />
+          </button>
+        </div>
+      </div>
+
+      <span class="text-xs text-muted">
+        Mostly read only due to re-calculations. To change it, delete the asset
+        and create a new one. That also deletes all related trades and reverses
+        their effects.
+      </span>
+
+      <div v-if="hasHoldings" class="grid grid-cols-2 gap-2">
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+          <span class="label">Current value</span>
+          <span class="text-xl font-medium tracking-tight text-ink truncate">
+            {{
+              vueHelper.displayAsCurrency(
+                record.current_value!,
+                record.currency,
+              )
+            }}
+          </span>
+        </div>
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+          <span class="label">P&L</span>
+          <span
+            class="text-xl font-medium tracking-tight truncate"
+            :class="pnlClass"
+          >
+            {{
+              vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
+            }}
+            <span class="text-sm">
+              ·
+              {{ vueHelper.displayAsPercentage(record.profit_loss_percent!) }}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div v-if="hasHoldings" id="asset-tiles" class="grid grid-cols-3 gap-2">
+        <div
+          v-for="tile in factTiles"
+          :key="tile.label"
+          class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0"
+        >
+          <span class="text-xs text-muted">{{ tile.label }}</span>
+          <span class="text-base font-medium tracking-tight text-ink truncate">
+            {{ tile.value ?? "-" }}
+          </span>
+        </div>
+      </div>
+
+      <section
+        v-if="record.id && hasHoldings"
+        class="flex flex-col gap-3 rounded-2xl border border-line p-4"
+      >
+        <div class="flex flex-col gap-1">
+          <span class="label">Market value</span>
+          <span class="text-xs text-muted">
+            Total market value over time, including new purchases. P&L shows
+            gain or loss against the all-time cost basis.
+          </span>
+        </div>
+        <InvestmentAssetWidget :asset-id="record.id" :chart-height="200" />
+        <div class="flex flex-row gap-4 items-center text-xs text-muted">
+          <span><small>—</small> Market value</span>
+          <span><small>· · ·</small> Cost basis</span>
+        </div>
+      </section>
+
+      <section
+        v-if="record.id && hasHoldings"
+        class="flex flex-col gap-3 rounded-2xl border border-line p-4"
+      >
+        <div class="flex flex-row justify-between items-center">
+          <span class="label">Income</span>
+          <Button
+            v-if="hasPermission('manage_data')"
+            :label="showIncomeForm ? 'Cancel' : 'Add income'"
+            size="small"
+            :class="showIncomeForm ? 'delete-button' : 'main-button'"
+            @click="showIncomeForm = !showIncomeForm"
+          />
+        </div>
+        <span class="text-xs text-muted">
+          Dividends and interest for stocks and ETFs as cash amounts. Staking
+          rewards for crypto as a quantity. Rewards add to your holdings; cash
+          income does not.
+        </span>
+        <InvestmentIncomeForm
+          v-if="showIncomeForm"
+          :asset-id="record.id!"
+          :asset-currency="record.currency"
+          :investment-type="record.investment_type"
+          @complete-operation="onIncomeAdded"
+        />
+        <InvestmentIncomePaginated
+          ref="incomeListRef"
+          :asset-id="record.id!"
+          :asset-currency="record.currency"
+          :investment-type="record.investment_type"
+        />
+      </section>
+
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <span class="label">Details</span>
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="r$.record.name.$errors[0]"
+          >
+            <label>Name</label>
+          </ValidationError>
+          <InputText
+            v-model="record.name"
+            size="small"
+            placeholder="Input asset name"
+          />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div
+            v-for="tile in detailTiles"
+            :key="tile.label"
+            class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0"
+          >
+            <span class="text-xs text-muted">{{ tile.label }}</span>
+            <span class="text-sm font-medium text-ink truncate">
+              {{ tile.value || "-" }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <span class="label">Auditing</span>
+        <AuditTrail
+          :record-id="props.recordId!"
+          :events="['create', 'update']"
+          :categories="['investment_asset']"
+        />
+      </section>
+    </template>
+
+    <template v-else>
+      <div class="flex flex-row w-full justify-center">
         <SelectButton
           v-model="selectedInvestmentType"
-          style="font-size: 0.875rem"
           size="small"
+          class="text-sm"
           :options="investmentTypes"
           :allow-empty="false"
         />
       </div>
-    </div>
 
-    <div v-if="isReadOnly" class="flex flex-col gap-2">
-      <h4>Info</h4>
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <span class="label">Holding</span>
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="r$.record.account.$errors.$self?.[0]"
+          >
+            <label>Account</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.account"
+            size="small"
+            :suggestions="filteredAccounts"
+            option-label="name"
+            option-value="id"
+            data-key="id"
+            force-selection
+            placeholder="Select account"
+            dropdown
+            @complete="searchAccount"
+          />
+        </div>
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="r$.record.name.$errors[0]"
+          >
+            <label>Name</label>
+          </ValidationError>
+          <InputText
+            v-model="record.name"
+            size="small"
+            placeholder="Input asset name"
+          />
+        </div>
+      </section>
 
-      <span class="text-sm" style="color: var(--text-secondary)">
-        Due to the complexity of re-calculations, this is mostly read only. If
-        you wish to make changes, delete the asset and create a new one. That
-        will also delete all related trades, and reverse their effects.
-      </span>
-    </div>
-
-    <div v-if="isReadOnly" class="flex flex-col gap-1">
-      <h4>Sync</h4>
-      <span class="text-sm" style="color: var(--text-secondary)"
-        >In case of broken prices or prices, you can attempt a
-        re-calculation.</span
-      >
-      <div
-        v-if="isReadOnly"
-        class="flex flex-row w-full text-center items-center gap-1"
-      >
-        <span class="text-sm" style="color: var(--text-secondary)"
-          >Fetch latest price and recalculate PnL:
-        </span>
-        <i
-          v-tooltip="'Fetch latest price from Yahoo and recalculate PnL.'"
-          class="hover-icon pi pi-sync text-sm"
-          @click="syncAssetPrice(record?.id!)"
-        ></i>
-      </div>
-      <div
-        v-if="isReadOnly"
-        class="flex flex-row w-full text-center items-center gap-1"
-      >
-        <span class="text-sm" style="color: var(--text-secondary)"
-          >Recalculate PnL for all assets in account:
-        </span>
-        <i
-          v-tooltip="
-            'Fetch latest prices and recalculate PnL for all assets in this account.'
-          "
-          class="hover-icon pi pi-sync text-sm"
-          @click="syncAssetAccountBalance(record?.account?.id!)"
-        ></i>
-      </div>
-    </div>
-
-    <div
-      v-if="isReadOnly && parseFloat(record.quantity) > 0"
-      class="flex flex-col gap-2 w-full justify-between"
-    >
-      <h4>Financial details</h4>
-
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Investment type</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            record.investment_type
-          }}</span>
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <div class="flex flex-row items-center justify-between">
+          <span class="label">Ticker</span>
+          <button
+            v-tooltip="'Formatting guide'"
+            type="button"
+            class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+            aria-label="Formatting guide"
+            @click="toggleInfoPopup"
+          >
+            <i class="pi pi-info-circle text-xs" />
+          </button>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Average</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(
-              record.average_buy_price!,
-              record.currency,
-            )
-          }}</span>
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Value at buy</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.value_at_buy!, record.currency)
-          }}</span>
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Current value</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.current_value!, record.currency)
-          }}</span>
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Current price</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAssetPrice(
-              record?.latest_price!,
-              record.investment_type,
-              record?.latest_price_currency!,
-            )
-          }}</span>
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Last price update</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            dateHelper.formatDate(record.last_price_update!, true)
-          }}</span>
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Total fees</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            record.total_fees
-          }}</span>
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Fee value</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.total_fees!, record.currency)
-          }}</span>
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">P&L Raw</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
-          }}</span>
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">P&L Percentage</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsPercentage(record.profit_loss_percent!)
-          }}</span>
-        </div>
-      </div>
-
-      <template v-if="record.tax_summary">
         <div class="flex flex-row w-full gap-4">
           <div class="flex flex-col gap-1 w-6/12">
-            <label class="text-sm">After-tax P&L</label>
-            <span class="text-sm" style="color: var(--text-secondary)">{{
-              vueHelper.displayAsCurrency(
-                record.tax_summary.after_tax_pnl,
-                record.currency,
-              )
-            }}</span>
+            <ValidationError
+              :is-required="true"
+              :message="r$.tickerData.name.$errors[0]"
+            >
+              <label>Ticker</label>
+            </ValidationError>
+            <InputText
+              v-model="tickerData.name"
+              size="small"
+              placeholder="Input ticker"
+            />
           </div>
           <div class="flex flex-col gap-1 w-6/12">
-            <label class="text-sm">Est. tax due</label>
-            <span class="text-sm" style="color: var(--text-secondary)">{{
-              vueHelper.displayAsCurrency(
-                record.tax_summary.estimated_tax_due,
-                record.currency,
-              )
-            }}</span>
+            <ValidationError
+              :is-required="true"
+              :message="r$.record.currency.$errors[0]"
+            >
+              <label>Currency</label>
+            </ValidationError>
+            <Select
+              v-model="record.currency"
+              :options="availableCurrencies"
+              size="small"
+              placeholder="Select currency"
+            />
           </div>
         </div>
-      </template>
-    </div>
-
-    <h4 v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0">
-      Chart
-    </h4>
-    <div class="text-sm" style="color: var(--text-secondary)">
-      <span
-        >This chart represents the total market value of your investment over
-        time and includes new purchases. It's the total value moved in the
-        selected window.</span
-      >
-      <span class="text-sm" style="color: var(--text-secondary)">
-        P&L shows gain/loss vs. total cost basis (all-time)
-      </span>
-    </div>
-    <div
-      v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
-      class="flex flex-col w-full rounded-2xl"
-      style="background-color: var(--background-alt)"
-    >
-      <InvestmentAssetWidget :asset-id="record.id" :chart-height="200" />
-      <div class="flex flex-col gap-2 p-4 text-xs">
-        <div class="flex flex-row gap-4 items-center text-center">
-          <div
-            class="flex flex-row items-center gap-1"
-            style="color: var(--text-secondary)"
+        <div
+          v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
+          class="flex flex-col gap-1 w-full"
+        >
+          <ValidationError
+            :is-required="false"
+            :message="r$.tickerData.exchange?.$errors[0]"
           >
-            <small>—</small> Market value
-          </div>
-          <div
-            class="flex flex-row items-center gap-1"
-            style="color: var(--text-secondary)"
-          >
-            <small>· · ·</small> Cost basis
-          </div>
+            <label>Exchange</label>
+          </ValidationError>
+          <InputText
+            v-model="tickerData.exchange"
+            size="small"
+            placeholder="Input exchange"
+          />
         </div>
-      </div>
-    </div>
-
-    <div
-      v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
-      class="flex flex-col gap-3"
-    >
-      <div class="flex flex-row justify-between items-center">
-        <h4>Investment income</h4>
-        <Button
-          v-if="hasPermission('manage_data')"
-          :label="showIncomeForm ? 'Cancel' : 'Add income'"
-          size="small"
-          :class="showIncomeForm ? 'delete-button' : 'main-button'"
-          @click="showIncomeForm = !showIncomeForm"
-        />
-      </div>
-      <span class="text-sm" style="color: var(--text-secondary)">
-        Income the asset pays out - dividends and interest for stocks/ETFs as
-        cash amounts, staking rewards for crypto, as a quantity. Rewards add to
-        your holdings; cash income does not.
-      </span>
-      <InvestmentIncomeForm
-        v-if="showIncomeForm"
-        :asset-id="record.id!"
-        :asset-currency="record.currency"
-        :investment-type="record.investment_type"
-        @complete-operation="onIncomeAdded"
-      />
-      <InvestmentIncomePaginated
-        ref="incomeListRef"
-        :asset-id="record.id!"
-        :asset-currency="record.currency"
-        :investment-type="record.investment_type"
-      />
-    </div>
-
-    <h4 v-if="isReadOnly">Asset details</h4>
-    <span class="text-sm" style="color: var(--text-secondary)">
-      Read-only, technical details about the investment asset. Shows which
-      account it's linked to. To make changes, delete the asset and re-input.
-    </span>
-    <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="r$.record.account.$errors.$self?.[0]"
-        >
-          <label>Account</label>
-        </ValidationError>
-        <AutoComplete
-          v-model="record.account"
-          size="small"
-          :suggestions="filteredAccounts"
-          option-label="name"
-          option-value="id"
-          data-key="id"
-          force-selection
-          placeholder="Select account"
-          dropdown
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-          @complete="searchAccount"
-        />
-      </div>
-    </div>
-
-    <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="r$.record.name.$errors[0]"
-        >
-          <label>Name</label>
-        </ValidationError>
-        <InputText
-          v-model="record.name"
-          size="small"
-          placeholder="Input asset name"
-        />
-      </div>
-    </div>
-
-    <div v-if="!isReadOnly" class="flex flex-row w-full items-center gap-2">
-      <i
-        class="pi pi-info-circle hover-icon text-sm"
-        @click="toggleInfoPopup"
-      ></i>
-      <span style="color: var(--text-secondary)">Formatting guide</span>
-    </div>
-
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="true"
-          :message="r$.tickerData.name.$errors[0]"
-        >
-          <label>Ticker</label>
-        </ValidationError>
-        <InputText
-          v-model="tickerData.name"
-          size="small"
-          placeholder="Input ticker"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
-      </div>
-      <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="true"
-          :message="r$.record.currency.$errors[0]"
-        >
-          <label>Currency</label>
-        </ValidationError>
-        <Select
-          v-model="record.currency"
-          :options="availableCurrencies"
-          size="small"
-          placeholder="Select currency"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
-      </div>
-    </div>
-
-    <div
-      v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
-      class="flex flex-row w-full gap-2"
-    >
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="false"
-          :message="r$.tickerData.exchange?.$errors[0]"
-        >
-          <label>Exchange</label>
-        </ValidationError>
-        <InputText
-          v-model="tickerData.exchange"
-          size="small"
-          placeholder="Input exchange"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
-      </div>
-    </div>
-
-    <div v-if="isReadOnly" class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="r$.record.quantity.$errors[0]"
-        >
-          <label>Quantity</label>
-        </ValidationError>
-        <InputNumber
-          v-model="quantityNumber"
-          size="small"
-          locale="de-DE"
-          :min-fraction-digits="2"
-          :max-fraction-digits="6"
-          placeholder="0,00"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
-      </div>
-    </div>
-
-    <h4 v-if="isReadOnly">Auditing</h4>
-    <div v-if="isReadOnly" class="flex flex-row gap-2 w-full">
-      <AuditTrail
-        :record-id="props.recordId!"
-        :events="['create', 'update']"
-        :categories="['investment_asset']"
-      />
-    </div>
+      </section>
+    </template>
   </BaseForm>
   <ShowLoading v-else :num-fields="5" />
 
@@ -797,4 +796,16 @@ async function syncAssetAccountBalance(acc_id: number | null) {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+@media (max-width: 640px) {
+  #asset-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #asset-tiles > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: calc(50% - 0.25rem);
+  }
+}
+</style>

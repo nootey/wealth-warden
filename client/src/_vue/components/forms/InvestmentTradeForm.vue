@@ -27,6 +27,7 @@ import AuditTrail from "../base/AuditTrail.vue";
 import type { UserSettings } from "../../../models/settings_models.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import searchHelper from "../../../utils/search_helper.ts";
+import Decimal from "decimal.js";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -84,6 +85,73 @@ const { number: pricePerUnitNumber } = currencyHelper.useMoneyField(
   pricePerUnitRef,
   6,
 );
+
+const isCrypto = computed(
+  () => record.value.asset?.investment_type === "crypto",
+);
+
+const pnlClass = computed(() => {
+  const pnl = new Decimal(record.value.profit_loss || 0);
+  if (pnl.isZero()) return "text-muted";
+  return pnl.isPositive() ? "text-gain" : "text-loss";
+});
+
+const factTiles = computed(() => {
+  const r = record.value;
+  return [
+    { label: "Quantity", value: new Decimal(r.quantity || 0).toString() },
+    {
+      label: "Price per unit",
+      value: vueHelper.displayAssetPrice(
+        r.price_per_unit,
+        r.asset?.investment_type,
+        r.currency,
+      ),
+    },
+    {
+      label: "Fee",
+      value: isCrypto.value
+        ? new Decimal(r.fee || 0).toString()
+        : vueHelper.displayAsCurrency(r.fee, r.currency),
+    },
+    {
+      label: "Value at buy",
+      value: vueHelper.displayAsCurrency(r.value_at_buy!, r.currency),
+    },
+    {
+      label: "USD rate",
+      value: r.exchange_rate_to_usd
+        ? new Decimal(r.exchange_rate_to_usd).toString()
+        : null,
+    },
+    { label: "Currency", value: r.currency },
+  ];
+});
+
+const taxTiles = computed(() => {
+  const r = record.value;
+  const tax = r.tax_info;
+  if (!tax) return [];
+
+  let taxFree: string | null = null;
+  if (tax.days_until_tax_free === 0) taxFree = "Now";
+  else if (tax.days_until_tax_free != null)
+    taxFree = `${tax.days_until_tax_free} days`;
+
+  return [
+    {
+      label: "After-tax P&L",
+      value: vueHelper.displayAsCurrency(tax.taxable_profit, r.currency),
+    },
+    {
+      label: "Tax bracket",
+      value:
+        tax.taxable_percent != null ? `${Number(tax.taxable_percent)} %` : null,
+    },
+    { label: "Days held", value: String(tax.days_held) },
+    { label: "Tax-free in", value: taxFree },
+  ];
+});
 
 const rules = {
   asset: {
@@ -297,57 +365,60 @@ async function deleteRecord(id: number) {
     :disabled="isReadOnly || loading"
     @submit="manageRecord"
   >
-    <div v-if="!isReadOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col">
-        <SelectButton
-          v-model="selectedTradeType"
-          style="font-size: 0.875rem"
-          size="small"
-          :options="tradeTypes"
-          :allow-empty="false"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
+    <template v-if="isReadOnly">
+      <div class="flex flex-row items-center gap-3">
+        <div
+          class="flex items-center justify-center w-10 h-10 shrink-0 rounded-xl bg-sunken text-muted"
+        >
+          <i
+            :class="[
+              'pi',
+              record.trade_type === 'buy'
+                ? 'pi-arrow-down-left'
+                : 'pi-arrow-up-right',
+            ]"
+          />
+        </div>
+        <div class="flex flex-col gap-1 min-w-0">
+          <span class="text-lg font-medium tracking-tight text-ink truncate">
+            {{ record.asset?.name }}
+          </span>
+          <div class="flex flex-row flex-wrap items-center gap-2 text-xs">
+            <span
+              class="rounded-full px-2 py-0.5 font-medium bg-sunken"
+              :class="record.trade_type === 'buy' ? 'text-gain' : 'text-loss'"
+            >
+              {{ vueHelper.capitalize(record.trade_type) }}
+            </span>
+            <span
+              v-if="record.asset?.ticker"
+              class="rounded-full px-2 py-0.5 font-medium bg-sunken text-ink"
+            >
+              {{ record.asset.ticker }}
+            </span>
+            <span class="text-faint">
+              {{ dateHelper.formatDate(record.txn_date, false) }}
+            </span>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div v-if="isReadOnly" class="flex flex-col gap-2">
-      <h4>Info</h4>
-      <span class="text-sm" style="color: var(--text-secondary)">
-        Due to the complexity of re-calculations, this is mostly read only. If
-        you wish to make changes, delete the trade and create a new one.
+      <span class="text-xs text-muted">
+        Mostly read only due to re-calculations. To change it, delete the trade
+        and create a new one.
       </span>
-    </div>
 
-    <div v-if="isReadOnly" class="flex flex-col gap-2">
-      <h4>Financial details</h4>
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label>Trade type</label>
-          <span style="color: var(--text-secondary)">{{
-            record.trade_type
-          }}</span>
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label>USD exchange rate</label>
-          <span style="color: var(--text-secondary)">{{
-            record.exchange_rate_to_usd
-          }}</span>
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Value at buy</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.value_at_buy!, record.currency)
-          }}</span>
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">{{
-            record.trade_type === "buy" ? "Current value" : "Value at sell"
-          }}</label>
-          <span class="text-sm" style="color: var(--text-secondary)">
+      <div
+        class="grid gap-2"
+        :class="record.trade_type === 'sell' ? 'grid-cols-3' : 'grid-cols-2'"
+      >
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+          <span class="label">
+            {{
+              record.trade_type === "buy" ? "Current value" : "Value at sell"
+            }}
+          </span>
+          <span class="text-xl font-medium tracking-tight text-ink truncate">
             {{
               vueHelper.displayAsCurrency(
                 record.trade_type === "buy"
@@ -355,254 +426,260 @@ async function deleteRecord(id: number) {
                   : record.realized_value!,
                 record.currency,
               )
-            }}</span
-          >
+            }}
+          </span>
         </div>
-      </div>
-
-      <div
-        v-if="record.trade_type === 'sell'"
-        class="flex flex-row w-full gap-4"
-      >
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">What if</label>
-          <span class="text-sm" style="color: var(--text-secondary)"
-            >You haven't sold</span
-          >
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">Current market value</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.current_value!, record.currency)
-          }}</span>
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">P&L Raw</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
-          }}</span>
-        </div>
-        <div class="flex flex-col gap-1 w-6/12">
-          <label class="text-sm">P&L Percentage</label>
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsPercentage(record.profit_loss_percent!)
-          }}</span>
-        </div>
-      </div>
-
-      <template v-if="record.tax_info">
-        <div class="flex flex-row w-full gap-4">
-          <div class="flex flex-col gap-1 w-6/12">
-            <label class="text-sm">P&L Taxed</label>
-            <span class="text-sm" style="color: var(--text-secondary)">{{
+        <div
+          v-if="record.trade_type === 'sell'"
+          class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0"
+        >
+          <span class="label">If held</span>
+          <span class="text-xl font-medium tracking-tight text-ink truncate">
+            {{
               vueHelper.displayAsCurrency(
-                record.tax_info.taxable_profit,
+                record.current_value!,
                 record.currency,
               )
-            }}</span>
+            }}
+          </span>
+        </div>
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0">
+          <span class="label">P&L</span>
+          <span
+            class="text-xl font-medium tracking-tight truncate"
+            :class="pnlClass"
+          >
+            {{
+              vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
+            }}
+            <span class="text-sm">
+              ·
+              {{ vueHelper.displayAsPercentage(record.profit_loss_percent!) }}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div id="trade-tiles" class="grid grid-cols-3 gap-2">
+        <div
+          v-for="tile in factTiles"
+          :key="tile.label"
+          class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0"
+        >
+          <span class="text-xs text-muted">{{ tile.label }}</span>
+          <span class="text-base font-medium tracking-tight text-ink truncate">
+            {{ tile.value ?? "-" }}
+          </span>
+        </div>
+      </div>
+
+      <section
+        v-if="record.tax_info"
+        class="flex flex-col gap-3 rounded-2xl border border-line p-4"
+      >
+        <span class="label">Tax</span>
+        <div class="grid grid-cols-2 gap-2">
+          <div
+            v-for="tile in taxTiles"
+            :key="tile.label"
+            class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3 min-w-0"
+          >
+            <span class="text-xs text-muted">{{ tile.label }}</span>
+            <span
+              class="text-base font-medium tracking-tight text-ink truncate"
+            >
+              {{ tile.value ?? "-" }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <span class="label">Details</span>
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="r$.description.$errors[0]"
+          >
+            <label>Description</label>
+          </ValidationError>
+          <InputText
+            v-model="record.description"
+            size="small"
+            placeholder="Describe trade"
+          />
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <span class="label">Auditing</span>
+        <AuditTrail
+          :record-id="props.recordId!"
+          :events="['create', 'update']"
+          :categories="['investment_trade']"
+        />
+      </section>
+    </template>
+
+    <template v-else>
+      <div class="flex flex-row w-full justify-center">
+        <SelectButton
+          v-model="selectedTradeType"
+          size="small"
+          class="text-sm"
+          :options="tradeTypes"
+          :allow-empty="false"
+        />
+      </div>
+
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <span class="label">Trade</span>
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="r$.asset.$errors.$self?.[0]"
+          >
+            <label>Asset</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.asset"
+            size="small"
+            :suggestions="filteredAssets"
+            option-label="name"
+            data-key="id"
+            force-selection
+            placeholder="Select asset"
+            dropdown
+            @complete="searchAsset"
+          >
+            <template #option="slotProps">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold">{{ slotProps.option.name }}</span>
+                <span class="text-muted">{{ slotProps.option.ticker }}</span>
+              </div>
+            </template>
+
+            <template #chip="slotProps">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold">{{ slotProps.value.name }}</span>
+                <span class="text-muted">{{ slotProps.value.ticker }}</span>
+              </div>
+            </template>
+          </AutoComplete>
+        </div>
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="r$.txn_date.$errors[0]"
+          >
+            <label>Date</label>
+          </ValidationError>
+          <DatePicker
+            v-model="record.txn_date"
+            date-format="dd/mm/yy"
+            show-icon
+            fluid
+            icon-display="input"
+            size="small"
+          />
+        </div>
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="r$.description.$errors[0]"
+          >
+            <label>Description</label>
+          </ValidationError>
+          <InputText
+            v-model="record.description"
+            size="small"
+            placeholder="Describe trade"
+          />
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
+        <span class="label">Amounts</span>
+        <div class="flex flex-row w-full gap-4">
+          <div class="flex flex-col gap-1 w-6/12">
+            <ValidationError
+              :is-required="true"
+              :message="r$.quantity.$errors[0]"
+            >
+              <label>Quantity</label>
+            </ValidationError>
+            <InputNumber
+              v-model="quantityNumber"
+              size="small"
+              locale="de-DE"
+              :min-fraction-digits="2"
+              :max-fraction-digits="6"
+              placeholder="0,00"
+              fluid
+            />
           </div>
           <div class="flex flex-col gap-1 w-6/12">
-            <label class="text-sm">Tax bracket</label>
-            <span class="text-sm" style="color: var(--text-secondary)">
-              {{
-                record.tax_info.taxable_percent != null
-                  ? record.tax_info.taxable_percent + "%"
-                  : "—"
-              }}
-            </span>
+            <ValidationError
+              :is-required="true"
+              :message="r$.currency.$errors[0]"
+            >
+              <label>Currency</label>
+            </ValidationError>
+            <Select
+              v-model="record.currency"
+              :options="availableCurrencies"
+              size="small"
+              placeholder="Select currency"
+            />
           </div>
         </div>
         <div class="flex flex-row w-full gap-4">
           <div class="flex flex-col gap-1 w-6/12">
-            <label class="text-sm">Days held</label>
-            <span class="text-sm" style="color: var(--text-secondary)">{{
-              record.tax_info.days_held
-            }}</span>
+            <ValidationError
+              :is-required="true"
+              :message="r$.price_per_unit.$errors[0]"
+            >
+              <label>Price per unit</label>
+            </ValidationError>
+            <InputNumber
+              v-model="pricePerUnitNumber"
+              size="small"
+              mode="currency"
+              :currency="record.currency"
+              :locale="vueHelper.getCurrencyLocale(record.currency)"
+              :min-fraction-digits="2"
+              :max-fraction-digits="
+                record.asset?.investment_type === 'crypto' ? 6 : 2
+              "
+              :placeholder="getCurrencyPlaceholder(record.currency)"
+              fluid
+            />
           </div>
           <div class="flex flex-col gap-1 w-6/12">
-            <label class="text-sm">Tax-free in</label>
-            <span class="text-sm" style="color: var(--text-secondary)">
-              <template v-if="record.tax_info.days_until_tax_free === 0"
-                >Tax-free now</template
-              >
-              <template v-else-if="record.tax_info.days_until_tax_free != null"
-                >{{ record.tax_info.days_until_tax_free }} days</template
-              >
-              <template v-else>—</template>
-            </span>
+            <ValidationError :is-required="false" :message="r$.fee.$errors[0]">
+              <label>Fee</label>
+            </ValidationError>
+            <InputNumber
+              v-model="feeNumber"
+              size="small"
+              :mode="
+                record.asset?.investment_type === 'crypto'
+                  ? 'decimal'
+                  : 'currency'
+              "
+              :currency="record.currency"
+              locale="de-DE"
+              :min-fraction-digits="2"
+              :max-fraction-digits="
+                record.asset?.investment_type === 'crypto' ? 6 : 2
+              "
+              :placeholder="getCurrencyPlaceholder(record.currency)"
+              fluid
+            />
           </div>
         </div>
-      </template>
-    </div>
-
-    <h4 v-if="isReadOnly">Trade details</h4>
-
-    <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="r$.asset.$errors.$self?.[0]"
-        >
-          <label>Asset</label>
-        </ValidationError>
-        <AutoComplete
-          v-model="record.asset"
-          size="small"
-          :suggestions="filteredAssets"
-          option-label="name"
-          data-key="id"
-          force-selection
-          placeholder="Select asset"
-          dropdown
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-          @complete="searchAsset"
-        >
-          <template #option="slotProps">
-            <div class="flex items-center gap-2">
-              <span class="font-semibold">{{ slotProps.option.name }}</span>
-              <span class="text-muted-color">{{
-                slotProps.option.ticker
-              }}</span>
-            </div>
-          </template>
-
-          <template #chip="slotProps">
-            <div class="flex items-center gap-2">
-              <span class="font-semibold">{{ slotProps.value.name }}</span>
-              <span class="text-muted-color">{{ slotProps.value.ticker }}</span>
-            </div>
-          </template>
-        </AutoComplete>
-      </div>
-    </div>
-
-    <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError :is-required="true" :message="r$.txn_date.$errors[0]">
-          <label>Date</label>
-        </ValidationError>
-        <DatePicker
-          v-model="record.txn_date"
-          date-format="dd/mm/yy"
-          show-icon
-          fluid
-          icon-display="input"
-          size="small"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
-      </div>
-    </div>
-
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError :is-required="true" :message="r$.quantity.$errors[0]">
-          <label>Quantity</label>
-        </ValidationError>
-        <InputNumber
-          v-model="quantityNumber"
-          size="small"
-          locale="de-DE"
-          :min-fraction-digits="2"
-          :max-fraction-digits="6"
-          placeholder="0,00"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-          fluid
-        />
-      </div>
-      <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError :is-required="true" :message="r$.currency.$errors[0]">
-          <label>Currency</label>
-        </ValidationError>
-        <Select
-          v-model="record.currency"
-          :options="availableCurrencies"
-          size="small"
-          placeholder="Select currency"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
-      </div>
-    </div>
-
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="true"
-          :message="r$.price_per_unit.$errors[0]"
-        >
-          <label>Price per unit</label>
-        </ValidationError>
-        <InputNumber
-          v-model="pricePerUnitNumber"
-          size="small"
-          mode="currency"
-          :currency="record.currency"
-          :locale="vueHelper.getCurrencyLocale(record.currency)"
-          :min-fraction-digits="2"
-          :max-fraction-digits="
-            record.asset?.investment_type === 'crypto' ? 6 : 2
-          "
-          :placeholder="getCurrencyPlaceholder(record.currency)"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-          fluid
-        />
-      </div>
-
-      <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError :is-required="false" :message="r$.fee.$errors[0]">
-          <label>Fee</label>
-        </ValidationError>
-        <InputNumber
-          v-model="feeNumber"
-          size="small"
-          :mode="
-            record.asset?.investment_type === 'crypto' ? 'decimal' : 'currency'
-          "
-          :currency="record.currency"
-          locale="de-DE"
-          :min-fraction-digits="2"
-          :max-fraction-digits="
-            record.asset?.investment_type === 'crypto' ? 6 : 2
-          "
-          :placeholder="getCurrencyPlaceholder(record.currency)"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-          fluid
-        />
-      </div>
-    </div>
-
-    <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="false"
-          :message="r$.description.$errors[0]"
-        >
-          <label>Description</label>
-        </ValidationError>
-        <InputText
-          v-model="record.description"
-          size="small"
-          placeholder="Describe trade"
-        />
-      </div>
-    </div>
-
-    <h4 v-if="isReadOnly">Auditing</h4>
-    <div v-if="isReadOnly" class="flex flex-row gap-2 w-full">
-      <AuditTrail
-        :record-id="props.recordId!"
-        :events="['create', 'update']"
-        :categories="['investment_trade']"
-      />
-    </div>
+      </section>
+    </template>
   </BaseForm>
   <ShowLoading v-else :num-fields="5" />
 
@@ -623,4 +700,10 @@ async function deleteRecord(id: number) {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+@media (max-width: 640px) {
+  #trade-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>

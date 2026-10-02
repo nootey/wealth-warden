@@ -10,6 +10,7 @@ import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import dayjs from "dayjs";
+import { decimalMax, decimalMin } from "../../../validators/currency.ts";
 import type {
   IncomeType,
   InvestmentType,
@@ -72,6 +73,10 @@ const rules = {
   amount: {
     requiredIf: requiredIf(() => !isStaking.value),
   },
+  tax_withheld: {
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
+  },
   notes: {},
 };
 
@@ -129,16 +134,12 @@ async function submit(): Promise<void> {
 
 <template>
   <BaseForm
-    class="flex flex-col gap-4 p-4 rounded-xl"
-    style="
-      background-color: var(--background-secondary);
-      border: 1px solid var(--border-color);
-    "
+    class="flex flex-col gap-3 rounded-xl bg-sunken p-4"
     :disabled="loading"
     @submit="submit"
   >
     <div class="flex flex-row w-full gap-4">
-      <div v-if="isStaking" class="flex flex-col gap-1 w-full">
+      <div v-if="isStaking" class="flex flex-col gap-1 w-6/12">
         <ValidationError :is-required="true" :message="r$.quantity.$errors[0]">
           <label>Quantity received</label>
         </ValidationError>
@@ -149,9 +150,10 @@ async function submit(): Promise<void> {
           :min-fraction-digits="2"
           :max-fraction-digits="8"
           placeholder="0"
+          fluid
         />
       </div>
-      <div v-if="!isStaking" class="flex flex-col gap-1 w-full">
+      <div v-else class="flex flex-col gap-1 w-6/12">
         <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
           <label>Amount received</label>
         </ValidationError>
@@ -162,12 +164,10 @@ async function submit(): Promise<void> {
           :min-fraction-digits="2"
           :max-fraction-digits="4"
           placeholder="0,00"
+          fluid
         />
       </div>
-    </div>
-
-    <div class="flex flex-row w-full gap-4 items-center">
-      <div class="flex flex-col gap-1 flex-1 w-6/12">
+      <div class="flex flex-col gap-1 w-6/12">
         <ValidationError :is-required="true" :message="r$.txn_date.$errors[0]">
           <label>Date</label>
         </ValidationError>
@@ -179,8 +179,14 @@ async function submit(): Promise<void> {
           fluid
         />
       </div>
-      <div v-if="!isStaking" class="flex flex-col gap-1 flex-1 w-6/12">
-        <ValidationError :is-required="false" :message="undefined">
+    </div>
+
+    <div class="flex flex-row w-full gap-4">
+      <div v-if="!isStaking" class="flex flex-col gap-1 w-6/12">
+        <ValidationError
+          :is-required="false"
+          :message="r$.tax_withheld.$errors[0]"
+        >
           <label>Tax withheld</label>
         </ValidationError>
         <InputNumber
@@ -193,27 +199,14 @@ async function submit(): Promise<void> {
           fluid
         />
       </div>
-      <div v-if="isStaking" class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-col gap-1 flex-1">
         <ValidationError :is-required="false" :message="r$.notes.$errors[0]">
           <label>Notes</label>
         </ValidationError>
         <InputText
           v-model="record.notes"
           size="small"
-          placeholder="Describe trade ..."
-        />
-      </div>
-    </div>
-
-    <div v-if="!isStaking" class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-full">
-        <ValidationError :is-required="false" :message="r$.notes.$errors[0]">
-          <label>Notes</label>
-        </ValidationError>
-        <InputText
-          v-model="record.notes"
-          size="small"
-          placeholder="Describe trade ..."
+          placeholder="Describe income"
         />
       </div>
     </div>
@@ -226,5 +219,3 @@ async function submit(): Promise<void> {
     />
   </BaseForm>
 </template>
-
-<style scoped></style>

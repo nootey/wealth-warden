@@ -175,8 +175,9 @@ type TradeTaxInfo struct {
 }
 
 type AssetTaxSummary struct {
-	EstimatedTaxDue decimal.Decimal `json:"estimated_tax_due"`
-	AfterTaxPnL     decimal.Decimal `json:"after_tax_pnl"`
+	EstimatedTaxDue decimal.Decimal  `json:"estimated_tax_due"`
+	AfterTaxPnL     decimal.Decimal  `json:"after_tax_pnl"`
+	TaxablePercent  *decimal.Decimal `json:"taxable_percent"`
 }
 
 type InvestmentTaxBracket struct {
