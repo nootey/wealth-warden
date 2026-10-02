@@ -127,32 +127,15 @@ const allocations = computed(() => {
 // Pie chart data
 const MAX_SLICES = 12;
 
-const processedOutflowData = computed(() => {
-  if (!monthlyStats.value?.categories?.length)
-    return { labels: [] as string[], values: [] as number[] };
-
-  const items = monthlyStats.value.categories.map((c) => ({
-    label: c.category_name ?? "Uncategorized",
-    value: parseFloat(c.outflow),
-  }));
-
-  items.sort((a, b) => b.value - a.value);
-
-  if (items.length <= MAX_SLICES)
-    return {
-      labels: items.map((c) => c.label),
-      values: items.map((c) => c.value),
-    };
-
-  const main = items.slice(0, MAX_SLICES - 1);
-  const rest = items.slice(MAX_SLICES - 1);
-  main.push({
-    label: "Other",
-    value: rest.reduce((sum, c) => sum + c.value, 0),
-  });
-
-  return { labels: main.map((c) => c.label), values: main.map((c) => c.value) };
-});
+const processedOutflowData = computed(() =>
+  vueHelper.groupPieSlices(
+    (monthlyStats.value?.categories ?? []).map((c) => ({
+      label: c.category_name ?? "Uncategorized",
+      value: parseFloat(c.outflow),
+    })),
+    MAX_SLICES,
+  ),
+);
 
 const outflowLabels = computed<string[]>(
   () => processedOutflowData.value.labels,
@@ -324,6 +307,7 @@ const pieOptions = computed(() => ({
           <ComparativePieChart
             :size="260"
             :show-legend="false"
+            :show-total="true"
             :options="pieOptions"
             :values="outflowValues"
             :labels="outflowLabels"

@@ -61,7 +61,7 @@ const activeTab = ref("overview");
         >
           <Panel :collapsed="false" header="Basic" toggleable>
             <SlotSkeleton bg="transparent">
-              <AccountBasicStats :pie-chart-size="200" />
+              <AccountBasicStats :pie-chart-size="260" />
             </SlotSkeleton>
           </Panel>
           <Panel :collapsed="false" header="Compare" toggleable>

@@ -94,6 +94,11 @@ const AppPreset = definePreset(Aura, {
       headerCell: { padding: "0.75rem 1rem" },
       bodyCell: { padding: "0.8rem 1rem" },
       columnTitle: { fontWeight: "500" },
+      footer: {
+        background: "transparent",
+        borderWidth: "0",
+        padding: "0.75rem 1rem",
+      },
       colorScheme: {
         light: {
           headerCell: { background: "transparent", color: "{surface.500}" },
@@ -106,6 +111,9 @@ const AppPreset = definePreset(Aura, {
           row: { background: "transparent" },
         },
       },
+    },
+    paginator: {
+      root: { background: "transparent", padding: "0" },
     },
     dialog: {
       header: { padding: "1.5rem 1.5rem 1rem" },

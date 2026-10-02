@@ -166,6 +166,7 @@ export function neutrals(dark: boolean) {
   return {
     axisText: dark ? s(400) : s(600),
     axisBorder: dark ? s(700) : s(300),
+    sliceBorder: dark ? s(300) : s(600),
     guide: dark ? s(600) : s(400),
     ttipBg: dark ? s(800) : s(0),
     ttipText: dark ? s(0) : s(900),

@@ -24,6 +24,7 @@ export function useChartColors() {
       // Common scaffolding (theme-aware neutrals)
       axisText: n.axisText,
       axisBorder: n.axisBorder,
+      sliceBorder: n.sliceBorder,
       guide: n.guide,
 
       // Tooltip

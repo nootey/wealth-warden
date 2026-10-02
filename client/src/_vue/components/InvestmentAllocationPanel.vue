@@ -43,8 +43,6 @@ const chartValues = computed<number[]>(() =>
 );
 const chartLabels = computed<string[]>(() => rows.value.map((r) => r.label));
 
-const chartOptions = { cutout: "62%" };
-
 function sliceColor(index: number): string {
   const palette = categoryPalette();
   return palette[index % palette.length];
@@ -152,7 +150,6 @@ async function loadAllocation(): Promise<void> {
         <ComparativePieChart
           :size="260"
           :show-legend="false"
-          :options="chartOptions"
           :values="chartValues"
           :labels="chartLabels"
         />
