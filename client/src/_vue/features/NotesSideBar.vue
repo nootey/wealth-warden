@@ -4,59 +4,80 @@
     v-model:visible="open"
     header="Notes"
     position="left"
-    style="width: 100%; max-width: 468px; overflow-y: auto"
+    style="width: 100%; max-width: 468px"
   >
     <template #container="{ closeCallback }">
-      <div class="flex flex-col w-full p-4 gap-4">
-        <div class="flex flex-row justify-between items-center p-2">
-          <h3>Notes</h3>
-          <i class="pi pi-times hover-icon" @click="closeCallback" />
-        </div>
-
-        <div class="flex flex-row items-center gap-2">
-          <Textarea
-            v-model="newNoteContent"
-            placeholder="Add a new note ..."
-            rows="1"
-            class="w-full rounded-xl"
-            :style="{
-              borderColor: 'var(--border-color)',
-              resize: 'none',
-            }"
-            @keydown.enter.exact.prevent="createNote"
-          />
-        </div>
-
-        <SimplePaginator
-          v-if="paginator.total > paginator.rowsPerPage"
-          :current-page="page"
-          :total-records="paginator.total"
-          :rows-per-page="paginator.rowsPerPage!"
-          @page-change="loadNotes"
-        />
-
+      <div class="flex flex-col h-full overflow-y-auto bg-canvas">
         <div
-          v-for="note in notes"
-          :key="note.id"
-          class="p-4 rounded-xl"
-          :style="{
-            backgroundColor: note.resolved_at
-              ? 'var(--background-secondary)'
-              : 'var(--background-primary)',
-            border: '1px solid var(--border-color)',
-          }"
+          class="sticky top-0 z-10 flex flex-row items-center justify-between gap-2 px-5 py-4 border-b border-line bg-canvas"
         >
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-0.5">
+            <span class="label">Workspace</span>
+            <div class="flex items-baseline gap-2">
+              <span class="text-lg font-medium tracking-tight text-ink">
+                Notes
+              </span>
+              <span v-if="paginator.total" class="text-xs text-faint">
+                {{ paginator.total }}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+            aria-label="Close"
+            @click="closeCallback"
+          >
+            <i class="pi pi-times text-sm" />
+          </button>
+        </div>
+
+        <div class="flex flex-col gap-4 p-4">
+          <section
+            class="flex flex-col gap-2 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
+          >
             <Textarea
-              v-model="note.content"
-              :disabled="!!note.resolved_at"
+              v-model="newNoteContent"
+              placeholder="Add a new note ..."
               rows="2"
               class="w-full rounded-xl"
               :style="{
                 borderColor: 'var(--border-color)',
-                backgroundColor: note.resolved_at
+                backgroundColor: 'var(--background-alt)',
+                resize: 'none',
+              }"
+              @keydown.enter.exact.prevent="createNote"
+            />
+            <span class="text-xs text-faint">
+              Press Enter to save, Shift + Enter for a new line.
+            </span>
+          </section>
+
+          <div
+            v-for="note in notes"
+            :key="note.id"
+            class="flex flex-col gap-3 rounded-2xl border p-4"
+            :class="
+              note.resolved_at
+                ? 'border-transparent bg-sunken'
+                : 'border-line bg-card shadow-[var(--shadow-card)]'
+            "
+          >
+            <Textarea
+              v-model="note.content"
+              :disabled="!!note.resolved_at"
+              rows="2"
+              auto-resize
+              class="w-full rounded-xl"
+              :style="{
+                borderColor: note.resolved_at
                   ? 'transparent'
-                  : 'var(--surface-ground)',
+                  : 'var(--border-color)',
+                backgroundColor: 'transparent',
+                color: note.resolved_at
+                  ? 'var(--text-secondary)'
+                  : 'var(--text-primary)',
+                textDecoration: note.resolved_at ? 'line-through' : 'none',
                 cursor: note.resolved_at ? 'default' : 'text',
                 resize: 'none',
               }"
@@ -64,58 +85,78 @@
               @blur="updateNoteIfChanged(note)"
             />
 
-            <div
-              class="flex flex-row gap-2 text-xs justify-between"
-              style="color: var(--text-secondary)"
-            >
-              <div class="flex flex-row items-center gap-1">
+            <div class="flex flex-row items-center justify-between gap-2">
+              <div class="flex flex-row items-center gap-2 text-xs text-muted">
                 <span
-                  >Created: {{ dateHelper.formatDate(note.created_at) }}</span
+                  v-if="note.resolved_at"
+                  class="rounded-full bg-card px-2 py-0.5 font-medium text-gain"
                 >
+                  Resolved
+                </span>
+                <span>
+                  {{
+                    dateHelper.formatDate(note.resolved_at ?? note.created_at)
+                  }}
+                </span>
                 <i
                   v-if="note.updated_at && note.updated_at !== note.created_at"
                   v-tooltip="
                     'Updated: ' + dateHelper.formatDate(note.updated_at)
                   "
-                  class="pi pi-info-circle ml-1"
-                  style="font-size: 0.7rem"
-                ></i>
+                  class="pi pi-pencil text-[0.65rem] text-faint"
+                />
               </div>
-              <span>
-                {{
-                  note.resolved_at
-                    ? "Resolved: " + dateHelper.formatDate(note.resolved_at)
-                    : "Resolve: "
-                }}
-                <i
+
+              <div class="flex flex-row items-center gap-1">
+                <button
                   v-if="!note.resolved_at"
-                  class="pi pi-check-square ml-2 text-sm"
-                  style="cursor: pointer"
+                  v-tooltip.top="'Resolve'"
+                  type="button"
+                  class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-gain hover:bg-sunken transition-colors cursor-pointer"
+                  aria-label="Resolve"
                   @click="toggleResolve(note.id!)"
-                ></i>
+                >
+                  <i class="pi pi-check text-xs" />
+                </button>
                 <template v-else>
-                  <i
-                    class="pi pi-replay ml-2 text-sm"
-                    style="cursor: pointer"
+                  <button
+                    v-tooltip.top="'Reopen'"
+                    type="button"
+                    class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-ink hover:bg-card transition-colors cursor-pointer"
+                    aria-label="Reopen"
                     @click="toggleResolve(note.id!)"
-                  ></i>
-                  <i
-                    class="pi pi-trash ml-2 text-sm"
-                    style="color: var(--p-red-300); cursor: pointer"
+                  >
+                    <i class="pi pi-replay text-xs" />
+                  </button>
+                  <button
+                    v-tooltip.top="'Delete'"
+                    type="button"
+                    class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-loss hover:bg-card transition-colors cursor-pointer"
+                    aria-label="Delete"
                     @click="deleteNote(note.id!)"
-                  ></i>
+                  >
+                    <i class="pi pi-trash text-xs" />
+                  </button>
                 </template>
-              </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div
-          v-if="notes.length === 0"
-          class="text-center p-6"
-          style="color: var(--text-secondary)"
-        >
-          No notes yet
+          <div
+            v-if="notes.length === 0"
+            class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-8"
+          >
+            <i class="pi pi-file-edit text-xl text-faint" />
+            <span class="text-sm text-muted">No notes yet</span>
+          </div>
+
+          <SimplePaginator
+            v-if="paginator.total > paginator.rowsPerPage"
+            :current-page="page"
+            :total-records="paginator.total"
+            :rows-per-page="paginator.rowsPerPage!"
+            @page-change="loadNotes"
+          />
         </div>
       </div>
     </template>

@@ -241,32 +241,26 @@ defineExpose({ refresh: getData });
     <div
       v-if="advanced"
       id="balance-row"
-      class="flex w-full p-4 gap-2 rounded-xl bordered justify-between items-center"
+      class="grid grid-cols-3 w-full gap-2"
       style="max-width: 1000px"
     >
-      <div
-        class="flex-1 text-center px-4"
-        style="border-right: 1px solid var(--border-color)"
-      >
-        <div class="text-sm" style="color: var(--text-secondary)">Total</div>
-        <div class="font-bold">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+        <span class="text-xs text-muted">Total</span>
+        <span class="text-base font-medium tracking-tight text-ink">
           {{ vueHelper.displayAsCurrency(totals.total) }}
-        </div>
+        </span>
       </div>
-      <div
-        class="flex-1 text-center px-4"
-        style="border-right: 1px solid var(--border-color)"
-      >
-        <div class="text-sm" style="color: var(--text-secondary)">Positive</div>
-        <div class="font-bold">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+        <span class="text-xs text-muted">Positive</span>
+        <span class="text-base font-medium tracking-tight text-gain">
           {{ vueHelper.displayAsCurrency(totals.positive) }}
-        </div>
+        </span>
       </div>
-      <div class="flex-1 text-center px-4">
-        <div class="text-sm" style="color: var(--text-secondary)">Negative</div>
-        <div class="font-bold">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+        <span class="text-xs text-muted">Negative</span>
+        <span class="text-base font-medium tracking-tight text-loss">
           {{ vueHelper.displayAsCurrency(totals.negative) }}
-        </div>
+        </span>
       </div>
     </div>
 
@@ -280,38 +274,33 @@ defineExpose({ refresh: getData });
 
       <div
         v-else-if="groupedAccounts.length === 0"
-        class="flex flex-row p-2 w-full justify-center"
+        class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-8"
       >
-        <div class="flex flex-col gap-2 justify-center items-center">
-          <i
-            style="color: var(--text-secondary)"
-            class="pi pi-eye-slash text-4xl"
-          />
-          <span>No accounts available</span>
-        </div>
+        <i class="pi pi-wallet text-xl text-faint" />
+        <span class="text-sm text-muted">No accounts available</span>
       </div>
 
       <TransitionGroup v-else name="list-anim" tag="div" class="relative">
         <div
           v-for="[type, group] in groupedAccounts"
           :key="type"
-          class="w-full mb-4 rounded-xl p-4"
-          style="background: var(--background-primary)"
+          class="w-full mb-4 rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]"
         >
-          <div class="flex ml-1 mr-1 items-center justify-between">
-            <div class="text-sm" style="color: var(--text-secondary)">
-              {{ vueHelper.formatString(type) }} · {{ group.length }}
+          <div class="flex mx-1 items-baseline justify-between gap-2">
+            <div class="flex items-baseline gap-2">
+              <span class="label">{{ vueHelper.formatString(type) }}</span>
+              <span class="text-xs text-faint">{{ group.length }}</span>
             </div>
-            <div class="font-bold text-sm" style="color: var(--text-secondary)">
+            <span class="text-sm font-medium tracking-tight text-ink">
               {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
-            </div>
+            </span>
           </div>
 
           <TransitionGroup name="list-anim" tag="div" class="relative">
             <div
               v-for="(account, i) in group"
               :key="account.id ?? i"
-              class="account-row flex items-center justify-between p-2 rounded-xl mt-4 bordered"
+              class="account-row flex items-center justify-between px-3 py-2.5 rounded-xl mt-2 bg-sunken"
               :class="{ advanced, inactive: !account.is_active }"
             >
               <div class="flex items-center">
@@ -334,13 +323,13 @@ defineExpose({ refresh: getData });
                 <!-- Name + subtype -->
                 <div class="ml-2">
                   <div
-                    class="font-bold clickable"
+                    class="font-medium text-ink clickable"
                     @click="openModal('details', account)"
                   >
                     {{ account.name }}
                   </div>
 
-                  <div class="text-sm" style="color: var(--text-secondary)">
+                  <div class="text-xs text-muted">
                     {{ vueHelper.formatString(account.account_type?.sub_type) }}
                     {{ !account.is_active ? " - Inactive" : "" }}
                   </div>
@@ -350,14 +339,13 @@ defineExpose({ refresh: getData });
                 <i
                   v-if="hasPermission('manage_data') && account.is_active"
                   v-tooltip="'Edit account'"
-                  class="ml-4 pi pi-pen-to-square text-xs hover-icon edit-icon"
-                  style="color: var(--text-secondary)"
+                  class="ml-4 pi pi-pen-to-square text-xs text-muted hover:text-ink hover-icon edit-icon"
                   @click="openModal('update', account.id!)"
                 />
               </div>
 
               <div class="flex items-center gap-2">
-                <div class="font-bold mr-1">
+                <div class="font-medium tracking-tight text-ink mr-1">
                   {{
                     vueHelper.displayAsCurrency(account.balance.total_balance)
                   }}
@@ -381,16 +369,11 @@ defineExpose({ refresh: getData });
 </template>
 
 <style scoped>
-.bordered {
-  border: 1px solid var(--border-color);
-  background: var(--background-secondary);
-}
-
 .clickable {
   cursor: pointer;
 }
 
-.account-row .font-bold.clickable:hover {
+.account-row .font-medium.clickable:hover {
   text-decoration: underline;
 }
 
@@ -430,7 +413,6 @@ defineExpose({ refresh: getData });
 
 @media (max-width: 768px) {
   #balance-row {
-    padding: 1rem !important;
     font-size: 75%;
   }
   .account-row {
@@ -442,14 +424,14 @@ defineExpose({ refresh: getData });
     height: 26px !important;
   }
 
-  .account-row > .flex:first-child .font-bold {
+  .account-row > .flex:first-child .font-medium {
     font-size: 0.8rem !important;
   }
-  .account-row > .flex:first-child .text-sm {
+  .account-row > .flex:first-child .text-xs {
     font-size: 0.7rem !important;
   }
 
-  .account-row > .flex:last-child .font-bold {
+  .account-row > .flex:last-child .font-medium {
     font-size: 0.85rem !important;
     white-space: nowrap !important;
   }

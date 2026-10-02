@@ -9,9 +9,11 @@ import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ComparativePieChart from "../charts/ComparativePieChart.vue";
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
+const { colors } = useChartColors();
 
 const loading = ref(false);
 const monthlyStats = ref<MonthlyStats | null>(null);
@@ -94,6 +96,34 @@ watch(selectedMonth, async () => {
   await loadStats();
 });
 
+const allocations = computed(() => {
+  const s = monthlyStats.value;
+  if (!s) return [];
+  return [
+    {
+      key: "savings",
+      label: "Savings",
+      amount: s.savings,
+      rate: Number(s.savings_rate),
+      color: colors.value.flow.savings,
+    },
+    {
+      key: "investments",
+      label: "Investments",
+      amount: s.investments,
+      rate: Number(s.investments_rate),
+      color: colors.value.flow.investments,
+    },
+    {
+      key: "debt",
+      label: "Debt repayments",
+      amount: s.debt_repayments,
+      rate: Number(s.debt_repayment_rate),
+      color: colors.value.flow.debt,
+    },
+  ];
+});
+
 // Pie chart data
 const MAX_SLICES = 12;
 
@@ -154,152 +184,145 @@ const pieOptions = computed(() => ({
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col p-2 gap-2">
-    <span class="text-sm mobile-hide" style="color: var(--text-secondary)"
-      >Monthly stats are computed for all checking accounts, which are treated
-      as main accounts.</span
-    >
+  <section
+    class="flex flex-col gap-4 rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]"
+  >
+    <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-1">
+        <span class="label">This month</span>
+        <span class="text-xs text-faint mobile-hide">
+          Computed for all checking accounts, which are treated as main
+          accounts.
+        </span>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <Select
+          v-model="selectedYear"
+          :options="yearOptions"
+          option-label="label"
+          option-value="value"
+          size="small"
+          placeholder="Year"
+        />
+        <Select
+          v-model="selectedMonth"
+          :options="monthOptions"
+          option-label="label"
+          option-value="value"
+          size="small"
+          placeholder="Month"
+          :disabled="!monthOptions.length"
+        />
+      </div>
+    </div>
 
-    <h4 class="mt-2 mobile-hide">Details</h4>
-    <div v-if="monthlyStats" class="flex flex-col">
-      <div class="flex flex-col w-full gap-2">
-        <div class="flex flex-row gap-2 items-center">
-          <span>Inflows:</span>
+    <ShowLoading v-if="loading" :num-fields="7" />
+
+    <template v-else-if="monthlyStats">
+      <div
+        class="flex items-center justify-between gap-3 rounded-xl bg-sunken px-4 py-3"
+      >
+        <div class="flex flex-col gap-0.5">
+          <span class="text-xs text-muted">Take home</span>
           <span
-            ><b>{{
+            class="text-xl leading-tight font-medium tracking-tight text-ink"
+          >
+            {{
               vueHelper.displayAsCurrency(
-                monthlyStats?.inflow!,
+                monthlyStats.take_home,
                 monthlyStats.currency,
               )
-            }}</b></span
-          >
+            }}
+          </span>
         </div>
-        <div class="flex flex-row gap-2 items-center">
-          <span>Outflows:</span>
-          <span
-            ><b>{{
+        <div class="flex flex-col items-end gap-0.5">
+          <span class="text-xs text-muted">Overflow</span>
+          <span class="text-sm font-medium text-ink">
+            {{
               vueHelper.displayAsCurrency(
-                monthlyStats?.outflow!,
+                monthlyStats.overflow,
                 monthlyStats.currency,
               )
-            }}</b></span
-          >
-        </div>
-        <div class="flex flex-row gap-2 items-center">
-          <span>Take home:</span>
-          <span
-            ><b>{{
-              vueHelper.displayAsCurrency(
-                monthlyStats?.take_home!,
-                monthlyStats.currency,
-              )
-            }}</b></span
-          >
-        </div>
-        <div class="flex flex-row gap-2 items-center">
-          <span>Overflow:</span>
-          <span
-            ><b>{{
-              vueHelper.displayAsCurrency(
-                monthlyStats?.overflow!,
-                monthlyStats.currency,
-              )
-            }}</b></span
-          >
+            }}
+          </span>
         </div>
       </div>
 
-      <div class="flex flex-col w-full gap-2 mt-4">
-        <h4 class="mobile-hide">Rates</h4>
-
-        <div class="flex flex-row gap-2 items-center">
-          <span>Savings:</span>
-          <span
-            ><b>{{
+      <div class="grid grid-cols-2 gap-2">
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+          <span class="text-xs text-muted">Inflows</span>
+          <span class="text-base font-medium tracking-tight text-gain">
+            {{
               vueHelper.displayAsCurrency(
-                monthlyStats.savings,
+                monthlyStats.inflow,
                 monthlyStats.currency,
               )
-            }}</b></span
-          >
-          <span>Rate:</span>
-          <span
-            ><b>{{
-              vueHelper.displayAsPercentage(monthlyStats.savings_rate)
-            }}</b></span
-          >
+            }}
+          </span>
         </div>
-
-        <div class="flex flex-row gap-2 items-center">
-          <span>Investments</span>
-          <span
-            ><b>{{
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+          <span class="text-xs text-muted">Outflows</span>
+          <span class="text-base font-medium tracking-tight text-loss">
+            {{
               vueHelper.displayAsCurrency(
-                monthlyStats.investments,
+                monthlyStats.outflow,
                 monthlyStats.currency,
               )
-            }}</b></span
-          >
-          <span>Rate</span>
-          <span
-            ><b>{{
-              vueHelper.displayAsPercentage(monthlyStats.investments_rate)
-            }}</b></span
-          >
-        </div>
-
-        <div class="flex flex-row gap-2 items-center">
-          <span>Debt repayments</span>
-          <span
-            ><b>{{
-              vueHelper.displayAsCurrency(
-                monthlyStats.debt_repayments,
-                monthlyStats.currency,
-              )
-            }}</b></span
-          >
-          <span>Rate</span>
-          <span
-            ><b>{{
-              vueHelper.displayAsPercentage(monthlyStats.debt_repayment_rate)
-            }}</b></span
-          >
+            }}
+          </span>
         </div>
       </div>
 
-      <div class="flex flex-col w-full gap-2 mt-4">
-        <h4>Expense Breakdown</h4>
-        <span class="text-sm" style="color: var(--text-secondary)"
-          >View what you've spent your money on per month.</span
-        >
-        <div class="flex flex-row gap-2 items-center w-full pr-2">
-          <Select
-            v-model="selectedYear"
-            class="w-full"
-            :options="yearOptions"
-            option-label="label"
-            option-value="value"
-            size="small"
-            placeholder="Year"
-          />
-          <Select
-            v-model="selectedMonth"
-            class="w-full"
-            :options="monthOptions"
-            option-label="label"
-            option-value="value"
-            size="small"
-            placeholder="Month"
-            :disabled="!monthOptions.length"
-          />
-        </div>
+      <div class="flex flex-col gap-3">
+        <span class="label">Allocation rates</span>
         <div
-          v-if="hasOutflowData"
-          class="flex flex-col justify-center items-center"
+          v-for="a in allocations"
+          :key="a.key"
+          class="flex flex-col gap-1.5"
         >
+          <div class="flex items-center justify-between gap-2 text-sm">
+            <div class="flex items-center gap-2 text-muted">
+              <span
+                class="inline-block w-2 h-2 rounded-full"
+                :style="{ backgroundColor: a.color }"
+              />
+              <span>{{ a.label }}</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="font-medium text-ink">
+                {{
+                  vueHelper.displayAsCurrency(a.amount, monthlyStats.currency)
+                }}
+              </span>
+              <span class="w-14 text-right text-xs text-muted">
+                {{ vueHelper.displayAsPercentage(a.rate) }}
+              </span>
+            </div>
+          </div>
+          <div class="h-1.5 w-full rounded-full bg-sunken overflow-hidden">
+            <div
+              class="h-full rounded-full"
+              :style="{
+                width: Math.min(Math.max(a.rate, 0), 1) * 100 + '%',
+                backgroundColor: a.color,
+              }"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="h-px bg-line" />
+
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-1">
+          <span class="label">Expense breakdown</span>
+          <span class="text-xs text-faint">
+            What you spent your money on this month.
+          </span>
+        </div>
+        <div v-if="hasOutflowData" class="flex justify-center py-2">
           <ComparativePieChart
-            class="mt-4"
-            :size="300"
+            :size="260"
             :show-legend="false"
             :options="pieOptions"
             :values="outflowValues"
@@ -308,20 +331,17 @@ const pieOptions = computed(() => ({
         </div>
         <div
           v-else
-          class="flex flex-col items-center justify-center p-4"
-          style="border: 1px dashed var(--border-color); border-radius: 16px"
+          class="flex items-center justify-center rounded-xl border border-dashed border-line p-6"
         >
-          <span class="text-sm" style="color: var(--text-secondary)">
+          <span class="text-sm text-muted">
             No expenses found for this month.
           </span>
         </div>
       </div>
-    </div>
-    <div v-else>
-      <span>No checking accounts are currently available.</span>
-    </div>
-  </div>
-  <ShowLoading v-else :num-fields="7" />
-</template>
+    </template>
 
-<style scoped></style>
+    <span v-else class="text-sm text-muted">
+      No checking accounts are currently available.
+    </span>
+  </section>
+</template>

@@ -226,7 +226,7 @@ async function handleEmit(emitType: any) {
             v-tooltip="'Go to categories settings.'"
             type="button"
             class="size-8 grid place-items-center rounded-lg text-muted hover:bg-sunken hover:text-ink cursor-pointer"
-            @click="router.push('settings/categories')"
+            @click="router.push({ name: 'settings.categories' })"
           >
             <i class="pi pi-external-link text-sm" />
           </button>
