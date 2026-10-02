@@ -2699,6 +2699,110 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByGoalAllocat
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
 }
 
+func (s *TransactionServiceTestSuite) TestInsertTransaction_CreditLimitOverridesGoalAllocation() {
+	accSvc := s.TC.App.AccountService
+	savSvc := s.TC.App.SavingsService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(1000)
+	creditLimit := decimal.NewFromInt(500)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Savings Account",
+		AccountTypeID: 2,
+		Balance:       &initialBalance,
+		CreditLimit:   &creditLimit,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	alloc := decimal.NewFromInt(800)
+	goalID, err := savSvc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:         accID,
+		Name:              "Holiday Fund",
+		TargetAmount:      decimal.NewFromInt(5000),
+		MonthlyAllocation: &alloc,
+	})
+	s.Require().NoError(err)
+
+	goalWithProgress, err := savSvc.FetchGoalByID(s.Ctx, userID, goalID)
+	s.Require().NoError(err)
+	_, _, err = savSvc.AutoFundGoal(s.Ctx, goalWithProgress.SavingGoal, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(600),
+		TxnDate:   today,
+	})
+	s.Require().NoError(err, "credit limit should take precedence over goal allocations")
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(1000),
+		TxnDate:   today,
+	})
+	s.Require().Error(err, "should still block expenses past the credit limit")
+}
+
+func (s *TransactionServiceTestSuite) newGoalBackedOverdraftAccount(userID int64, balance, goalAmount decimal.Decimal) int64 {
+	creditLimit := decimal.NewFromInt(500)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Savings Account",
+		AccountTypeID: 2,
+		Balance:       &balance,
+		CreditLimit:   &creditLimit,
+		OpenedAt:      time.Now().UTC().Truncate(24 * time.Hour),
+	})
+	s.Require().NoError(err)
+
+	goalID, err := s.TC.App.SavingsService.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:    accID,
+		Name:         "Holiday Fund",
+		TargetAmount: decimal.NewFromInt(5000),
+	})
+	s.Require().NoError(err)
+	err = s.TC.DB.WithContext(s.Ctx).
+		Exec("UPDATE saving_goals SET current_amount = ? WHERE id = ?", goalAmount, goalID).Error
+	s.Require().NoError(err)
+	return accID
+}
+
+func (s *TransactionServiceTestSuite) TestInsertTransfer_CreditLimitOverridesGoalAllocation() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	srcID := s.newGoalBackedOverdraftAccount(userID, decimal.NewFromInt(1000), decimal.NewFromInt(800))
+	destBal := decimal.Zero
+	destID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Destination Account", AccountTypeID: 1, Balance: &destBal, OpenedAt: time.Now().UTC().Truncate(24 * time.Hour),
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID: srcID, DestinationID: destID, Amount: decimal.NewFromInt(600), CreatedAt: time.Now(),
+	})
+	s.Require().NoError(err, "credit limit should take precedence over goal allocations")
+}
+
+func (s *TransactionServiceTestSuite) TestDeleteTransaction_CreditLimitOverridesGoalAllocation() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	accID := s.newGoalBackedOverdraftAccount(userID, decimal.NewFromInt(100), decimal.NewFromInt(200))
+	income, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID, Direction: "income", Amount: decimal.NewFromInt(150), TxnDate: time.Now().UTC().Truncate(24 * time.Hour),
+	})
+	s.Require().NoError(err)
+
+	err = svc.DeleteTransaction(s.Ctx, userID, income.ID)
+	s.Require().NoError(err, "credit limit should take precedence over goal allocations")
+}
+
 func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByGoalAllocation() {
 	accSvc := s.TC.App.AccountService
 	savSvc := s.TC.App.SavingsService
@@ -3099,6 +3203,73 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_InsufficientFunds() {
 
 	// Source balance must be unchanged: 100 - 50 = 50
 	s.assertSnapshot(srcID, today, srcBal.Sub(original), "source")
+}
+
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_MoveExpense_InsufficientFunds() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	fullBal := decimal.NewFromInt(1000)
+	emptyBal := decimal.NewFromInt(50)
+	fullID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Full Account", AccountTypeID: 1, Balance: &fullBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+	emptyID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Empty Account", AccountTypeID: 1, Balance: &emptyBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(200)
+	txn, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: fullID, Direction: "expense", Amount: amount, TxnDate: today,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.UpdateTransaction(s.Ctx, userID, txn.ID, &models.TransactionReq{
+		AccountID: emptyID, Direction: "expense", Amount: amount, TxnDate: today,
+	})
+	s.Require().Error(err, "should reject moving an expense to an account that can't cover it")
+
+	s.assertSnapshot(fullID, today, fullBal.Sub(amount), "original")
+	s.assertSnapshot(emptyID, today, emptyBal, "target")
+}
+
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_MoveIncome_InsufficientFunds() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	zero := decimal.Zero
+	otherBal := decimal.NewFromInt(1000)
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Income Account", AccountTypeID: 1, Balance: &zero, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+	otherID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Other Account", AccountTypeID: 1, Balance: &otherBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+
+	income := decimal.NewFromInt(500)
+	txn, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: srcID, Direction: "income", Amount: income, TxnDate: today,
+	})
+	s.Require().NoError(err)
+	_, err = svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: srcID, Direction: "expense", Amount: decimal.NewFromInt(400), TxnDate: today,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.UpdateTransaction(s.Ctx, userID, txn.ID, &models.TransactionReq{
+		AccountID: otherID, Direction: "income", Amount: income, TxnDate: today,
+	})
+	s.Require().Error(err, "should reject moving income away when the old account would go negative")
+
+	s.assertSnapshot(srcID, today, decimal.NewFromInt(100), "original")
 }
 
 // Tests that an expense bringing balance into negative territory within the credit limit succeeds
@@ -4395,6 +4566,21 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_DeleteGuardRol
 		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
 		s.Assert().Nil(tr.DeletedAt, "no row should be deleted when the batch rolls back")
 	}
+}
+
+func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_DeleteCreditLimitOverridesGoalAllocation() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	accID := s.newGoalBackedOverdraftAccount(userID, decimal.NewFromInt(1000), decimal.NewFromInt(1200))
+	incomeID := s.insertLedgerTxn(userID, accID, "income", decimal.NewFromInt(500), "in")
+
+	res, err := svc.BulkOperateTransactions(s.Ctx, userID, &models.BulkTransactionReq{
+		IDs:    []int64{incomeID},
+		Action: models.BulkActionDelete,
+	})
+	s.Require().NoError(err, "credit limit should take precedence over goal allocations")
+	s.Assert().Equal(int64(1), res.Processed)
 }
 
 // Assigning an expense category to an income row overwrites its direction and

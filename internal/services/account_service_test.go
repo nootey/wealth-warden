@@ -1081,6 +1081,103 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByGoalAllocation() {
 		initialBalance.String(), latestBalance.Balance.String())
 }
 
+func (s *AccountServiceTestSuite) TestUpdateAccount_CreditLimitOverridesGoalAllocation() {
+	accSvc := s.TC.App.AccountService
+	savSvc := s.TC.App.SavingsService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(1000)
+	creditLimit := decimal.NewFromInt(300)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Savings Account",
+		AccountTypeID: 2,
+		Balance:       &initialBalance,
+		CreditLimit:   &creditLimit,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	goalID, err := savSvc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:    accID,
+		Name:         "Holiday Fund",
+		TargetAmount: decimal.NewFromInt(5000),
+	})
+	s.Require().NoError(err)
+	err = s.TC.DB.WithContext(s.Ctx).
+		Exec("UPDATE saving_goals SET current_amount = 800 WHERE id = ?", goalID).Error
+	s.Require().NoError(err)
+
+	newBalance := decimal.NewFromInt(200)
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Overdraft Savings Account",
+		AccountTypeID: 2,
+		Balance:       &newBalance,
+		CreditLimit:   &creditLimit,
+	})
+	s.Require().NoError(err, "credit limit should take precedence over goal allocations")
+
+	latest, err := accSvc.FetchLatestBalance(s.Ctx, accID, userID)
+	s.Require().NoError(err)
+	s.Assert().True(newBalance.Equal(latest.Balance),
+		"balance should be %s, got %s", newBalance.String(), latest.Balance.String())
+}
+
+func (s *AccountServiceTestSuite) TestFetchAvailableBalance() {
+	accSvc := s.TC.App.AccountService
+	savSvc := s.TC.App.SavingsService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(1000)
+	creditLimit := decimal.NewFromInt(300)
+
+	plainID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Plain Savings", AccountTypeID: 2, Balance: &initialBalance, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+	overdraftID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Overdraft Savings", AccountTypeID: 2, Balance: &initialBalance, CreditLimit: &creditLimit, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+
+	alloc := decimal.NewFromInt(400)
+	for _, accID := range []int64{plainID, overdraftID} {
+		goalID, err := savSvc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+			AccountID:         accID,
+			Name:              "Holiday Fund",
+			TargetAmount:      decimal.NewFromInt(5000),
+			MonthlyAllocation: &alloc,
+		})
+		s.Require().NoError(err)
+		goal, err := savSvc.FetchGoalByID(s.Ctx, userID, goalID)
+		s.Require().NoError(err)
+		_, _, err = savSvc.AutoFundGoal(s.Ctx, goal.SavingGoal, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
+		s.Require().NoError(err)
+	}
+
+	plain, err := accSvc.FetchAvailableBalance(s.Ctx, plainID, userID)
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(600).Equal(plain.Available),
+		"without a credit limit goal money is excluded, got %s", plain.Available.String())
+
+	overdraft, err := accSvc.FetchAvailableBalance(s.Ctx, overdraftID, userID)
+	s.Require().NoError(err)
+	s.Assert().True(initialBalance.Equal(overdraft.Available),
+		"with a credit limit goal money is included but the limit is not, got %s", overdraft.Available.String())
+
+	_, err = s.TC.App.TransactionService.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: overdraftID, Direction: "expense", Amount: decimal.NewFromInt(1010), TxnDate: today,
+	})
+	s.Require().NoError(err)
+
+	overdrawn, err := accSvc.FetchAvailableBalance(s.Ctx, overdraftID, userID)
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(-10).Equal(overdrawn.Available),
+		"an overdrawn account should report how far into the limit it is, got %s", overdrawn.Available.String())
+}
+
 // Merging two cash accounts moves all transactions to the destination
 // and closes the source account
 func (s *AccountServiceTestSuite) TestMergeAccount_Success() {

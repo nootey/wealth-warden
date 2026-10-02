@@ -323,14 +323,6 @@ function handleMenuClick(item: ActionItem) {
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="size-9 grid place-items-center rounded-lg text-muted hover:bg-sunken cursor-pointer"
-          aria-label="Accounts"
-          @click="emit('openAccounts')"
-        >
-          <i class="pi pi-wallet" />
-        </button>
-        <button
-          type="button"
           class="relative size-9 grid place-items-center rounded-lg text-muted hover:bg-sunken cursor-pointer"
           aria-label="Notifications"
           @click="emit('openNotifications')"
