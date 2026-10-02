@@ -125,7 +125,7 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-amber-500",
     },
     flow: {
-      savings: "--p-green-400",
+      savings: "--p-lime-400",
       investments: "--p-teal-500",
       debt: "--p-orange-500",
     },
