@@ -174,24 +174,7 @@ func ComputeAssetTaxSummary(asset models.InvestmentAsset, currentPrice decimal.D
 		openLots = append(openLots, openLot{txnDate: lot.TxnDate, quantity: lot.Quantity, costBasis: cb})
 	}
 
-	if !settings.LossOffsettingEnabled {
-		totalTax := decimal.Zero
-		for _, lot := range openLots {
-			daysHeld := int(today.UTC().Sub(lot.txnDate.UTC()) / (24 * time.Hour))
-			bracket := ApplyBracket(brackets, daysHeld)
-			if bracket == nil {
-				continue
-			}
-			pnl := lot.quantity.Mul(currentPrice).Sub(lot.costBasis)
-			if pnl.IsPositive() {
-				totalTax = totalTax.Add(pnl.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100)))
-			}
-		}
-		return models.AssetTaxSummary{
-			EstimatedTaxDue: totalTax,
-			AfterTaxPnL:     asset.ProfitLoss.Sub(totalTax),
-		}
-	}
+	summary := models.AssetTaxSummary{}
 
 	totalPnL := decimal.Zero
 	weightedDays := decimal.Zero
@@ -204,17 +187,33 @@ func ComputeAssetTaxSummary(asset models.InvestmentAsset, currentPrice decimal.D
 		totalQty = totalQty.Add(lot.quantity)
 	}
 
-	var totalTax decimal.Decimal
-	if totalPnL.IsPositive() && totalQty.IsPositive() {
-		avgDays := int(weightedDays.Div(totalQty).IntPart())
-		bracket := ApplyBracket(brackets, avgDays)
-		if bracket != nil {
-			totalTax = totalPnL.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100))
-		}
+	var avgBracket *models.InvestmentTaxBracket
+	if totalQty.IsPositive() {
+		avgBracket = ApplyBracket(brackets, int(weightedDays.Div(totalQty).IntPart()))
+	}
+	if avgBracket != nil {
+		p := avgBracket.TaxablePercent
+		summary.TaxablePercent = &p
 	}
 
-	return models.AssetTaxSummary{
-		EstimatedTaxDue: totalTax,
-		AfterTaxPnL:     asset.ProfitLoss.Sub(totalTax),
+	totalTax := decimal.Zero
+	if !settings.LossOffsettingEnabled {
+		for _, lot := range openLots {
+			daysHeld := int(today.UTC().Sub(lot.txnDate.UTC()) / (24 * time.Hour))
+			bracket := ApplyBracket(brackets, daysHeld)
+			if bracket == nil {
+				continue
+			}
+			pnl := lot.quantity.Mul(currentPrice).Sub(lot.costBasis)
+			if pnl.IsPositive() {
+				totalTax = totalTax.Add(pnl.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100)))
+			}
+		}
+	} else if avgBracket != nil && totalPnL.IsPositive() {
+		totalTax = totalPnL.Mul(avgBracket.TaxablePercent).Div(decimal.NewFromInt(100))
 	}
+
+	summary.EstimatedTaxDue = totalTax
+	summary.AfterTaxPnL = asset.ProfitLoss.Sub(totalTax)
+	return summary
 }
