@@ -61,6 +61,7 @@ export interface Transfer {
   notes: string | null;
   deleted_at: Date | null;
   created_at?: Date | null;
+  updated_at?: Date | null;
   from: Transaction | null;
   to: Transaction | null;
 }

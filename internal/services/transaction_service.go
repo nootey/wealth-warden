@@ -1776,6 +1776,7 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	utils.CompareChanges(oldAmount.StringFixed(2), req.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges(oldDate.UTC().Format(time.RFC3339), newDate.UTC().Format(time.RFC3339), changes, "date")
 	utils.CompareChanges(oldNotesStr, newNotesStr, changes, "notes")
+	changes.Stamp("id", strconv.FormatInt(transfer.ID, 10))
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:    "update",

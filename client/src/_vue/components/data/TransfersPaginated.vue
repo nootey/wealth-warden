@@ -15,9 +15,11 @@ import ColumnHeader from "../base/ColumnHeader.vue";
 import type { PaginatorState } from "../../../models/shared_models.ts";
 import TransferForm from "../forms/TransferForm.vue";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
+import AuditTrail from "../base/AuditTrail.vue";
 
 const props = defineProps<{
   accID?: number;
+  readOnly?: boolean;
 }>();
 
 const sharedStore = useSharedStore();
@@ -94,7 +96,7 @@ async function onPage(event: any) {
   await getData();
 }
 
-async function deleteConfirmation(id: number) {
+function deleteConfirmation(id: number) {
   confirm.require({
     header: "Delete record?",
     message: `This will delete transaction: "transfer: ${id}".`,
@@ -116,6 +118,7 @@ async function deleteRecord(id: number) {
   try {
     let response = await sharedStore.deleteRecord(apiPrefix, id);
     toastStore.successResponseToast(response);
+    updateModal.value = false;
     await getData();
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -124,16 +127,13 @@ async function deleteRecord(id: number) {
 
 function canUpdate(tr: Transfer) {
   return (
+    !props.readOnly &&
     !tr.deleted_at &&
     !tr?.from?.account?.closed_at &&
     tr?.from?.account?.is_active &&
     !tr?.to?.account?.closed_at &&
     tr?.to?.account?.is_active
   );
-}
-
-function canDelete(tr: Transfer) {
-  return canUpdate(tr);
 }
 
 function openUpdate(tr: Transfer) {
@@ -210,12 +210,34 @@ defineExpose({ refresh });
         :transfer="selectedTransfer"
         mode="update"
       />
-      <Button
-        class="main-button"
-        label="Update transfer"
-        :disabled="submitting"
-        :loading="submitting"
-        @click="submitUpdate"
+      <div class="flex flex-row w-full">
+        <div class="flex flex-col gap-1 w-6/12">
+          <label>Created at</label>
+          {{ dateHelper.formatDate(selectedTransfer.from?.created_at!, true) }}
+        </div>
+        <div class="flex flex-col gap-1 w-6/12">
+          <label>Updated at</label>
+          {{ dateHelper.formatDate(selectedTransfer.updated_at!, true) }}
+        </div>
+      </div>
+      <div class="flex flex-col w-full gap-2">
+        <Button
+          class="main-button"
+          label="Update transfer"
+          :disabled="submitting"
+          :loading="submitting"
+          @click="submitUpdate"
+        />
+        <Button
+          label="Delete transfer"
+          class="delete-button"
+          @click="deleteConfirmation(selectedTransfer.id!)"
+        />
+      </div>
+      <AuditTrail
+        :record-id="selectedTransfer.id!"
+        :events="['create', 'update', 'delete']"
+        :categories="['transfer']"
       />
     </div>
   </Dialog>
@@ -270,7 +292,7 @@ defineExpose({ refresh });
               }}
             </template>
             <template v-else-if="col.field === 'created_at'">
-              {{ dateHelper.formatDate(data?.created_at, true) }}
+              {{ dateHelper.formatDate(data?.created_at) }}
             </template>
             <template v-else-if="col.field === 'from'">
               <span
@@ -295,26 +317,6 @@ defineExpose({ refresh });
             </template>
           </template>
         </Column>
-
-        <Column>
-          <template #header>
-            <span class="mobile-hide">Actions</span>
-          </template>
-          <template #body="{ data }">
-            <i
-              v-if="hasPermission('manage_data') && canDelete(data)"
-              class="pi pi-trash hover-icon"
-              style="font-size: 0.875rem; color: var(--p-red-300)"
-              @click="deleteConfirmation(data?.id)"
-            />
-            <i
-              v-else
-              v-tooltip="'This transfer is in read only state!'"
-              class="pi pi-exclamation-circle"
-              style="font-size: 0.875rem"
-            />
-          </template>
-        </Column>
       </DataTable>
     </div>
   </div>
@@ -322,7 +324,7 @@ defineExpose({ refresh });
 
 <style scoped>
 .hover {
-  font-weight: 500;
+  font-weight: bold;
 }
 .hover:hover {
   cursor: pointer;

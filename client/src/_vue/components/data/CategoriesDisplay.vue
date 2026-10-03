@@ -6,9 +6,7 @@ import { computed, ref } from "vue";
 import type { Column } from "../../../services/filter_registry.ts";
 import CategoryForm from "../forms/CategoryForm.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
-import { useConfirm } from "primevue/useconfirm";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 
 const props = defineProps<{
@@ -21,11 +19,9 @@ const emit = defineEmits<{
 }>();
 
 const toastStore = useToastStore();
-const sharedStore = useSharedStore();
 const transactionStore = useTransactionStore();
 
 const { hasPermission } = usePermissions();
-const confirm = useConfirm();
 
 const seeding = ref(false);
 
@@ -68,74 +64,20 @@ const categoryColumns = computed<Column[]>(() => [
   { field: "classification", header: "Classification" },
 ]);
 
-function openModal(type: string, data: any) {
-  switch (type) {
-    case "update": {
-      updateModal.value = true;
-      selectedID.value = data;
-      break;
-    }
-  }
+function openUpdate(id: number) {
+  if (!hasPermission("manage_data")) return;
+  updateModal.value = true;
+  selectedID.value = id;
 }
 
-async function handleEmit(type: string, data?: any) {
-  switch (type) {
-    case "completeOperation": {
-      updateModal.value = false;
-      emit("completeOperation");
-      break;
-    }
-    case "deleteCategory": {
-      await deleteConfirmation(data.id, data.display_name, data.deleted_at);
-      break;
-    }
-  }
+function completeOperation() {
+  updateModal.value = false;
+  emit("completeOperation");
 }
 
-function showDeleteButton(data: Category) {
-  switch (data.is_default) {
-    case true: {
-      return !data.deleted_at;
-    }
-    default: {
-      return true;
-    }
-  }
-}
-
-async function deleteConfirmation(
-  id: number,
-  name: string,
-  deleted: Date | null,
-) {
-  confirm.require({
-    header: "Confirm operation",
-    message: `You are about to ${!deleted ? "archive" : "delete"} category: "${name}". ${!deleted ? "" : "This action is irreversible!"}`,
-    rejectProps: { label: "Cancel" },
-    acceptProps: { label: "Continue", severity: "danger" },
-    accept: () => deleteRecord(id),
-  });
-}
-
-async function deleteRecord(id: number) {
-  if (!hasPermission("manage_data")) {
-    toastStore.createInfoToast(
-      "Access denied",
-      "You don't have permission to perform this action.",
-    );
-    return;
-  }
-
-  try {
-    let response = await sharedStore.deleteRecord(
-      "transactions/categories",
-      id,
-    );
-    toastStore.successResponseToast(response);
-    emit("completeDelete");
-  } catch (err) {
-    toastStore.errorResponseToast(err);
-  }
+function completeDelete() {
+  updateModal.value = false;
+  emit("completeDelete");
 }
 </script>
 
@@ -152,7 +94,8 @@ async function deleteRecord(id: number) {
     <CategoryForm
       mode="update"
       :record-id="selectedID"
-      @complete-operation="handleEmit('completeOperation')"
+      @complete-operation="completeOperation"
+      @complete-delete="completeDelete"
     />
   </Dialog>
 
@@ -204,7 +147,12 @@ async function deleteRecord(id: number) {
       :sortable="col.field === 'is_default'"
     >
       <template #body="{ data }">
-        <template v-if="col.field === 'is_default'">
+        <template v-if="col.field === 'display_name'">
+          <span class="hover" @click="openUpdate(data.id!)">
+            {{ data.display_name }}
+          </span>
+        </template>
+        <template v-else-if="col.field === 'is_default'">
           {{ data.is_default ? "Default" : "Custom" }}
         </template>
         <template v-else>
@@ -212,32 +160,15 @@ async function deleteRecord(id: number) {
         </template>
       </template>
     </Column>
-
-    <Column header="Actions">
-      <template #body="{ data }">
-        <div class="flex flex-row items-center gap-2">
-          <i
-            v-if="hasPermission('manage_data')"
-            v-tooltip="'Edit category'"
-            class="pi pi-pen-to-square hover-icon text-xs"
-            @click="openModal('update', data.id!)"
-          />
-          <i
-            v-if="hasPermission('manage_data') && showDeleteButton(data)"
-            v-tooltip="'Delete category'"
-            class="pi pi-trash hover-icon text-xs"
-            style="color: var(--p-red-300)"
-            @click="handleEmit('deleteCategory', data)"
-          />
-          <i
-            v-if="!hasPermission('manage_data')"
-            v-tooltip="'No action currently available.'"
-            class="pi pi-ban hover-icon"
-          />
-        </div>
-      </template>
-    </Column>
   </DataTable>
 </template>
 
-<style scoped></style>
+<style scoped>
+.hover {
+  font-weight: bold;
+}
+.hover:hover {
+  cursor: pointer;
+  text-decoration: underline;
+}
+</style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import type { Category } from "../../../models/transaction_models.ts";
 import { required } from "@regle/rules";
 import { useRegle } from "@regle/core";
@@ -13,6 +13,7 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import searchHelper from "../../../utils/search_helper.ts";
+import { useConfirm } from "primevue/useconfirm";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -21,6 +22,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "completeOperation"): void;
+  (event: "completeDelete"): void;
 }>();
 
 const apiPrefix = "transactions/categories";
@@ -29,6 +31,7 @@ const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const { hasPermission } = usePermissions();
+const confirm = useConfirm();
 
 onMounted(async () => {
   if (props.mode === "update" && props.recordId) {
@@ -154,6 +157,42 @@ const searchClassifications = (event: { query: string }) => {
   );
 };
 
+// Default categories can only be archived; a custom one can be archived, then deleted.
+const canDelete = computed(
+  () =>
+    props.mode === "update" &&
+    (!record.value.is_default || !record.value.deleted_at),
+);
+
+function deleteConfirmation() {
+  const deleted = !!record.value.deleted_at;
+  confirm.require({
+    header: "Confirm operation",
+    message: `You are about to ${!deleted ? "archive" : "delete"} category: "${record.value.display_name}". ${!deleted ? "" : "This action is irreversible!"}`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Continue", severity: "danger" },
+    accept: () => deleteRecord(),
+  });
+}
+
+async function deleteRecord() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    const response = await sharedStore.deleteRecord(apiPrefix, props.recordId!);
+    toastStore.successResponseToast(response);
+    emit("completeDelete");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
 async function restoreCategory() {
   try {
     let response = await transactionStore.restoreCategory(props.recordId!);
@@ -270,7 +309,7 @@ async function restoreCategoryName() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-col w-full">
+      <div class="flex flex-col w-full gap-2">
         <Button
           v-if="!readOnly"
           class="main-button"
@@ -284,6 +323,12 @@ async function restoreCategoryName() {
           class="main-button"
           label="Restore"
           @click="restoreCategory"
+        />
+        <Button
+          v-if="canDelete"
+          :label="(readOnly ? 'Delete' : 'Archive') + ' category'"
+          class="delete-button"
+          @click="deleteConfirmation"
         />
       </div>
     </div>

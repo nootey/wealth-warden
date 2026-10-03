@@ -316,7 +316,7 @@ async function handleEmit(type: string) {
 
     <section class="flex flex-col gap-3 rounded-2xl border border-line p-4">
       <span class="label">Transfers</span>
-      <TransfersPaginated ref="trRef" :acc-i-d="accID" />
+      <TransfersPaginated ref="trRef" :acc-i-d="accID" :read-only="true" />
     </section>
   </div>
   <ShowLoading v-else :num-fields="7" />
