@@ -437,7 +437,7 @@ async function startTransferOperation() {
   if (!isValid) return;
 
   const created_at = dateHelper.mergeDateWithCurrentTime(
-    dayjs(record.value.created_at).format("YYYY-MM-DD"),
+    dayjs(transfer.value.created_at).format("YYYY-MM-DD"),
     userSettings.value?.timezone || "UTC",
   );
 

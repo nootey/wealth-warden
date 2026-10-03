@@ -14,6 +14,7 @@ import BaseForm from "../base/BaseForm.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import searchHelper from "../../../utils/search_helper.ts";
+import { useConfirm } from "primevue/useconfirm";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -23,6 +24,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "completeOperation"): void;
+  (event: "completeDelete"): void;
 }>();
 
 const apiPrefix = "transactions/categories/groups";
@@ -31,6 +33,7 @@ const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 
 const { hasPermission } = usePermissions();
+const confirm = useConfirm();
 
 onMounted(async () => {
   if (props.mode === "update" && props.recordId) {
@@ -172,6 +175,34 @@ async function manageRecord() {
   }
 }
 
+function deleteConfirmation() {
+  confirm.require({
+    header: "Confirm operation",
+    message: `You are about to delete category group: "${record.value.name}". This action is irreversible!`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Continue", severity: "danger" },
+    accept: () => deleteRecord(),
+  });
+}
+
+async function deleteRecord() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    const response = await sharedStore.deleteRecord(apiPrefix, props.recordId!);
+    toastStore.successResponseToast(response);
+    emit("completeDelete");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
 const searchClassifications = (event: { query: string }) => {
   filteredClassifications.value = searchHelper.filterByQuery(
     classifications.value,
@@ -252,13 +283,19 @@ const searchClassifications = (event: { query: string }) => {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-col w-full">
+      <div class="flex flex-col w-full gap-2">
         <Button
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' group'"
           :disabled="submitting"
           :loading="submitting"
           @click="manageRecord"
+        />
+        <Button
+          v-if="mode == 'update'"
+          label="Delete group"
+          class="delete-button"
+          @click="deleteConfirmation"
         />
       </div>
     </div>

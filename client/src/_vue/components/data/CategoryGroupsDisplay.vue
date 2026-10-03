@@ -8,9 +8,6 @@ import LoadingSpinner from "../base/LoadingSpinner.vue";
 import { computed, ref } from "vue";
 import type { Column } from "../../../services/filter_registry.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
-import { useConfirm } from "primevue/useconfirm";
-import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import CategoryGroupForm from "../forms/CategoryGroupForm.vue";
 
 defineProps<{
@@ -23,11 +20,7 @@ const emit = defineEmits<{
   (e: "completeDelete"): void;
 }>();
 
-const toastStore = useToastStore();
-const sharedStore = useSharedStore();
-
 const { hasPermission } = usePermissions();
-const confirm = useConfirm();
 
 const updateModal = ref(false);
 const selectedID = ref<number | null>(null);
@@ -37,60 +30,22 @@ const activeColumns = computed<Column[]>(() => [
   { field: "classification", header: "Classification" },
 ]);
 
-function openModal(type: string, data: any) {
-  switch (type) {
-    case "update": {
-      selectedID.value = data;
-      updateModal.value = true;
-      break;
-    }
-  }
+function openUpdate(id: number) {
+  if (!hasPermission("manage_data")) return;
+  selectedID.value = id;
+  updateModal.value = true;
 }
 
-async function handleEmit(type: string, data?: any) {
-  switch (type) {
-    case "completeOperation": {
-      updateModal.value = false;
-      selectedID.value = null;
-      emit("completeOperation");
-      break;
-    }
-    case "deleteCategoryGroup": {
-      await deleteConfirmation(data.id, data.name);
-      break;
-    }
-  }
+function completeOperation() {
+  updateModal.value = false;
+  selectedID.value = null;
+  emit("completeOperation");
 }
 
-async function deleteConfirmation(id: number, name: string) {
-  confirm.require({
-    header: "Confirm operation",
-    message: `You are about to delete category group: "${name}". 'This action is irreversible!'`,
-    rejectProps: { label: "Cancel" },
-    acceptProps: { label: "Continue", severity: "danger" },
-    accept: () => deleteRecord(id),
-  });
-}
-
-async function deleteRecord(id: number) {
-  if (!hasPermission("manage_data")) {
-    toastStore.createInfoToast(
-      "Access denied",
-      "You don't have permission to perform this action.",
-    );
-    return;
-  }
-
-  try {
-    let response = await sharedStore.deleteRecord(
-      "transactions/categories/groups",
-      id,
-    );
-    toastStore.successResponseToast(response);
-    emit("completeDelete");
-  } catch (err) {
-    toastStore.errorResponseToast(err);
-  }
+function completeDelete() {
+  updateModal.value = false;
+  selectedID.value = null;
+  emit("completeDelete");
 }
 </script>
 
@@ -108,7 +63,8 @@ async function deleteRecord(id: number) {
       mode="update"
       :record-id="selectedID"
       :categories="categories"
-      @complete-operation="handleEmit('completeOperation')"
+      @complete-operation="completeOperation"
+      @complete-delete="completeDelete"
     />
   </Dialog>
 
@@ -137,7 +93,16 @@ async function deleteRecord(id: number) {
       :header="col.header"
     >
       <template #body="{ data }">
-        {{ data[col.field] }}
+        <span
+          v-if="col.field === 'name'"
+          class="hover"
+          @click="openUpdate(data.id!)"
+        >
+          {{ data.name }}
+        </span>
+        <template v-else>
+          {{ data[col.field] }}
+        </template>
       </template>
     </Column>
 
@@ -154,32 +119,15 @@ async function deleteRecord(id: number) {
         </div>
       </template>
     </Column>
-
-    <Column header="Actions">
-      <template #body="{ data }">
-        <div class="flex flex-row items-center gap-2">
-          <i
-            v-if="hasPermission('manage_data')"
-            v-tooltip="'Edit category group'"
-            class="pi pi-pen-to-square hover-icon text-xs"
-            @click="openModal('update', data.id!)"
-          />
-          <i
-            v-if="hasPermission('manage_data')"
-            v-tooltip="'Delete group'"
-            class="pi pi-trash hover-icon text-xs"
-            style="color: var(--p-red-300)"
-            @click="handleEmit('deleteCategoryGroup', data)"
-          />
-          <i
-            v-if="!hasPermission('manage_data')"
-            v-tooltip="'No action currently available.'"
-            class="pi pi-ban hover-icon"
-          />
-        </div>
-      </template>
-    </Column>
   </DataTable>
 </template>
 
-<style scoped></style>
+<style scoped>
+.hover {
+  font-weight: bold;
+}
+.hover:hover {
+  cursor: pointer;
+  text-decoration: underline;
+}
+</style>
