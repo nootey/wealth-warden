@@ -97,6 +97,7 @@ function searchAccount(
     props.accounts,
     event.query ?? "",
     (a) => [a.name],
+    { sort: true },
   );
 
   if (type === "source") {

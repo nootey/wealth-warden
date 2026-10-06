@@ -306,6 +306,7 @@ const searchCategory = (event: { query: string }) => {
     availableCategories.value,
     event.query,
     (record) => [record.display_name, record.name],
+    { sort: true },
   );
 };
 
@@ -314,6 +315,7 @@ const searchAccount = (event: { query: string }) => {
     accounts.value,
     event.query,
     (record) => [record.name],
+    { sort: true },
   );
 };
 
