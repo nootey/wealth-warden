@@ -253,6 +253,7 @@ const searchAccount = (event: { query: string }) => {
     availableAccounts.value,
     event.query,
     (record) => [record.name],
+    { sort: true },
   );
 };
 

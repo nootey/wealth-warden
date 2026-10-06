@@ -286,6 +286,7 @@ const searchCategory = (event: { query: string }) => {
     categories.value,
     event.query,
     (c) => [c.display_name, c.name],
+    { sort: true },
   );
 };
 </script>

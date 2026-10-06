@@ -245,6 +245,7 @@ const searchAsset = (event: { query: string }) => {
     assets.value,
     event.query,
     (record) => [record.name, record.ticker],
+    { sort: true },
   );
 };
 

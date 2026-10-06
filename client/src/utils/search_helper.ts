@@ -22,10 +22,22 @@ const searchHelper = {
     items: T[],
     query: string,
     getFields: (item: T) => unknown[],
+    options: { sort?: boolean } = {},
   ): T[] {
-    if (!normalize(query)) return [...items];
-    return items.filter((item) =>
-      searchHelper.matchesQuery(query, ...getFields(item)),
+    const results = normalize(query)
+      ? items.filter((item) =>
+          searchHelper.matchesQuery(query, ...getFields(item)),
+        )
+      : [...items];
+    if (!options.sort) return results;
+
+    const label = (item: T) =>
+      String(getFields(item).find((f) => f != null && f !== "") ?? "");
+    return results.sort((a, b) =>
+      label(a).localeCompare(label(b), undefined, {
+        sensitivity: "base",
+        numeric: true,
+      }),
     );
   },
 };
