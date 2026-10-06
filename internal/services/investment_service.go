@@ -346,25 +346,76 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	return holdID, nil
 }
 
-func (s *InvestmentService) recordCurrentPrice(ctx context.Context, asset models.InvestmentAsset) {
+func (s *InvestmentService) RecordCurrentPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) error {
 	if s.priceFetchClient == nil {
-		return
+		return nil
 	}
 
-	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
+	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, investmentType)
 	if err != nil {
-		return
+		return fmt.Errorf("ticker %s: %w", ticker, err)
 	}
 
 	price := decimal.NewFromFloat(priceData.Price)
 	asOf := time.Unix(priceData.LastUpdate, 0).UTC().Truncate(24 * time.Hour)
 
-	if err := s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{{Ticker: asset.Ticker, AsOf: asOf, Price: price, Currency: priceData.Currency}}); err != nil {
-		fmt.Printf("warn: failed to upsert ticker price history for %s: %v\n", asset.Ticker, err)
-	}
+	return s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{{Ticker: ticker, AsOf: asOf, Price: price, Currency: priceData.Currency}})
 }
 
 func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID int64, req *models.InvestmentTradeReq) (int64, error) {
+	// Rate lookups can hit the external API, so they run before the tx opens.
+	asset, err := s.repo.FindInvestmentAssetByID(ctx, nil, req.AssetID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAssetNotFound
+		}
+		return 0, err
+	}
+
+	exchangeRate, err := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
+	if err != nil {
+		return 0, err
+	}
+
+	// Validate sell quantity
+	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
+			asset.Ticker,
+			asset.Quantity.String(),
+			req.Quantity.String()))
+	}
+
+	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
+	if err != nil {
+		return 0, err
+	}
+
+	fee := decimal.NewFromFloat(0.00)
+	if req.Fee != nil {
+		fee = *req.Fee
+	}
+
+	effectiveQuantity, valueAtBuy := s.calculateTradeValue(req, asset.InvestmentType, fee)
+	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
+
+	var cashAmount decimal.Decimal
+	if req.TradeType == models.InvestmentBuy {
+		grossCost := valueAtBuy
+		if asset.InvestmentType != models.InvestmentCrypto {
+			grossCost = grossCost.Add(fee)
+		}
+		cashAmount = grossCost
+		if req.Currency != asset.Account.Currency {
+			cashAmount = grossCost.Mul(exchangeRate)
+		}
+	} else {
+		// Sell: cash returns via realized P&L
+		cashAmount, err = s.sellProceeds(ctx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, txnDate, req.Currency)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -375,30 +426,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			panic(p)
 		}
 	}()
-
-	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, req.AssetID, userID)
-	if err != nil {
-		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, ErrAssetNotFound
-		}
-		return 0, err
-	}
-
-	exchangeRate, err := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	// Validate sell quantity
-	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
-		tx.Rollback()
-		return 0, apperr.New(apperr.Validation, fmt.Sprintf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
-			asset.Ticker,
-			asset.Quantity.String(),
-			req.Quantity.String()))
-	}
 
 	// Validate buy affordability — balance already reflects cash only
 	if req.TradeType == models.InvestmentBuy {
@@ -430,20 +457,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 				asset.Account.Currency))
 		}
 	}
-
-	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	fee := decimal.NewFromFloat(0.00)
-	if req.Fee != nil {
-		fee = *req.Fee
-	}
-
-	effectiveQuantity, valueAtBuy := s.calculateTradeValue(req, asset.InvestmentType, fee)
-	s.recordCurrentPrice(ctx, asset)
 
 	// The full req.Quantity leaves holdings on a sell; the fee (in coin units for
 	// crypto) only reduces cash proceeds, it does not stay in the position.
@@ -488,31 +501,10 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-
 	category, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to find uncategorized category: %w", err)
-	}
-
-	var cashAmount decimal.Decimal
-	if req.TradeType == models.InvestmentBuy {
-		grossCost := valueAtBuy
-		if asset.InvestmentType != models.InvestmentCrypto {
-			grossCost = grossCost.Add(fee)
-		}
-		cashAmount = grossCost
-		if req.Currency != asset.Account.Currency {
-			cashAmount = grossCost.Mul(exchangeRate)
-		}
-	} else {
-		// Sell: cash returns via realized P&L
-		cashAmount, err = s.sellProceeds(ctx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, txnDate, req.Currency)
-		if err != nil {
-			tx.Rollback()
-			return 0, err
-		}
 	}
 
 	if err := s.linkTradeTransaction(ctx, tx, userID, txnID, asset, req.TradeType, txnDate, cashAmount, &category.ID); err != nil {
