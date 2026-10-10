@@ -602,7 +602,7 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 	}
 
 	// Get expense categories
-	categoryRows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accountID, year)
+	categoryRows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accountID, year, 12)
 	if err != nil {
 		return nil, err
 	}
@@ -800,7 +800,7 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 		avgOverflow = overflow.Div(decimal.NewFromInt(int64(activeMonths)))
 	}
 
-	rows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year)
+	rows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year, 12)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -1155,9 +1155,30 @@ func (s *AnalyticsService) GetYearlyBreakdownStats(ctx context.Context, accID *i
 		}
 	}
 
+	var categoryChanges *models.CategoryChanges
+	if comparisonStats != nil {
+		throughMonth := min(utils.CalendarMonths(year), utils.CalendarMonths(compareYear))
+
+		currentRows, err := s.repo.FetchYearlyCategoryTotals(ctx, nil, userID, accID, year, throughMonth)
+		if err != nil {
+			return nil, err
+		}
+		comparisonRows, err := s.repo.FetchYearlyCategoryTotals(ctx, nil, userID, accID, compareYear, throughMonth)
+		if err != nil {
+			return nil, err
+		}
+
+		categoryChanges = &models.CategoryChanges{
+			ThroughMonth: throughMonth,
+			Expense:      utils.TopCategoryChanges(currentRows, comparisonRows, false, models.CategoryChangesLimit),
+			Income:       utils.TopCategoryChanges(currentRows, comparisonRows, true, models.CategoryChangesLimit),
+		}
+	}
+
 	return &models.YearlyBreakdownStats{
-		CurrentYear:    currentStats,
-		ComparisonYear: comparisonStats,
+		CurrentYear:     currentStats,
+		ComparisonYear:  comparisonStats,
+		CategoryChanges: categoryChanges,
 	}, nil
 }
 

@@ -7,6 +7,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const CategoryChangesLimit = 5
+
 type ChartPoint struct {
 	Date  time.Time       `json:"date"`
 	Value decimal.Decimal `json:"value"`
@@ -204,8 +206,24 @@ type TodayStats struct {
 }
 
 type YearlyBreakdownStats struct {
-	CurrentYear    *YearStatsWithAllocations `json:"current_year"`
-	ComparisonYear *YearStatsWithAllocations `json:"comparison_year,omitempty"`
+	CurrentYear     *YearStatsWithAllocations `json:"current_year"`
+	ComparisonYear  *YearStatsWithAllocations `json:"comparison_year,omitempty"`
+	CategoryChanges *CategoryChanges          `json:"category_changes,omitempty"`
+}
+
+type CategoryChanges struct {
+	ThroughMonth int              `json:"through_month"`
+	Expense      []CategoryChange `json:"expense"`
+	Income       []CategoryChange `json:"income"`
+}
+
+type CategoryChange struct {
+	CategoryID int64           `json:"category_id"`
+	Category   string          `json:"category"`
+	Current    decimal.Decimal `json:"current"`
+	Comparison decimal.Decimal `json:"comparison"`
+	Change     decimal.Decimal `json:"change"`
+	ChangePct  *float64        `json:"change_pct,omitempty"`
 }
 
 type YearStatsWithAllocations struct {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"time"
+	"wealth-warden/internal/models"
 
 	"github.com/shopspring/decimal"
 )
@@ -66,6 +67,62 @@ func CalendarMonths(year int) int {
 		return 12
 	}
 	return int(now.Month())
+}
+
+func TopCategoryChanges(current, comparison []models.YearlyCategoryRow, income bool, limit int) []models.CategoryChange {
+	byID := make(map[int64]*models.CategoryChange)
+	collect := func(rows []models.YearlyCategoryRow, isCurrent bool) {
+		for _, r := range rows {
+			text := r.OutflowText
+			if income {
+				text = r.InflowText
+			}
+			amount, _ := decimal.NewFromString(text)
+
+			c, ok := byID[r.CategoryID]
+			if !ok {
+				name := "Uncategorized"
+				if r.DisplayName != nil {
+					name = *r.DisplayName
+				}
+				c = &models.CategoryChange{CategoryID: r.CategoryID, Category: name}
+				byID[r.CategoryID] = c
+			}
+			if isCurrent {
+				c.Current = amount.Abs()
+			} else {
+				c.Comparison = amount.Abs()
+			}
+		}
+	}
+	collect(current, true)
+	collect(comparison, false)
+
+	out := make([]models.CategoryChange, 0, len(byID))
+	for _, c := range byID {
+		c.Change = c.Current.Sub(c.Comparison)
+		if c.Change.IsZero() {
+			continue
+		}
+		if !c.Comparison.IsZero() {
+			pct := c.Change.Div(c.Comparison).InexactFloat64() * 100.0
+			c.ChangePct = &pct
+		}
+		out = append(out, *c)
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		ai, aj := out[i].Change.Abs(), out[j].Change.Abs()
+		if !ai.Equal(aj) {
+			return ai.GreaterThan(aj)
+		}
+		return out[i].CategoryID < out[j].CategoryID
+	})
+
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out
 }
 
 func YearStrings(years []int) []string {

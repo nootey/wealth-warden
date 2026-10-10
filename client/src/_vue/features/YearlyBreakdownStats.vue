@@ -36,6 +36,24 @@ const comparisonYearOptions = computed(() => {
   return years.value.filter((y) => y !== selectedYear.value);
 });
 
+const changeClass = ref<"expense" | "income">("expense");
+const changeClassOptions = [
+  { label: "Expenses", value: "expense" },
+  { label: "Income", value: "income" },
+];
+
+const categoryChanges = computed(
+  () => breakdownStats.value?.category_changes?.[changeClass.value] ?? [],
+);
+
+const changesPeriod = computed(() => {
+  const month = breakdownStats.value?.category_changes?.through_month ?? 12;
+  if (month >= 12) return "";
+  const name = (m: number) =>
+    new Date(2000, m - 1).toLocaleString("default", { month: "short" });
+  return month === 1 ? name(1) : `${name(1)}–${name(month)}`;
+});
+
 onMounted(async () => {
   try {
     if (!props.accID) {
@@ -155,6 +173,12 @@ const calcRateDiff = (current: number, comparison: number) => {
 const getDiffColor = (diff: number) => {
   if (diff === 0) return colors.value.dim;
   return diff > 0 ? colors.value.pos : colors.value.neg;
+};
+
+const formatChangePct = (pct?: number | null) => {
+  if (pct === null || pct === undefined) return "new";
+  const rounded = Math.round(pct);
+  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
 };
 </script>
 
@@ -1349,6 +1373,66 @@ const getDiffColor = (diff: number) => {
         </span>
       </div>
     </div>
+
+    <div
+      v-if="!isLoading && breakdownStats.category_changes"
+      class="flex flex-col gap-2 p-3"
+      style="background: var(--surface-50); border-radius: 8px"
+    >
+      <div
+        id="changes-header"
+        class="flex flex-row flex-wrap gap-2 justify-between items-center"
+      >
+        <span
+          class="font-semibold text-sm"
+          style="color: var(--text-secondary)"
+        >
+          Biggest changes vs {{ breakdownStats.comparison_year?.year }}
+          <template v-if="changesPeriod">({{ changesPeriod }})</template>
+        </span>
+        <SelectButton
+          v-model="changeClass"
+          style="font-size: 0.875rem"
+          size="small"
+          :options="changeClassOptions"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+        />
+      </div>
+
+      <div
+        v-for="item in categoryChanges"
+        :key="item.category_id"
+        class="flex flex-row gap-2 justify-between mobile-small"
+      >
+        <span class="truncate">{{ item.category }}</span>
+        <div
+          class="flex flex-row gap-2 items-center shrink-0"
+          :style="{
+            color: getDiffColor(
+              changeClass === 'expense'
+                ? -Number(item.change)
+                : Number(item.change),
+            ),
+          }"
+        >
+          <b
+            >{{ Number(item.change) >= 0 ? "+" : ""
+            }}{{ vueHelper.displayAsCurrency(item.change) }}</b
+          >
+          <span class="text-xs">({{ formatChangePct(item.change_pct) }})</span>
+        </div>
+      </div>
+
+      <span
+        v-if="!categoryChanges.length"
+        class="text-sm"
+        style="color: var(--text-secondary)"
+      >
+        No category changes between these years.
+      </span>
+    </div>
   </div>
   <ShowLoading v-else :num-fields="5" />
 </template>
@@ -1375,6 +1459,13 @@ const getDiffColor = (diff: number) => {
 
   #wide {
     width: 100% !important;
+  }
+
+  #changes-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
   }
 
   #year-row {

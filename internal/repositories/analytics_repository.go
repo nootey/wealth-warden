@@ -19,7 +19,7 @@ type AnalyticsRepositoryInterface interface {
 	FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error)
-	FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.YearlyCategoryRow, error)
+	FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year, throughMonth int) ([]models.YearlyCategoryRow, error)
 	FetchMonthlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int, month int) ([]models.YearlyCategoryRow, error)
 	FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error)
 	FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error)
@@ -247,7 +247,7 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 	return row, nil
 }
 
-func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.YearlyCategoryRow, error) {
+func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year, throughMonth int) ([]models.YearlyCategoryRow, error) {
 
 	db := tx
 	if db == nil {
@@ -276,12 +276,12 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		  WHERE t.user_id = $1
 		    AND t.account_id = $2
 		    AND t.transaction_type = 'ledger'
-		    AND t.txn_date >= make_date($3,1,1) AND t.txn_date < make_date($3+1,1,1)
+		    AND t.txn_date >= make_date($3,1,1) AND t.txn_date < make_date($3,$4,1) + INTERVAL '1 month'
 		    AND t.deleted_at IS NULL
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST
 		`
-		if err := db.Raw(sql, userID, *accountID, year).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, userID, *accountID, year, throughMonth).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 	} else {
@@ -303,12 +303,12 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		  LEFT JOIN categories c ON c.id = t.category_id
 		  WHERE t.user_id = $1
 		    AND t.transaction_type = 'ledger'
-		    AND t.txn_date >= make_date($2,1,1) AND t.txn_date < make_date($2+1,1,1)
+		    AND t.txn_date >= make_date($2,1,1) AND t.txn_date < make_date($2,$3,1) + INTERVAL '1 month'
 		    AND t.deleted_at IS NULL
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST
 		`
-		if err := db.Raw(sql, userID, year).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, userID, year, throughMonth).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 	}
