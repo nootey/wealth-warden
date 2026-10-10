@@ -784,9 +784,6 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 	takeHome := takeHomeYear
 	overflow := overflowYear
 
-	avgTakeHome := takeHome.Div(decimal.NewFromInt(12))
-	avgOverflow := overflow.Div(decimal.NewFromInt(12))
-
 	activeMonths := tot.ActiveMonths
 	if activeMonths < 1 {
 		activeMonths = 0
@@ -794,9 +791,13 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 
 	avgIn := decimal.Zero
 	avgOut := decimal.Zero
+	avgTakeHome := decimal.Zero
+	avgOverflow := decimal.Zero
 	if activeMonths > 0 {
 		avgIn = inflow.Div(decimal.NewFromInt(int64(activeMonths)))
 		avgOut = outflow.Div(decimal.NewFromInt(int64(activeMonths)))
+		avgTakeHome = takeHome.Div(decimal.NewFromInt(int64(activeMonths)))
+		avgOverflow = overflow.Div(decimal.NewFromInt(int64(activeMonths)))
 	}
 
 	rows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year)
@@ -1299,13 +1300,13 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		debtPct = debtAllocated.Div(inflow).InexactFloat64() * 100.0
 	}
 
-	avgTakeHome := takeHomeYear.Div(decimal.NewFromInt(12))
-	avgOverflow := overflowYear.Div(decimal.NewFromInt(12))
-
 	divisor := int64(12)
 	if year == time.Now().Year() {
 		divisor = int64(time.Now().Month())
 	}
+
+	avgTakeHome := takeHomeYear.Div(decimal.NewFromInt(divisor))
+	avgOverflow := overflowYear.Div(decimal.NewFromInt(divisor))
 
 	avgIn := decimal.Zero
 	avgOut := decimal.Zero
