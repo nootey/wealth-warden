@@ -246,7 +246,7 @@ type YearAccountQuery struct {
 
 type CategoryBreakdownQuery struct {
 	Year     int    `form:"year" validate:"required_without=Years,omitempty,min=1900,max=3000"`
-	Years    []int  `form:"years" collection_format:"csv" validate:"max=5"`
+	Years    []int  `form:"years" collection_format:"csv" validate:"max=6"`
 	Account  *int64 `form:"account"`
 	Category *int64 `form:"category"`
 	Class    string `form:"class,default=expense"`

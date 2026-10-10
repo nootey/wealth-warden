@@ -30,7 +30,7 @@ const accStore = useAccountStore();
 
 const allYears = ref<number[]>([]);
 const selectedYears = ref<number[]>([]);
-const maxYears = 5;
+const maxYears = 6;
 
 const series = ref<{ name: string; data: number[] }[]>([]);
 const stats = ref<YearlyCategoryStats | null>(null);

@@ -136,7 +136,7 @@ async function backfillBalances() {
         <Panel :collapsed="false" header="Overview by category" toggleable>
           <p class="text-sm text-muted m-0 pb-2 max-w-3xl">
             Compare how your money moves across years and categories. Compare up
-            to 5 years at a time, and filter by any income or expense category.
+            to 6 years at a time, and filter by any income or expense category.
             Totals and averages over time include all of your data.
           </p>
 
