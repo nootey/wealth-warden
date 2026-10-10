@@ -310,6 +310,7 @@ watch(
     <div class="flex flex-row w-full justify-center items-center">
       <CategoryBreakdownChart
         v-if="hasAnyData"
+        class="min-w-0"
         :series="series"
         :is-mobile="isMobile"
       />

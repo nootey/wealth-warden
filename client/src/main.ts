@@ -160,6 +160,7 @@ app.use(PrimeVue, {
     panel: {
       root: { class: "rounded-2xl" },
       title: { class: "text-lg tracking-tight" },
+      contentWrapper: { class: "min-w-0" },
     },
     dialog: {
       title: { class: "tracking-tight" },
