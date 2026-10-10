@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import type { Account } from "../../../models/account_models.ts";
@@ -39,6 +39,79 @@ const seriesOptions = [
 ];
 
 const isLoadingStats = ref(true);
+
+const totals = computed(() => {
+  let inflows = 0;
+  let outflows = 0;
+  let savedInvested = 0;
+  let takeHome = 0;
+  let activeMonths = 0;
+  let overflowMonths = 0;
+
+  for (const { categories: c } of cashFlow.value.months) {
+    const monthIn = Number(c.inflows);
+    const monthOut = Math.abs(Number(c.outflows));
+    const overflow = Number(c.overflow ?? 0);
+
+    inflows += monthIn;
+    outflows += monthOut;
+    savedInvested += Number(c.savings) + Number(c.investments);
+    takeHome += Number(c.take_home) + overflow;
+    if (monthIn !== 0 || monthOut !== 0) activeMonths++;
+    if (overflow < 0) overflowMonths++;
+  }
+
+  const avgIn = activeMonths ? inflows / activeMonths : 0;
+  const avgOut = activeMonths ? outflows / activeMonths : 0;
+
+  return {
+    inflows,
+    outflows,
+    savedInvested,
+    takeHome,
+    avgIn,
+    avgOut,
+    overflowMonths,
+  };
+});
+
+const hasTotals = computed(
+  () => totals.value.inflows !== 0 || totals.value.outflows !== 0,
+);
+
+const statTiles = computed(() => {
+  const t = totals.value;
+  return [
+    {
+      label: "Inflows",
+      value: t.inflows,
+      tone: "text-gain",
+      hint: `avg. ${vueHelper.displayAsCurrency(t.avgIn)} / month`,
+    },
+    {
+      label: "Outflows",
+      value: t.outflows,
+      tone: "text-loss",
+      hint: `avg. ${vueHelper.displayAsCurrency(t.avgOut)} / month`,
+    },
+    {
+      label: "Saved & invested",
+      value: t.savedInvested,
+      tone: "text-ink",
+      hint: t.inflows
+        ? `${vueHelper.displayAsPercentage(t.savedInvested / t.inflows)} of inflows`
+        : "No inflows",
+    },
+    {
+      label: "Take home",
+      value: t.takeHome,
+      tone: t.takeHome < 0 ? "text-loss" : "text-gain",
+      hint: t.overflowMonths
+        ? `${t.overflowMonths} ${t.overflowMonths === 1 ? "month" : "months"} in overflow`
+        : "No overflow months",
+    },
+  ];
+});
 
 async function getData(year: number | null, account: number | null = null) {
   isLoadingStats.value = true;
@@ -185,13 +258,27 @@ watch(
       title="No transactions yet."
       description="Add income and expenses to a checking account to see your cash flow."
     />
-    <YearlyCashFlowBreakdownChart
-      v-else-if="cashFlow.months.length > 0"
-      :key="`chart-${selectedYear}-${selectedAccountID ?? 'all'}-${cashFlow.months.length}`"
-      :is-mobile="isMobile"
-      :data="cashFlow"
-      :selected-series="selectedSeries"
-    />
+    <template v-else-if="cashFlow.months.length > 0">
+      <div v-if="hasTotals" id="yearly-stats" class="grid grid-cols-4 gap-3">
+        <div
+          v-for="tile in statTiles"
+          :key="tile.label"
+          class="flex flex-col gap-1.5 rounded-xl bg-sunken px-4 py-3.5 min-w-0"
+        >
+          <span class="text-xs text-muted leading-snug">{{ tile.label }}</span>
+          <span class="text-base font-medium truncate" :class="tile.tone">
+            {{ vueHelper.displayAsCurrency(tile.value) }}
+          </span>
+          <span class="text-xs text-muted truncate">{{ tile.hint }}</span>
+        </div>
+      </div>
+      <YearlyCashFlowBreakdownChart
+        :key="`chart-${selectedYear}-${selectedAccountID ?? 'all'}-${cashFlow.months.length}`"
+        :is-mobile="isMobile"
+        :data="cashFlow"
+        :selected-series="selectedSeries"
+      />
+    </template>
     <EmptyState
       v-else
       icon="pi pi-chart-bar"
@@ -210,6 +297,10 @@ watch(
   #selects-row > * {
     flex: 1 1 calc(50% - 4px);
     width: auto !important;
+  }
+
+  #yearly-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
