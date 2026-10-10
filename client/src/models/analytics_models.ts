@@ -85,6 +85,22 @@ export interface YearStatsWithAllocations {
 export interface YearlyBreakdownStats {
   current_year: YearStatsWithAllocations;
   comparison_year?: YearStatsWithAllocations | null;
+  category_changes?: CategoryChanges | null;
+}
+
+export interface CategoryChange {
+  category_id: number;
+  category: string;
+  current: string;
+  comparison: string;
+  change: string;
+  change_pct?: number | null;
+}
+
+export interface CategoryChanges {
+  through_month: number;
+  expense: CategoryChange[];
+  income: CategoryChange[];
 }
 
 export type ChartPoint = {

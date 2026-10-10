@@ -2,6 +2,7 @@ package utils_test
 
 import (
 	"testing"
+	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -110,5 +111,75 @@ func TestCalendarMonths_PastYear(t *testing.T) {
 func TestCalendarMonths_FutureYear(t *testing.T) {
 	if got := utils.CalendarMonths(9999); got != 12 {
 		t.Errorf("CalendarMonths(9999) = %d, want 12", got)
+	}
+}
+
+func catRow(id int64, name, inflow, outflow string) models.YearlyCategoryRow {
+	return models.YearlyCategoryRow{CategoryID: id, DisplayName: &name, InflowText: inflow, OutflowText: outflow}
+}
+
+func TestTopCategoryChanges_RanksExpensesByAbsoluteChange(t *testing.T) {
+	current := []models.YearlyCategoryRow{
+		catRow(1, "Groceries", "0", "-4660.00"),
+		catRow(2, "Travel", "0", "-1140.00"),
+		catRow(3, "Car", "0", "-420.00"),
+		catRow(4, "Rent", "0", "-9000.00"),
+	}
+	comparison := []models.YearlyCategoryRow{
+		catRow(1, "Groceries", "0", "-3820.00"),
+		catRow(2, "Travel", "0", "-1750.00"),
+		catRow(4, "Rent", "0", "-9000.00"),
+	}
+
+	got := utils.TopCategoryChanges(current, comparison, false, 5)
+
+	if len(got) != 3 {
+		t.Fatalf("len = %d, want 3 (unchanged Rent is skipped)", len(got))
+	}
+	wantOrder := []string{"Groceries", "Travel", "Car"}
+	wantChange := []string{"840", "-610", "420"}
+	for i := range wantOrder {
+		if got[i].Category != wantOrder[i] {
+			t.Errorf("got[%d].Category = %q, want %q", i, got[i].Category, wantOrder[i])
+		}
+		if !got[i].Change.Equal(decimal.RequireFromString(wantChange[i])) {
+			t.Errorf("got[%d].Change = %s, want %s", i, got[i].Change, wantChange[i])
+		}
+	}
+	if got[0].ChangePct == nil || *got[0].ChangePct < 21.98 || *got[0].ChangePct > 21.99 {
+		t.Errorf("Groceries ChangePct = %v, want ~21.99", got[0].ChangePct)
+	}
+	if got[2].ChangePct != nil {
+		t.Errorf("Car ChangePct = %v, want nil for a new category", *got[2].ChangePct)
+	}
+}
+
+func TestTopCategoryChanges_IncomeUsesInflowsAndLimit(t *testing.T) {
+	current := []models.YearlyCategoryRow{
+		catRow(1, "Salary", "30000.00", "0"),
+		catRow(2, "Bonus", "500.00", "0"),
+		catRow(3, "Refunds", "100.00", "-50.00"),
+	}
+	comparison := []models.YearlyCategoryRow{
+		catRow(1, "Salary", "28000.00", "0"),
+	}
+
+	got := utils.TopCategoryChanges(current, comparison, true, 2)
+
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2", len(got))
+	}
+	if got[0].Category != "Salary" || got[1].Category != "Bonus" {
+		t.Errorf("order = [%s, %s], want [Salary, Bonus]", got[0].Category, got[1].Category)
+	}
+}
+
+func TestTopCategoryChanges_NilNameIsUncategorized(t *testing.T) {
+	current := []models.YearlyCategoryRow{{CategoryID: 0, InflowText: "0", OutflowText: "-10.00"}}
+
+	got := utils.TopCategoryChanges(current, nil, false, 5)
+
+	if len(got) != 1 || got[0].Category != "Uncategorized" {
+		t.Errorf("got %+v, want one Uncategorized change", got)
 	}
 }

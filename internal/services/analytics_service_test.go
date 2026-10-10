@@ -266,3 +266,40 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_AveragesTakeHome
 	cur := res.CurrentYear
 	s.Assert().True(cur.AvgMonthlyTakeHome.Equal(cur.AvgMonthlyInflow), "take home %s, inflow %s", cur.AvgMonthlyTakeHome, cur.AvgMonthlyInflow)
 }
+
+func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_CategoryChangesCapBothYearsAtCurrentMonth() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	lastYear := today.Year() - 1
+	accID := s.checkingWithIncome(userID, 1000, time.Date(lastYear, 1, 10, 0, 0, 0, 0, time.UTC))
+
+	for amount, date := range map[int64]time.Time{
+		5000: time.Date(lastYear, 12, 10, 0, 0, 0, 0, time.UTC),
+		1200: today,
+	} {
+		_, err := s.TC.App.TransactionService.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accID,
+			Direction: "income",
+			Amount:    decimal.NewFromInt(amount),
+			TxnDate:   date,
+		})
+		s.Require().NoError(err)
+	}
+
+	res, err := svc.GetYearlyBreakdownStats(s.Ctx, &accID, userID, today.Year(), nil)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res.CategoryChanges)
+	s.Assert().Equal(int(today.Month()), res.CategoryChanges.ThroughMonth)
+	s.Assert().Empty(res.CategoryChanges.Expense)
+	s.Require().Len(res.CategoryChanges.Income, 1)
+
+	wantComparison := decimal.NewFromInt(1000)
+	if today.Month() == time.December {
+		wantComparison = decimal.NewFromInt(6000)
+	}
+	inc := res.CategoryChanges.Income[0]
+	s.Assert().True(inc.Current.Equal(decimal.NewFromInt(1200)), "current %s", inc.Current)
+	s.Assert().True(inc.Comparison.Equal(wantComparison), "comparison %s", inc.Comparison)
+}
