@@ -183,3 +183,33 @@ func TestTopCategoryChanges_NilNameIsUncategorized(t *testing.T) {
 		t.Errorf("got %+v, want one Uncategorized change", got)
 	}
 }
+
+func TestSplitByNecessity_SumsOutflowsPerBucket(t *testing.T) {
+	need, want := models.CategoryNecessityNeed, models.CategoryNecessityWant
+	rows := []models.YearlyCategoryRow{
+		{CategoryID: 1, Necessity: &need, InflowText: "0", OutflowText: "-600.00"},
+		{CategoryID: 2, Necessity: &want, InflowText: "0", OutflowText: "-300.00"},
+		{CategoryID: 3, InflowText: "0", OutflowText: "-100.00"},
+		{CategoryID: 4, Necessity: &want, InflowText: "500.00", OutflowText: "0"},
+	}
+
+	got := utils.SplitByNecessity(rows)
+
+	if !got.Needs.Equal(d(600)) || !got.Wants.Equal(d(300)) || !got.Other.Equal(d(100)) {
+		t.Errorf("got needs %s, wants %s, other %s; want 600, 300, 100", got.Needs, got.Wants, got.Other)
+	}
+	if got.NeedsPct != 60 || got.WantsPct != 30 || got.OtherPct != 10 {
+		t.Errorf("got pcts %v, %v, %v; want 60, 30, 10", got.NeedsPct, got.WantsPct, got.OtherPct)
+	}
+}
+
+func TestSplitByNecessity_NoOutflows(t *testing.T) {
+	got := utils.SplitByNecessity(nil)
+
+	if !got.Needs.IsZero() || !got.Wants.IsZero() || !got.Other.IsZero() {
+		t.Errorf("got %+v, want all zero amounts", got)
+	}
+	if got.NeedsPct != 0 || got.WantsPct != 0 || got.OtherPct != 0 {
+		t.Errorf("got %+v, want all zero percentages", got)
+	}
+}

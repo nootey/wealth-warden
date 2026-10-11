@@ -860,6 +860,7 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 		AvgMonthlyTakeHome: avgTakeHome,
 		AvgMonthlyOverflow: avgOverflow,
 		ActiveMonths:       activeMonths,
+		Necessity:          utils.SplitByNecessity(rows),
 		Categories:         cats,
 		GeneratedAt:        time.Now().UTC(),
 	}, nil
@@ -1038,6 +1039,7 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		SavingsRate:       savingsRate,
 		InvestRate:        investRate,
 		DebtRepaymentRate: repaymentRate,
+		Necessity:         utils.SplitByNecessity(categoryRows),
 		GeneratedAt:       time.Now().UTC(),
 		Categories:        cats,
 	}, nil
@@ -1338,6 +1340,12 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		avgOut = outflow.Div(decimal.NewFromInt(divisor))
 	}
 
+	categoryRows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year, 12)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
@@ -1359,6 +1367,7 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		SavingsPct:          savingsPct,
 		InvestmentPct:       investmentPct,
 		DebtPct:             debtPct,
+		Necessity:           utils.SplitByNecessity(categoryRows),
 	}, nil
 }
 

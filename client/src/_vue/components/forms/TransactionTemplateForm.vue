@@ -215,6 +215,7 @@ function initData(): TransactionTemplate {
       name: "",
       display_name: "",
       classification: "",
+      necessity: null,
       is_default: true,
       parent_id: null,
       deleted_at: null,

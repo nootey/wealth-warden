@@ -3,7 +3,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import type { Category } from "../../../models/transaction_models.ts";
-import { required } from "@regle/rules";
+import { required, requiredIf } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -49,9 +49,17 @@ const record = ref<Category>(initData());
 const classifications = ref<string[]>(["income", "expense"]);
 const filteredClassifications = ref<string[]>([]);
 
+const necessities = [
+  { label: "Need", value: "need" },
+  { label: "Want", value: "want" },
+];
+
+const isExpense = computed(() => record.value.classification === "expense");
+
 const rules = {
   display_name: { required },
   classification: { required },
+  necessity: { required: requiredIf(() => isExpense.value) },
 };
 
 const { r$ } = useRegle(record, rules);
@@ -62,6 +70,7 @@ function initData(): Category {
     name: "",
     display_name: "",
     classification: "",
+    necessity: "want",
     parent_id: null,
     is_default: false,
     deleted_at: null,
@@ -80,6 +89,7 @@ async function loadRecord(id: number) {
     record.value = {
       ...initData(),
       ...data,
+      necessity: data?.necessity ?? "want",
     };
 
     await nextTick();
@@ -117,6 +127,7 @@ async function manageRecord() {
   const recordData: any = {
     display_name: record.value.display_name,
     classification: record.value.classification,
+    necessity: isExpense.value ? record.value.necessity : null,
   };
 
   submitting.value = true;
@@ -285,6 +296,26 @@ async function restoreCategoryName() {
             placeholder="Select classification"
             dropdown
             @complete="searchClassifications"
+          />
+        </div>
+      </div>
+
+      <div v-if="isExpense" class="flex flex-row w-full">
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="r$.necessity.$errors[0]"
+          >
+            <label>Necessity</label>
+          </ValidationError>
+          <SelectButton
+            v-model="record.necessity"
+            size="small"
+            :options="necessities"
+            option-label="label"
+            option-value="value"
+            :allow-empty="false"
+            :disabled="readOnly"
           />
         </div>
       </div>

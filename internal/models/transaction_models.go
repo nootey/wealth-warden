@@ -1,6 +1,7 @@
 package models
 
 import (
+	"slices"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -13,6 +14,7 @@ var (
 type TransactionType string
 type TransactionDirection string
 type BulkTransactionAction string
+type CategoryNecessity string
 
 const (
 	TxnTypeLedger           TransactionType = "ledger"            // Standard type
@@ -28,6 +30,9 @@ const (
 	BulkActionSetCategory    BulkTransactionAction = "set_category"
 	BulkActionSetDescription BulkTransactionAction = "set_description"
 	BulkActionDelete         BulkTransactionAction = "delete"
+
+	CategoryNecessityNeed CategoryNecessity = "need"
+	CategoryNecessityWant CategoryNecessity = "want"
 )
 
 func (d TransactionDirection) IsValid() bool {
@@ -43,6 +48,26 @@ func DirectionForClassification(classification string) (TransactionDirection, bo
 	default:
 		return "", false
 	}
+}
+
+func NecessityForClassification(classification string, preferred ...*CategoryNecessity) *CategoryNecessity {
+	if classification != "expense" {
+		return nil
+	}
+	for _, n := range preferred {
+		if n != nil {
+			return n
+		}
+	}
+	n := CategoryNecessityWant
+	return &n
+}
+
+func (n *CategoryNecessity) String() string {
+	if n == nil {
+		return ""
+	}
+	return string(*n)
 }
 
 func (t TransactionType) IsUserEditable() bool {
@@ -161,17 +186,18 @@ type TransactionTemplate struct {
 }
 
 type Category struct {
-	ID             int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID         *int64     `gorm:"index:idx_categories_user_class" json:"user_id"`
-	Name           string     `gorm:"type:varchar(100);not null" json:"name"`
-	DisplayName    string     `gorm:"type:varchar(100);not null" json:"display_name"`
-	Classification string     `gorm:"not null;default:'expense';index:idx_categories_user_class" json:"classification"`
-	ParentID       *int64     `gorm:"index" json:"parent_id,omitempty"`
-	IsDefault      bool       `json:"is_default"`
-	ImportID       *int64     `json:"import_id,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	DeletedAt      *time.Time `json:"deleted_at"`
+	ID             int64              `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         *int64             `gorm:"index:idx_categories_user_class" json:"user_id"`
+	Name           string             `gorm:"type:varchar(100);not null" json:"name"`
+	DisplayName    string             `gorm:"type:varchar(100);not null" json:"display_name"`
+	Classification string             `gorm:"not null;default:'expense';index:idx_categories_user_class" json:"classification"`
+	Necessity      *CategoryNecessity `gorm:"type:category_necessity" json:"necessity"`
+	ParentID       *int64             `gorm:"index" json:"parent_id,omitempty"`
+	IsDefault      bool               `json:"is_default"`
+	ImportID       *int64             `json:"import_id,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	DeletedAt      *time.Time         `json:"deleted_at"`
 }
 
 type CategoryGroup struct {
@@ -198,6 +224,15 @@ type DefaultCategoryDef struct {
 	Name           string
 	Classification string
 	Children       []string
+	Needs          []string
+}
+
+func (d DefaultCategoryDef) ChildNecessity(name string) *CategoryNecessity {
+	if !slices.Contains(d.Needs, name) {
+		return nil
+	}
+	n := CategoryNecessityNeed
+	return &n
 }
 
 var DefaultCategories = []DefaultCategoryDef{
@@ -221,6 +256,7 @@ var DefaultCategories = []DefaultCategoryDef{
 		Classification: "expense",
 		Children: []string{"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
 			"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other"},
+		Needs: []string{"Health", "Hygiene", "Food", "Rent", "Utilities"},
 	},
 }
 
@@ -293,8 +329,9 @@ type RenameTemplateReq struct {
 }
 
 type CategoryReq struct {
-	DisplayName    string `json:"display_name" validate:"required"`
-	Classification string `json:"classification" validate:"required"`
+	DisplayName    string             `json:"display_name" validate:"required"`
+	Classification string             `json:"classification" validate:"required"`
+	Necessity      *CategoryNecessity `json:"necessity" validate:"omitempty,oneof=need want"`
 }
 
 type CategoryGroupReq struct {

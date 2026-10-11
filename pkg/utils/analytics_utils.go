@@ -125,6 +125,30 @@ func TopCategoryChanges(current, comparison []models.YearlyCategoryRow, income b
 	return out
 }
 
+func SplitByNecessity(rows []models.YearlyCategoryRow) models.NecessitySplit {
+	var split models.NecessitySplit
+	for _, r := range rows {
+		amount, _ := decimal.NewFromString(r.OutflowText)
+		amount = amount.Abs()
+		switch {
+		case r.Necessity == nil:
+			split.Other = split.Other.Add(amount)
+		case *r.Necessity == models.CategoryNecessityNeed:
+			split.Needs = split.Needs.Add(amount)
+		default:
+			split.Wants = split.Wants.Add(amount)
+		}
+	}
+
+	total := split.Needs.Add(split.Wants).Add(split.Other)
+	if !total.IsZero() {
+		split.NeedsPct = split.Needs.Div(total).InexactFloat64() * 100.0
+		split.WantsPct = split.Wants.Div(total).InexactFloat64() * 100.0
+		split.OtherPct = split.Other.Div(total).InexactFloat64() * 100.0
+	}
+	return split
+}
+
 func YearStrings(years []int) []string {
 	out := make([]string, len(years))
 	for i, y := range years {

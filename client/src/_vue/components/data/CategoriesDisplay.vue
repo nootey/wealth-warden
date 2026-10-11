@@ -62,6 +62,7 @@ const categoryColumns = computed<Column[]>(() => [
   { field: "display_name", header: "Name" },
   { field: "is_default", header: "Type" },
   { field: "classification", header: "Classification" },
+  { field: "necessity", header: "Necessity" },
 ]);
 
 function openUpdate(id: number) {
@@ -108,8 +109,6 @@ function completeDelete() {
     :rows-per-page-options="[10, 25]"
     scrollable
     scroll-height="75vh"
-    row-group-mode="subheader"
-    group-rows-by="classification"
     :row-class="vueHelper.deletedRowClass"
   >
     <template #empty>
@@ -131,20 +130,14 @@ function completeDelete() {
       <LoadingSpinner />
     </template>
 
-    <template #groupheader="slotProps">
-      <div class="flex items-center gap-2">
-        <span class="font-bold text-lg">{{
-          vueHelper.capitalize(slotProps.data.classification)
-        }}</span>
-      </div>
-    </template>
-
     <Column
       v-for="col of categoryColumns"
       :key="col.field"
       :field="col.field"
       :header="col.header"
-      :sortable="col.field === 'is_default'"
+      :sortable="
+        ['is_default', 'classification', 'necessity'].includes(col.field)
+      "
     >
       <template #body="{ data }">
         <template v-if="col.field === 'display_name'">

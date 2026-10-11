@@ -290,6 +290,29 @@ func (s *ImportServiceSuite) TestImportCategoriesSkipsDuplicateNameAndClassifica
 	s.Equal(int64(1), utilCount, "the new category must still be created")
 }
 
+func (s *ImportServiceSuite) TestImportCategoriesKeepsNecessity() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	need, want := models.CategoryNecessityNeed, models.CategoryNecessityWant
+	payload := models.CategoryImportPayload{
+		GeneratedAt: time.Now().UTC(),
+		Categories: []models.CategoryExport{
+			{Name: "pharmacy", DisplayName: "Pharmacy", Classification: "expense", Necessity: &need},
+			{Name: "concerts", DisplayName: "Concerts", Classification: "expense"},
+		},
+	}
+
+	catImpID, err := s.TC.App.ImportService.ImportCategories(s.Ctx, seedUserID, payload)
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportCategories(s.Ctx, seedUserID, catImpID))
+
+	var pharmacy, concerts models.Category
+	s.Require().NoError(s.TC.DB.Where("user_id = ? AND name = ?", seedUserID, "pharmacy").First(&pharmacy).Error)
+	s.Require().NoError(s.TC.DB.Where("user_id = ? AND name = ?", seedUserID, "concerts").First(&concerts).Error)
+	s.Equal(&need, pharmacy.Necessity)
+	s.Equal(&want, concerts.Necessity)
+}
+
 const nlbCSVHeader = "Opis/Description;Kategorija/Category;+/-;Znesek/Amount;Valuta/Currency;Datum placila/Value date;Naziv/Counter party name;Racun/Counter party Account;Status/Status;BIC koda/BIC Code;Tecaj/Foreign Exchange rate;Referenca/Creditor Reference;Datum poravnave/Settlement date;Stroski/Additional Charges;Naslov/Counter party Address;ID transakcije/Transaction ID;Namen/Purpose"
 
 func nlbCSV(rows ...string) *strings.Reader {

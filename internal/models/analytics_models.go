@@ -130,6 +130,7 @@ type BasicAccountStats struct {
 	AvgMonthlyTakeHome decimal.Decimal `json:"avg_monthly_take_home"`
 	AvgMonthlyOverflow decimal.Decimal `json:"avg_monthly_overflow"`
 	ActiveMonths       int             `json:"active_months"`
+	Necessity          NecessitySplit  `json:"necessity"`
 	Categories         []CategoryStat  `json:"categories,omitempty"`
 	GeneratedAt        time.Time       `json:"generated_at"`
 }
@@ -156,9 +157,19 @@ type YearlyCategoryRow struct {
 	Year        int
 	CategoryID  int64
 	DisplayName *string
+	Necessity   *CategoryNecessity
 	InflowText  string
 	OutflowText string
 	NetText     string
+}
+
+type NecessitySplit struct {
+	Needs    decimal.Decimal `json:"needs"`
+	Wants    decimal.Decimal `json:"wants"`
+	Other    decimal.Decimal `json:"other"`
+	NeedsPct float64         `json:"needs_pct"`
+	WantsPct float64         `json:"wants_pct"`
+	OtherPct float64         `json:"other_pct"`
 }
 
 type MonthlyTotalsRow struct {
@@ -190,6 +201,7 @@ type MonthlyStats struct {
 	SavingsRate       decimal.Decimal `json:"savings_rate"`
 	InvestRate        decimal.Decimal `json:"investments_rate"`
 	DebtRepaymentRate decimal.Decimal `json:"debt_repayment_rate"`
+	Necessity         NecessitySplit  `json:"necessity"`
 	GeneratedAt       time.Time       `json:"generated_at"`
 	Categories        []CategoryStat  `json:"categories,omitempty"`
 }
@@ -247,6 +259,8 @@ type YearStatsWithAllocations struct {
 	SavingsPct    float64 `json:"savings_pct"`
 	InvestmentPct float64 `json:"investment_pct"`
 	DebtPct       float64 `json:"debt_pct"`
+
+	Necessity NecessitySplit `json:"necessity"`
 }
 
 type NetWorthQuery struct {

@@ -10,7 +10,10 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import EmptyState from "../base/EmptyState.vue";
 import ComparativePieChart from "../charts/ComparativePieChart.vue";
-import { useChartColors } from "../../../style/theme/chartColors.ts";
+import {
+  categoryPalette,
+  useChartColors,
+} from "../../../style/theme/chartColors.ts";
 
 const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
@@ -128,6 +131,48 @@ const allocations = computed(() => {
     },
   ];
 });
+
+const necessityBars = computed(() => {
+  const n = monthlyStats.value?.necessity;
+  if (!n) return [];
+  const palette = categoryPalette();
+  const bars = [
+    {
+      key: "needs",
+      label: "Needs",
+      amount: n.needs,
+      rate: n.needs_pct / 100,
+      color: palette[0],
+    },
+    {
+      key: "wants",
+      label: "Wants",
+      amount: n.wants,
+      rate: n.wants_pct / 100,
+      color: palette[1],
+    },
+  ];
+  if (Number(n.other) > 0) {
+    bars.push({
+      key: "other",
+      label: "Other",
+      amount: n.other,
+      rate: n.other_pct / 100,
+      color: palette[2],
+    });
+  }
+  return bars;
+});
+
+const rateSections = computed(() => [
+  { key: "allocations", label: "Allocation rates", items: allocations.value },
+  {
+    key: "necessity",
+    label: "Necessity",
+    hint: "Share of this month's outflows.",
+    items: necessityBars.value,
+  },
+]);
 
 // Pie chart data
 const MAX_SLICES = 12;
@@ -268,10 +313,19 @@ const pieOptions = computed(() => ({
         </div>
       </div>
 
-      <div class="flex flex-col gap-3">
-        <span class="label">Allocation rates</span>
+      <div
+        v-for="section in rateSections"
+        :key="section.key"
+        class="flex flex-col gap-3"
+      >
+        <div class="flex flex-col gap-1">
+          <span class="label">{{ section.label }}</span>
+          <span v-if="section.hint" class="text-xs text-faint">
+            {{ section.hint }}
+          </span>
+        </div>
         <div
-          v-for="a in allocations"
+          v-for="a in section.items"
           :key="a.key"
           class="flex flex-col gap-1.5"
         >

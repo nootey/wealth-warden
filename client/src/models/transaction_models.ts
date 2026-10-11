@@ -77,6 +77,7 @@ export interface Category {
   name: string;
   display_name: string;
   classification: string;
+  necessity: "need" | "want" | null;
   parent_id: number | null;
   is_default: boolean;
   deleted_at: Date | null;
