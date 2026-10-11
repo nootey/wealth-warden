@@ -13,6 +13,7 @@ var (
 type TransactionType string
 type TransactionDirection string
 type BulkTransactionAction string
+type CategoryNecessity string
 
 const (
 	TxnTypeLedger           TransactionType = "ledger"            // Standard type
@@ -28,6 +29,9 @@ const (
 	BulkActionSetCategory    BulkTransactionAction = "set_category"
 	BulkActionSetDescription BulkTransactionAction = "set_description"
 	BulkActionDelete         BulkTransactionAction = "delete"
+
+	CategoryNecessityNeed CategoryNecessity = "need"
+	CategoryNecessityWant CategoryNecessity = "want"
 )
 
 func (d TransactionDirection) IsValid() bool {
@@ -161,17 +165,18 @@ type TransactionTemplate struct {
 }
 
 type Category struct {
-	ID             int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID         *int64     `gorm:"index:idx_categories_user_class" json:"user_id"`
-	Name           string     `gorm:"type:varchar(100);not null" json:"name"`
-	DisplayName    string     `gorm:"type:varchar(100);not null" json:"display_name"`
-	Classification string     `gorm:"not null;default:'expense';index:idx_categories_user_class" json:"classification"`
-	ParentID       *int64     `gorm:"index" json:"parent_id,omitempty"`
-	IsDefault      bool       `json:"is_default"`
-	ImportID       *int64     `json:"import_id,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	DeletedAt      *time.Time `json:"deleted_at"`
+	ID             int64              `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         *int64             `gorm:"index:idx_categories_user_class" json:"user_id"`
+	Name           string             `gorm:"type:varchar(100);not null" json:"name"`
+	DisplayName    string             `gorm:"type:varchar(100);not null" json:"display_name"`
+	Classification string             `gorm:"not null;default:'expense';index:idx_categories_user_class" json:"classification"`
+	Necessity      *CategoryNecessity `gorm:"type:category_necessity" json:"necessity"`
+	ParentID       *int64             `gorm:"index" json:"parent_id,omitempty"`
+	IsDefault      bool               `json:"is_default"`
+	ImportID       *int64             `json:"import_id,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	DeletedAt      *time.Time         `json:"deleted_at"`
 }
 
 type CategoryGroup struct {
