@@ -49,6 +49,26 @@ func DirectionForClassification(classification string) (TransactionDirection, bo
 	}
 }
 
+func NecessityForClassification(classification string, preferred ...*CategoryNecessity) *CategoryNecessity {
+	if classification != "expense" {
+		return nil
+	}
+	for _, n := range preferred {
+		if n != nil {
+			return n
+		}
+	}
+	n := CategoryNecessityWant
+	return &n
+}
+
+func (n *CategoryNecessity) String() string {
+	if n == nil {
+		return ""
+	}
+	return string(*n)
+}
+
 func (t TransactionType) IsUserEditable() bool {
 	return t == TxnTypeLedger || t == TxnTypeTransfer || t == TxnTypeOpening || t == TxnTypeAdjustment
 }
@@ -298,8 +318,9 @@ type RenameTemplateReq struct {
 }
 
 type CategoryReq struct {
-	DisplayName    string `json:"display_name" validate:"required"`
-	Classification string `json:"classification" validate:"required"`
+	DisplayName    string             `json:"display_name" validate:"required"`
+	Classification string             `json:"classification" validate:"required"`
+	Necessity      *CategoryNecessity `json:"necessity" validate:"omitempty,oneof=need want"`
 }
 
 type CategoryGroupReq struct {

@@ -108,3 +108,61 @@ func (s *CategoryServiceTestSuite) TestDefaultCategory_EditAndMerge() {
 	_, err = svc.MergeCategories(s.Ctx, user.ID, salary.ID, bonus.ID)
 	s.Require().NoError(err)
 }
+
+func (s *CategoryServiceTestSuite) TestCategoryNecessity_InsertAndUpdate() {
+	svc := s.TC.App.TransactionService
+	user := s.newTestUser("necessity@test.local")
+	need, want := models.CategoryNecessityNeed, models.CategoryNecessityWant
+
+	load := func(id int64) models.Category {
+		var c models.Category
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&c, id).Error)
+		return c
+	}
+
+	defaultID, err := svc.InsertCategory(s.Ctx, user.ID, &models.CategoryReq{DisplayName: "Hobbies", Classification: "expense"})
+	s.Require().NoError(err)
+	s.Equal(&want, load(defaultID).Necessity)
+
+	needID, err := svc.InsertCategory(s.Ctx, user.ID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense", Necessity: &need})
+	s.Require().NoError(err)
+	s.Equal(&need, load(needID).Necessity)
+
+	incomeID, err := svc.InsertCategory(s.Ctx, user.ID, &models.CategoryReq{DisplayName: "Tips", Classification: "income", Necessity: &need})
+	s.Require().NoError(err)
+	s.Nil(load(incomeID).Necessity)
+
+	_, err = svc.UpdateCategory(s.Ctx, user.ID, needID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	s.Equal(&need, load(needID).Necessity)
+
+	_, err = svc.UpdateCategory(s.Ctx, user.ID, needID, &models.CategoryReq{DisplayName: "Groceries", Classification: "income", Necessity: &need})
+	s.Require().NoError(err)
+	s.Nil(load(needID).Necessity)
+
+	_, err = svc.UpdateCategory(s.Ctx, user.ID, needID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	s.Equal(&want, load(needID).Necessity)
+}
+
+func (s *CategoryServiceTestSuite) TestSeedDefaultCategories_SetsNecessity() {
+	svc := s.TC.App.TransactionService
+	user := s.newTestUser("seed-necessity@test.local")
+
+	_, err := svc.SeedDefaultCategories(s.Ctx, user.ID)
+	s.Require().NoError(err)
+
+	want := models.CategoryNecessityWant
+
+	var cats []models.Category
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("user_id = ?", user.ID).Find(&cats).Error)
+	s.Require().NotEmpty(cats)
+
+	for _, c := range cats {
+		if c.Classification == "expense" {
+			s.Equal(&want, c.Necessity, c.Name)
+		} else {
+			s.Nil(c.Necessity, c.Name)
+		}
+	}
+}

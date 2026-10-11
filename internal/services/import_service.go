@@ -1294,6 +1294,7 @@ func (s *ImportService) RunImportCategories(ctx context.Context, userID, importI
 				ID:             exCat.ID,
 				DisplayName:    cat.DisplayName,
 				Classification: exCat.Classification,
+				Necessity:      models.NecessityForClassification(exCat.Classification, cat.Necessity, exCat.Necessity),
 			}
 
 			_, err = s.txnRepo.UpdateCategory(ctx, tx, upCat)
@@ -1328,6 +1329,7 @@ func (s *ImportService) RunImportCategories(ctx context.Context, userID, importI
 			Name:           cat.Name,
 			DisplayName:    cat.DisplayName,
 			Classification: cat.Classification,
+			Necessity:      models.NecessityForClassification(cat.Classification, cat.Necessity),
 			ParentID:       &parent.ID,
 			IsDefault:      false,
 			ImportID:       &importID,

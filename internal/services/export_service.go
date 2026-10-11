@@ -125,6 +125,7 @@ func (s *ExportService) buildCategoryExportJSON(cats []models.Category) ([]byte,
 			Name:           c.Name,
 			DisplayName:    c.DisplayName,
 			Classification: c.Classification,
+			Necessity:      c.Necessity,
 			ParentID:       c.ParentID,
 			IsDefault:      c.IsDefault,
 		}

@@ -308,6 +308,7 @@ func seedBulkDefaultCategories(ctx context.Context, tx *gorm.DB, userIDs []int64
 				Name:           utils.NormalizeName(def.Name),
 				DisplayName:    def.Name,
 				Classification: def.Classification,
+				Necessity:      models.NecessityForClassification(def.Classification),
 				IsDefault:      true,
 			})
 		}
@@ -332,6 +333,7 @@ func seedBulkDefaultCategories(ctx context.Context, tx *gorm.DB, userIDs []int64
 					Name:           utils.NormalizeName(childName),
 					DisplayName:    childName,
 					Classification: def.Classification,
+					Necessity:      models.NecessityForClassification(def.Classification),
 					ParentID:       &parentID,
 					IsDefault:      true,
 				})

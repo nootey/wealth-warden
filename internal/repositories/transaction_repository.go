@@ -460,6 +460,7 @@ func (r *TransactionRepository) EnsureRootCategory(ctx context.Context, tx *gorm
 		Name:           utils.NormalizeName(def.Name),
 		DisplayName:    def.Name,
 		Classification: classification,
+		Necessity:      models.NecessityForClassification(classification),
 		IsDefault:      true,
 	}
 	if err := db.Create(&rec).Error; err != nil {
@@ -711,6 +712,7 @@ func (r *TransactionRepository) UpdateCategory(ctx context.Context, tx *gorm.DB,
 		Updates(map[string]interface{}{
 			"display_name":   record.DisplayName,
 			"classification": record.Classification,
+			"necessity":      record.Necessity,
 			"updated_at":     time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err

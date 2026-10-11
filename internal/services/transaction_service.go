@@ -687,6 +687,7 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 	rec := models.Category{
 		UserID:         &userID,
 		Classification: req.Classification,
+		Necessity:      models.NecessityForClassification(req.Classification, req.Necessity),
 		DisplayName:    req.DisplayName,
 		Name:           utils.NormalizeName(req.DisplayName),
 		ParentID:       &cat.ID,
@@ -711,6 +712,7 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 	utils.CompareChanges("", strconv.FormatInt(catID, 10), changes, "id")
 	utils.CompareChanges("", rec.DisplayName, changes, "name")
 	utils.CompareChanges("", rec.Classification, changes, "classification")
+	utils.CompareChanges("", rec.Necessity.String(), changes, "necessity")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -792,6 +794,7 @@ func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *go
 			Name:           utils.NormalizeName(name),
 			DisplayName:    name,
 			Classification: classification,
+			Necessity:      models.NecessityForClassification(classification),
 			ParentID:       parentID,
 			IsDefault:      true,
 		}
@@ -1141,6 +1144,7 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 		ID:             exCat.ID,
 		UserID:         &userID,
 		Classification: req.Classification,
+		Necessity:      models.NecessityForClassification(req.Classification, req.Necessity, exCat.Necessity),
 		DisplayName:    req.DisplayName,
 	}
 
@@ -1158,6 +1162,7 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 
 	utils.CompareChanges(exCat.DisplayName, cat.DisplayName, changes, "name")
 	utils.CompareChanges(exCat.Classification, cat.Classification, changes, "classification")
+	utils.CompareChanges(exCat.Necessity.String(), cat.Necessity.String(), changes, "necessity")
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(catID, 10))
