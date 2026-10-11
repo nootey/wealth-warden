@@ -175,6 +175,33 @@ const getDiffColor = (diff: number) => {
   return diff > 0 ? colors.value.pos : colors.value.neg;
 };
 
+const necessityRows = computed(() => {
+  const cur = breakdownStats.value?.current_year.necessity;
+  if (!cur) return [];
+  const cmp = breakdownStats.value?.comparison_year?.necessity;
+  const rows = [
+    { key: "needs", label: "Needs" },
+    { key: "wants", label: "Wants" },
+    { key: "other", label: "Other" },
+  ] as const;
+  return rows
+    .filter(
+      (r) =>
+        r.key !== "other" ||
+        Number(cur.other) > 0 ||
+        Number(cmp?.other ?? 0) > 0,
+    )
+    .map((r) => ({
+      key: r.key,
+      label: r.label,
+      current: cur[r.key],
+      currentPct: cur[`${r.key}_pct`],
+      comparison: cmp?.[r.key] ?? "0",
+      comparisonPct: cmp?.[`${r.key}_pct`] ?? 0,
+      diff: calcDiff(cur[r.key], cmp?.[r.key] ?? "0"),
+    }));
+});
+
 const formatChangePct = (pct?: number | null) => {
   if (pct === null || pct === undefined) return "new";
   const rounded = Math.round(pct);
@@ -648,6 +675,39 @@ const formatChangePct = (pct?: number | null) => {
                     ),
                   )
                 }})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="flex flex-col gap-2 p-3"
+          style="background: var(--surface-50); border-radius: 8px"
+        >
+          <span
+            class="font-semibold text-sm"
+            style="color: var(--text-secondary)"
+            >Needs vs wants</span
+          >
+
+          <div
+            v-for="row in necessityRows"
+            :key="row.key"
+            class="flex flex-row justify-between mobile-small"
+          >
+            <span>{{ row.label }}:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{ vueHelper.displayAsCurrency(row.current) }}</b>
+              <span class="text-xs" style="color: var(--text-secondary)">
+                {{ formatRate(row.currentPct) }}
+              </span>
+              <span
+                v-if="breakdownStats.comparison_year"
+                class="mobile-comparison text-xs"
+                :style="{ color: getDiffColor(-row.diff) }"
+              >
+                ({{ row.diff >= 0 ? "+" : ""
+                }}{{ vueHelper.displayAsCurrency(row.diff) }})
               </span>
             </div>
           </div>
@@ -1192,6 +1252,35 @@ const formatChangePct = (pct?: number | null) => {
                     ),
                   )
                 }})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="flex flex-col gap-2 p-3"
+          style="background: var(--surface-50); border-radius: 8px"
+        >
+          <span
+            class="font-semibold text-sm"
+            style="color: var(--text-secondary)"
+            >Needs vs wants</span
+          >
+
+          <div
+            v-for="row in necessityRows"
+            :key="row.key"
+            class="flex flex-row justify-between"
+          >
+            <span>{{ row.label }}:</span>
+            <div class="flex flex-row gap-2 items-center">
+              <b>{{ vueHelper.displayAsCurrency(row.comparison) }}</b>
+              <span class="text-xs" style="color: var(--text-secondary)">
+                {{ formatRate(row.comparisonPct) }}
+              </span>
+              <span class="text-xs" :style="{ color: getDiffColor(-row.diff) }">
+                ({{ row.diff >= 0 ? "+" : ""
+                }}{{ vueHelper.displayAsCurrency(row.diff) }})
               </span>
             </div>
           </div>

@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
@@ -152,17 +153,26 @@ func (s *CategoryServiceTestSuite) TestSeedDefaultCategories_SetsNecessity() {
 	_, err := svc.SeedDefaultCategories(s.Ctx, user.ID)
 	s.Require().NoError(err)
 
-	want := models.CategoryNecessityWant
+	need, want := models.CategoryNecessityNeed, models.CategoryNecessityWant
+	expenseDef, ok := models.FindDefaultCategoryDef("expense")
+	s.Require().True(ok)
+	s.Require().NotEmpty(expenseDef.Needs)
 
 	var cats []models.Category
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("user_id = ?", user.ID).Find(&cats).Error)
 	s.Require().NotEmpty(cats)
 
+	needs := 0
 	for _, c := range cats {
-		if c.Classification == "expense" {
-			s.Equal(&want, c.Necessity, c.Name)
-		} else {
+		switch {
+		case c.Classification != "expense":
 			s.Nil(c.Necessity, c.Name)
+		case slices.Contains(expenseDef.Needs, c.DisplayName):
+			s.Equal(&need, c.Necessity, c.Name)
+			needs++
+		default:
+			s.Equal(&want, c.Necessity, c.Name)
 		}
 	}
+	s.Equal(len(expenseDef.Needs), needs)
 }

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"slices"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -223,6 +224,15 @@ type DefaultCategoryDef struct {
 	Name           string
 	Classification string
 	Children       []string
+	Needs          []string
+}
+
+func (d DefaultCategoryDef) ChildNecessity(name string) *CategoryNecessity {
+	if !slices.Contains(d.Needs, name) {
+		return nil
+	}
+	n := CategoryNecessityNeed
+	return &n
 }
 
 var DefaultCategories = []DefaultCategoryDef{
@@ -246,6 +256,7 @@ var DefaultCategories = []DefaultCategoryDef{
 		Classification: "expense",
 		Children: []string{"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
 			"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other"},
+		Needs: []string{"Health", "Hygiene", "Food", "Rent", "Utilities"},
 	},
 }
 

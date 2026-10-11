@@ -184,6 +184,18 @@ const statTiles = computed(() => {
       value: s.avg_monthly_overflow,
       tone: "text-ink",
     },
+    {
+      label: "Needs",
+      value: s.necessity.needs,
+      tone: "text-ink",
+      pct: s.necessity.needs_pct,
+    },
+    {
+      label: "Wants",
+      value: s.necessity.wants,
+      tone: "text-ink",
+      pct: s.necessity.wants_pct,
+    },
   ];
 });
 
@@ -286,7 +298,12 @@ const pieOptions = computed(() => ({
           :key="tile.label"
           class="flex flex-col gap-1.5 rounded-xl bg-sunken px-4 py-3.5 min-w-0"
         >
-          <span class="text-xs text-muted leading-snug">{{ tile.label }}</span>
+          <span class="text-xs text-muted leading-snug">
+            {{ tile.label }}
+            <template v-if="tile.pct !== undefined">
+              · {{ vueHelper.displayAsPercentage(tile.pct / 100) }}
+            </template>
+          </span>
           <span class="text-base font-medium truncate" :class="tile.tone">
             {{ vueHelper.displayAsCurrency(tile.value) }}
           </span>

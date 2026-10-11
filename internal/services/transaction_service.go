@@ -788,13 +788,13 @@ func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *go
 		byKey[catKey{c.Name, c.Classification}] = c.ID
 	}
 
-	insert := func(name, classification string, parentID *int64) (int64, error) {
+	insert := func(name, classification string, necessity *models.CategoryNecessity, parentID *int64) (int64, error) {
 		rec := models.Category{
 			UserID:         &userID,
 			Name:           utils.NormalizeName(name),
 			DisplayName:    name,
 			Classification: classification,
-			Necessity:      models.NecessityForClassification(classification),
+			Necessity:      models.NecessityForClassification(classification, necessity),
 			ParentID:       parentID,
 			IsDefault:      true,
 		}
@@ -813,7 +813,7 @@ func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *go
 		rootKey := catKey{utils.NormalizeName(root.Name), root.Classification}
 		rootID, ok := byKey[rootKey]
 		if !ok {
-			rootID, err = insert(root.Name, root.Classification, nil)
+			rootID, err = insert(root.Name, root.Classification, nil, nil)
 			if err != nil {
 				return 0, err
 			}
@@ -827,7 +827,7 @@ func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *go
 				continue
 			}
 			parentID := rootID
-			childID, err := insert(childName, root.Classification, &parentID)
+			childID, err := insert(childName, root.Classification, root.ChildNecessity(childName), &parentID)
 			if err != nil {
 				return 0, err
 			}

@@ -303,3 +303,48 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_CategoryChangesC
 	s.Assert().True(inc.Current.Equal(decimal.NewFromInt(1200)), "current %s", inc.Current)
 	s.Assert().True(inc.Comparison.Equal(wantComparison), "comparison %s", inc.Comparison)
 }
+
+func (s *AnalyticsServiceTestSuite) TestNecessitySplit_InBasicMonthlyAndBreakdownStats() {
+	svc := s.TC.App.AnalyticsService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+	date := time.Date(2024, 5, 10, 0, 0, 0, 0, time.UTC)
+	accID := s.checkingWithIncome(userID, 5000, date)
+
+	need := models.CategoryNecessityNeed
+	needID, err := txnSvc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Split Rent", Classification: "expense", Necessity: &need})
+	s.Require().NoError(err)
+	wantID, err := txnSvc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Split Concerts", Classification: "expense"})
+	s.Require().NoError(err)
+
+	for catID, amount := range map[int64]int64{needID: 750, wantID: 250} {
+		_, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID:  accID,
+			CategoryID: &catID,
+			Direction:  "expense",
+			Amount:     decimal.NewFromInt(amount),
+			TxnDate:    date,
+		})
+		s.Require().NoError(err)
+	}
+
+	assertSplit := func(split models.NecessitySplit) {
+		s.Assert().True(split.Needs.Equal(decimal.NewFromInt(750)), "needs %s", split.Needs)
+		s.Assert().True(split.Wants.Equal(decimal.NewFromInt(250)), "wants %s", split.Wants)
+		s.Assert().True(split.Other.IsZero(), "other %s", split.Other)
+		s.Assert().InDelta(75.0, split.NeedsPct, 0.001)
+		s.Assert().InDelta(25.0, split.WantsPct, 0.001)
+	}
+
+	basic, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, 2024)
+	s.Require().NoError(err)
+	assertSplit(basic.Necessity)
+
+	monthly, err := svc.GetMonthlyStats(s.Ctx, userID, &accID, 2024, 5)
+	s.Require().NoError(err)
+	assertSplit(monthly.Necessity)
+
+	breakdown, err := svc.GetYearlyBreakdownStats(s.Ctx, &accID, userID, 2024, nil)
+	s.Require().NoError(err)
+	assertSplit(breakdown.CurrentYear.Necessity)
+}

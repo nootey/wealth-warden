@@ -262,6 +262,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		    $3::int AS year,
 		    t.category_id,
 		    c.display_name,
+		    c.necessity,
 		    COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
 		    COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
 			COALESCE(SUM(
@@ -278,7 +279,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		    AND t.transaction_type = 'ledger'
 		    AND t.txn_date >= make_date($3,1,1) AND t.txn_date < make_date($3,$4,1) + INTERVAL '1 month'
 		    AND t.deleted_at IS NULL
-		  GROUP BY t.category_id, c.display_name
+		  GROUP BY t.category_id, c.display_name, c.necessity
 		  ORDER BY t.category_id NULLS LAST
 		`
 		if err := db.Raw(sql, userID, *accountID, year, throughMonth).Scan(&rows).Error; err != nil {
@@ -290,6 +291,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		    $2::int AS year,
 		    t.category_id,
 		    c.display_name,
+		    c.necessity,
 		    COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
             COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
 			COALESCE(SUM(
@@ -305,7 +307,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		    AND t.transaction_type = 'ledger'
 		    AND t.txn_date >= make_date($2,1,1) AND t.txn_date < make_date($2,$3,1) + INTERVAL '1 month'
 		    AND t.deleted_at IS NULL
-		  GROUP BY t.category_id, c.display_name
+		  GROUP BY t.category_id, c.display_name, c.necessity
 		  ORDER BY t.category_id NULLS LAST
 		`
 		if err := db.Raw(sql, userID, year, throughMonth).Scan(&rows).Error; err != nil {
@@ -330,6 +332,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
            $3::int AS year,
            t.category_id,
            c.display_name,
+           c.necessity,
            COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
            COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
           COALESCE(SUM(
@@ -347,7 +350,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
            AND t.txn_date >= make_date($3, $4, 1) 
            AND t.txn_date < make_date($3, $4, 1) + interval '1 month'
            AND t.deleted_at IS NULL
-         GROUP BY t.category_id, c.display_name
+         GROUP BY t.category_id, c.display_name, c.necessity
          ORDER BY t.category_id NULLS LAST
        `
 		if err := db.Raw(sql, userID, *accountID, year, month).Scan(&rows).Error; err != nil {
@@ -359,6 +362,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
            $2::int AS year,
            t.category_id,
            c.display_name,
+           c.necessity,
            COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
            COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
           COALESCE(SUM(
@@ -375,7 +379,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
            AND t.txn_date >= make_date($2, $3, 1) 
            AND t.txn_date < make_date($2, $3, 1) + interval '1 month'
            AND t.deleted_at IS NULL
-         GROUP BY t.category_id, c.display_name
+         GROUP BY t.category_id, c.display_name, c.necessity
          ORDER BY t.category_id NULLS LAST
        `
 		if err := db.Raw(sql, userID, year, month).Scan(&rows).Error; err != nil {
@@ -403,6 +407,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context
         ?::int AS year,
         t.category_id,
         c.display_name,
+        c.necessity,
         COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
         COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
         COALESCE(SUM(
@@ -420,7 +425,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context
         AND t.txn_date >= make_date(?, ?, 1) 
         AND t.txn_date < make_date(?, ?, 1) + interval '1 month'
         AND t.deleted_at IS NULL
-      GROUP BY t.category_id, c.display_name
+      GROUP BY t.category_id, c.display_name, c.necessity
       ORDER BY t.category_id NULLS LAST
     `
 
