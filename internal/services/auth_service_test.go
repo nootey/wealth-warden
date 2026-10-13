@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/authz"
 
 	"github.com/stretchr/testify/suite"
 	"gorm.io/datatypes"
@@ -61,6 +63,33 @@ func (s *AuthServiceTestSuite) TestValidateLogin_WrongPassword() {
 	s.Error(err)
 	s.Nil(user)
 	s.True(errors.Is(err, services.ErrInvalidCredentials))
+}
+
+func (s *AuthServiceTestSuite) TestPermsForUser_CachesRoleUntilTTL() {
+	ctx := context.Background()
+	cfg, err := config.LoadConfig(nil)
+	s.Require().NoError(err)
+
+	var user models.User
+	s.Require().NoError(s.TC.DB.Where("email = ?", cfg.Seed.SuperAdminEmail).First(&user).Error)
+	var memberRoleID int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&memberRoleID).Error)
+
+	cached := authz.NewService(s.TC.DB, time.Hour)
+	expired := authz.NewService(s.TC.DB, 0)
+	_, err = cached.PermsForUser(ctx, user.ID)
+	s.Require().NoError(err)
+
+	s.Require().NoError(s.TC.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("role_id", memberRoleID).Error)
+	defer s.TC.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("role_id", user.RoleID)
+
+	perms, err := cached.PermsForUser(ctx, user.ID)
+	s.NoError(err)
+	s.Contains(perms, "root_access")
+
+	perms, err = expired.PermsForUser(ctx, user.ID)
+	s.NoError(err)
+	s.NotContains(perms, "root_access")
 }
 
 func (s *AuthServiceTestSuite) TestGetCurrentUser() {
