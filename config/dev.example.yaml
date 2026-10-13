@@ -53,6 +53,8 @@ seed:
     txns_per_user: 500
     email_domain: "local.seed"
     password: "password"
+    lean: false
+    rand_seed: 0
 
 scheduler:
   concurrent_workers: 5             # goroutines inside one job; queue.scheduler_workers is how many jobs run at once

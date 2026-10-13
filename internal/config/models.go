@@ -69,6 +69,8 @@ type BulkSeedConfig struct {
 	TxnsPerUser int    `mapstructure:"txns_per_user"`
 	EmailDomain string `mapstructure:"email_domain"`
 	Password    string `mapstructure:"password"`
+	Lean        bool   `mapstructure:"lean"`
+	RandSeed    int64  `mapstructure:"rand_seed"`
 }
 
 type MailerConfig struct {
