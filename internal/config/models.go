@@ -33,6 +33,7 @@ type PostgresConfig struct {
 	Database string `mapstructure:"db" validate:"required"`
 	User     string `mapstructure:"user" validate:"required"`
 	Password string `mapstructure:"password" validate:"required"`
+	MaxConns int    `mapstructure:"max_conns" validate:"min=1"`
 }
 
 type RedisConfig struct {

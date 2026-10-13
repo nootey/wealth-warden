@@ -69,9 +69,11 @@ func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logge
 	}
 
 	// Set connection pooling and check connectivity.
+	// Idle cap matches the open cap: a lower one closes and reopens connections after every burst,
+	// and each new Postgres connection forks a backend process
 	sqlDB.SetConnMaxLifetime(time.Minute * 5)
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetMaxIdleConns(cfg.Postgres.MaxConns)
+	sqlDB.SetMaxOpenConns(cfg.Postgres.MaxConns)
 
 	if err := sqlDB.Ping(); err != nil {
 		zapLogger.Error("Could not ping database",

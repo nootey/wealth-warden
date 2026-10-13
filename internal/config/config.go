@@ -26,6 +26,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("postgres.password", "postgres")
 	v.SetDefault("postgres.port", 5432)
 	v.SetDefault("postgres.db", "wealth_warden")
+	v.SetDefault("postgres.max_conns", 25)
 
 	v.SetDefault("redis.host", "redis")
 	v.SetDefault("redis.port", 6379)

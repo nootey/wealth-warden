@@ -16,6 +16,7 @@ postgres:
   password: "postgres"
   port: 5432
   db: "wealth_warden"
+  max_conns: 25        # app pool; River adds 10 more. Keep the sum below Postgres max_connections (default 100)
 
 redis:
   host: "localhost"
