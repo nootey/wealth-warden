@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 	"wealth-warden/internal/models"
 
@@ -35,6 +36,7 @@ type BalanceRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	ApplyDelta(ctx context.Context, tx *gorm.DB, accountID int64, amount decimal.Decimal) error
 	GetBalance(ctx context.Context, tx *gorm.DB, accountID int64) (decimal.Decimal, error)
+	LockBalances(ctx context.Context, tx *gorm.DB, accountIDs ...int64) (map[int64]decimal.Decimal, error)
 	RecomputeFromTransactions(ctx context.Context, tx *gorm.DB, accountID int64) error
 	FindOpenAccountIDs(ctx context.Context, tx *gorm.DB, afterID int64, limit int) ([]int64, error)
 	FindDriftedAccounts(ctx context.Context, tx *gorm.DB, accountIDs []int64) ([]models.BalanceDrift, error)
@@ -100,6 +102,29 @@ func (r *BalanceRepository) GetBalance(ctx context.Context, tx *gorm.DB, account
 		return decimal.Zero, err
 	}
 	return record.Balance, nil
+}
+
+// LockBalances locks the accounts' balance rows and returns the locked balances.
+// Every multi-account writer locks in ascending account ID order, so two writers
+// can't each hold one row while waiting for the other's.
+func (r *BalanceRepository) LockBalances(ctx context.Context, tx *gorm.DB, accountIDs ...int64) (map[int64]decimal.Decimal, error) {
+	if tx == nil {
+		return nil, errors.New("LockBalances requires a transaction")
+	}
+
+	ids := slices.Clone(accountIDs)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+
+	balances := make(map[int64]decimal.Decimal, len(ids))
+	for _, id := range ids {
+		row, err := r.lockBalanceRow(ctx, tx, id)
+		if err != nil {
+			return nil, err
+		}
+		balances[id] = row.Balance
+	}
+	return balances, nil
 }
 
 func (r *BalanceRepository) RecomputeFromTransactions(ctx context.Context, tx *gorm.DB, accountID int64) error {

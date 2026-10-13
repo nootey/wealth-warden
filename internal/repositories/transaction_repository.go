@@ -33,6 +33,7 @@ type TransactionRepositoryInterface interface {
 	FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID int64) (models.Category, error)
 	EnsureRootCategory(ctx context.Context, tx *gorm.DB, classification string, userID int64) (models.Category, error)
 	FindTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error)
+	LockTransactions(ctx context.Context, tx *gorm.DB, userID int64, ids ...int64) error
 	FindTransactionsByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transaction, error)
 	FindTransactionByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transaction, error)
 	FindTransactionByExternalID(ctx context.Context, tx *gorm.DB, accountID int64, externalID string) (models.Transaction, error)
@@ -489,6 +490,26 @@ func (r *TransactionRepository) FindTransactionByID(ctx context.Context, tx *gor
 	q = q.First(&record)
 
 	return record, q.Error
+}
+
+// LockTransactions locks existing transaction rows, soft-deleted ones included, in
+// ascending ID order. Writers take these locks before any balance lock.
+// NO KEY UPDATE leaves the foreign-key checks of rows that reference them unblocked.
+func (r *TransactionRepository) LockTransactions(ctx context.Context, tx *gorm.DB, userID int64, ids ...int64) error {
+	if tx == nil {
+		return errors.New("LockTransactions requires a transaction")
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	var locked []int64
+	return tx.WithContext(ctx).Raw(`
+		SELECT id FROM transactions
+		WHERE  id IN ? AND user_id = ?
+		ORDER BY id
+		FOR NO KEY UPDATE
+	`, ids, userID).Scan(&locked).Error
 }
 
 func (r *TransactionRepository) FindTransactionsByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transaction, error) {

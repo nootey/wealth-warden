@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
@@ -4636,4 +4638,170 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategoryGua
 	var tr models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, incomeID).Error)
 	s.Assert().Equal(models.TxnDirectionIncome, tr.Direction, "direction must be unchanged on rollback")
+}
+
+func (s *TransactionServiceTestSuite) newNamedAccount(userID int64, name string, balance decimal.Decimal) int64 {
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          name,
+		AccountTypeID: 1,
+		Balance:       &balance,
+		OpenedAt:      time.Now().AddDate(0, 0, -30),
+	})
+	s.Require().NoError(err)
+	return accID
+}
+
+// runConcurrently releases every call at once and returns each call's error.
+func (s *TransactionServiceTestSuite) runConcurrently(n int, call func(i int) error) []error {
+	errs := make([]error, n)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs[i] = call(i)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	return errs
+}
+
+func (s *TransactionServiceTestSuite) assertAcceptedWithinLimit(errs []error, want int) {
+	accepted := 0
+	for _, err := range errs {
+		if err == nil {
+			accepted++
+			continue
+		}
+		var appErr *apperr.Error
+		s.Require().ErrorAs(err, &appErr, "only limit rejections may fail")
+		s.Require().Equal(apperr.Validation, appErr.Kind, "unexpected error: %v", err)
+	}
+	s.Assert().Equal(want, accepted, "accepted writes")
+}
+
+// Racing expenses must each check the balance the previous one left behind.
+func (s *TransactionServiceTestSuite) TestInsertTransaction_ConcurrentExpensesStayWithinLimit() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newNamedAccount(userID, "Race Account", decimal.NewFromInt(1000))
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	errs := s.runConcurrently(20, func(int) error {
+		_, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accID,
+			Direction: "expense",
+			Amount:    decimal.NewFromInt(100),
+			TxnDate:   today,
+		})
+		return err
+	})
+
+	s.assertAcceptedWithinLimit(errs, 10)
+	s.assertBalance(accID, decimal.Zero, "balance after racing expenses")
+	s.assertSnapshot(accID, today, decimal.Zero, "today")
+}
+
+func (s *TransactionServiceTestSuite) TestInsertTransfer_ConcurrentTransfersStayWithinLimit() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	srcID := s.newNamedAccount(userID, "Race Source", decimal.NewFromInt(1000))
+	destID := s.newNamedAccount(userID, "Race Destination", decimal.Zero)
+
+	errs := s.runConcurrently(20, func(int) error {
+		_, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+			SourceID:      srcID,
+			DestinationID: destID,
+			Amount:        decimal.NewFromInt(100),
+			CreatedAt:     time.Now(),
+		})
+		return err
+	})
+
+	s.assertAcceptedWithinLimit(errs, 10)
+	s.assertBalance(srcID, decimal.Zero, "source balance")
+	s.assertBalance(destID, decimal.NewFromInt(1000), "destination balance")
+}
+
+// Transfers in both directions between two accounts, mixed with single-account
+// inserts, edits and deletes on the same accounts, must not deadlock.
+func (s *TransactionServiceTestSuite) TestConcurrentWrites_OppositeTransfersDoNotDeadlock() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	accounts := []int64{
+		s.newNamedAccount(userID, "Churn A", decimal.NewFromInt(100000)),
+		s.newNamedAccount(userID, "Churn B", decimal.NewFromInt(100000)),
+	}
+
+	// Ten expenses of 10 per account: the first five get edited, the last five deleted
+	existing := make(map[int64][]int64)
+	for _, accID := range accounts {
+		for range 10 {
+			existing[accID] = append(existing[accID], s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(10), "churn"))
+		}
+	}
+
+	errs := s.runConcurrently(40, func(i int) error {
+		acc, other := accounts[i%2], accounts[(i+1)%2]
+		slot := i / 2 % 5
+		switch i / 2 / 5 {
+		case 0:
+			_, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+				SourceID: acc, DestinationID: other, Amount: decimal.NewFromInt(7), CreatedAt: time.Now(),
+			})
+			return err
+		case 1:
+			_, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+				AccountID: acc, Direction: "expense", Amount: decimal.NewFromInt(3), TxnDate: today,
+			})
+			return err
+		case 2:
+			_, err := svc.UpdateTransaction(s.Ctx, userID, existing[acc][slot], &models.TransactionReq{
+				AccountID: acc, Direction: "expense", Amount: decimal.NewFromInt(20), TxnDate: today,
+			})
+			return err
+		default:
+			return svc.DeleteTransaction(s.Ctx, userID, existing[acc][5+slot])
+		}
+	})
+	for i, err := range errs {
+		s.Require().NoError(err, "call %d", i)
+	}
+
+	// 100000 - 10*10 seeded - 5*3 inserted - 5*10 from edits + 5*10 deleted; transfers net to zero
+	want := decimal.NewFromInt(99885)
+	for _, accID := range accounts {
+		s.assertBalance(accID, want, "churned account")
+		s.assertSnapshot(accID, today, want, "churned account today")
+	}
+}
+
+// An edit racing a delete gets a not-found error instead of the soft-delete trigger's.
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_ConcurrentDeleteReturnsNotFound() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	accID := s.newNamedAccount(userID, "Edit Race Account", decimal.NewFromInt(1000))
+	txnID := s.insertLedgerTxn(userID, accID, "expense", decimal.NewFromInt(10), "edit me")
+
+	deleter := s.TC.DB.WithContext(s.Ctx).Begin()
+	s.Require().NoError(deleter.Error)
+	s.Require().NoError(deleter.Exec(`UPDATE transactions SET deleted_at = NOW() WHERE id = ?`, txnID).Error)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.UpdateTransaction(s.Ctx, userID, txnID, &models.TransactionReq{
+			AccountID: accID, Direction: "expense", Amount: decimal.NewFromInt(20), TxnDate: today,
+		})
+		done <- err
+	}()
+
+	time.Sleep(300 * time.Millisecond)
+	s.Require().NoError(deleter.Commit().Error)
+
+	s.Require().ErrorIs(<-done, services.ErrTransactionNotFound)
 }
