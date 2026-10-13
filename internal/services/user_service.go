@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 
@@ -43,6 +44,7 @@ type UserService struct {
 	roleRepo      repositories.RolePermissionRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 	mailer        *mailer.Mailer
+	sessionStore  *sessions.Store
 }
 
 func NewUserService(
@@ -50,12 +52,14 @@ func NewUserService(
 	roleRepo *repositories.RolePermissionRepository,
 	jobDispatcher jobqueue.Dispatcher,
 	mailer *mailer.Mailer,
+	sessionStore *sessions.Store,
 ) *UserService {
 	return &UserService{
 		repo:          repo,
 		roleRepo:      roleRepo,
 		jobDispatcher: jobDispatcher,
 		mailer:        mailer,
+		sessionStore:  sessionStore,
 	}
 }
 
@@ -409,6 +413,10 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	}
 
 	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if err := s.sessionStore.DeleteAllForUser(ctx, usr.ID); err != nil {
 		return err
 	}
 

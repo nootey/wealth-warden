@@ -67,6 +67,26 @@ func (s *SessionsServiceTestSuite) TestListSessions_CurrentFirstThenByLastSeen()
 		"non-current sessions must be ordered by most recently seen")
 }
 
+func (s *SessionsServiceTestSuite) TestDeleteUser_EndsAllSessions() {
+	admin := s.loginSuperAdmin()
+	store := s.TC.App.SessionStore
+
+	user := models.User{Email: "deleted@example.com", Password: "x", DisplayName: "deleted", RoleID: admin.RoleID}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&user).Error)
+
+	first, err := store.Create(s.Ctx, user.ID, false, "device-a", "10.0.0.1")
+	s.Require().NoError(err)
+	second, err := store.Create(s.Ctx, user.ID, true, "device-b", "10.0.0.2")
+	s.Require().NoError(err)
+
+	s.Require().NoError(s.TC.App.UserService.DeleteUser(s.Ctx, admin.ID, user.ID))
+
+	_, err = store.Validate(s.Ctx, first)
+	s.ErrorIs(err, sessions.ErrNotFound)
+	_, err = store.Validate(s.Ctx, second)
+	s.ErrorIs(err, sessions.ErrNotFound)
+}
+
 // A user must not be able to revoke the session they're currently authenticated with.
 func (s *SessionsServiceTestSuite) TestRevokeSession_CannotRevokeCurrent() {
 	user := s.loginSuperAdmin()
