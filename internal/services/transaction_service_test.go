@@ -4805,3 +4805,35 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ConcurrentDeleteRetu
 
 	s.Require().ErrorIs(<-done, services.ErrTransactionNotFound)
 }
+
+// Direction is matched case-insensitively, so a capitalized expense still hits the limit check.
+func (s *TransactionServiceTestSuite) TestInsertTransaction_CapitalizedExpenseChecksLimit() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newNamedAccount(userID, "Case Account", decimal.NewFromInt(100))
+
+	_, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "Expense",
+		Amount:    decimal.NewFromInt(500),
+		TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+	})
+	s.Require().ErrorContains(err, "insufficient funds")
+	s.assertBalance(accID, decimal.NewFromInt(100), "balance after rejected expense")
+}
+
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_CapitalizedExpenseChecksLimit() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newNamedAccount(userID, "Case Account", decimal.NewFromInt(100))
+	txnID := s.insertLedgerTxn(userID, accID, "income", decimal.NewFromInt(10), "flip me")
+
+	_, err := svc.UpdateTransaction(s.Ctx, userID, txnID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "EXPENSE",
+		Amount:    decimal.NewFromInt(500),
+		TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+	})
+	s.Require().ErrorContains(err, "insufficient funds")
+	s.assertBalance(accID, decimal.NewFromInt(110), "balance after rejected edit")
+}

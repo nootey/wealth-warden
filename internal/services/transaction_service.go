@@ -249,7 +249,8 @@ func (s *TransactionService) autoAssignCategory(ctx context.Context, tx *gorm.DB
 
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
 
-	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
+	if !direction.IsValid() {
 		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
 	}
 
@@ -295,7 +296,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, err
 	}
 
-	if req.Direction == "expense" {
+	if direction == models.TxnDirectionExpense {
 		balances, err := s.balanceRepo.LockBalances(ctx, tx, account.ID)
 		if err != nil {
 			if ownsTx {
@@ -414,7 +415,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		UserID:         userID,
 		AccountID:      account.ID,
 		CategoryID:     &category.ID,
-		Direction:      models.TransactionDirection(strings.ToLower(string(req.Direction))),
+		Direction:      direction,
 		Amount:         req.Amount,
 		Currency:       account.Currency,
 		TxnDate:        txDay,
@@ -848,7 +849,8 @@ func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *go
 }
 
 func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error) {
-	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
+	if !direction.IsValid() {
 		return 0, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
 	}
 
@@ -887,9 +889,8 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	if exTr.TransactionType.IsPartiallyEditable() {
 		sameCategory := (req.CategoryID == nil && exTr.CategoryID == nil) ||
 			(req.CategoryID != nil && exTr.CategoryID != nil && *req.CategoryID == *exTr.CategoryID)
-		newDirection := models.TransactionDirection(strings.ToLower(string(req.Direction)))
 
-		if req.AccountID != exTr.AccountID || !sameCategory || newDirection != exTr.Direction {
+		if req.AccountID != exTr.AccountID || !sameCategory || direction != exTr.Direction {
 			tx.Rollback()
 			return 0, apperr.New(apperr.Validation, fmt.Sprintf(
 				"only %s can be changed on a %s transaction", exTr.TransactionType.PartiallyEditableFields(), exTr.TransactionType,
@@ -961,7 +962,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		oldEffect = exTr.Amount
 	}
 
-	if req.Direction == "expense" {
+	if direction == models.TxnDirectionExpense {
 		newEffect = req.Amount.Neg()
 	} else {
 		newEffect = req.Amount
@@ -1060,7 +1061,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		UserID:      userID,
 		AccountID:   newAccount.ID,
 		CategoryID:  &newCategory.ID,
-		Direction:   models.TransactionDirection(strings.ToLower(string(req.Direction))),
+		Direction:   direction,
 		Amount:      req.Amount,
 		Currency:    exTr.Currency,
 		TxnDate:     newDay,
