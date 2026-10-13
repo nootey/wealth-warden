@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/config"
@@ -136,6 +137,49 @@ RESTART IDENTITY CASCADE;
 func (s *ServiceIntegrationSuite) TruncateMutableTables() {
 	err := s.TC.DB.Exec(truncateTestTablesSQL).Error
 	s.Require().NoError(err, "failed to truncate test tables")
+}
+
+func (s *ServiceIntegrationSuite) LockAccount(accountID int64) *gorm.DB {
+	tx := s.TC.DB.WithContext(s.Ctx).Begin()
+	s.Require().NoError(tx.Error)
+	// A failed test must not leave the lock held, or the next test's truncate waits on it forever
+	s.T().Cleanup(func() { tx.Rollback() })
+
+	var locked []int64
+	s.Require().NoError(tx.Raw(`SELECT account_id FROM balances WHERE account_id = ? FOR UPDATE`, accountID).Scan(&locked).Error)
+	s.Require().Len(locked, 1, "account %d has no balance row to lock", accountID)
+	return tx
+}
+
+func (s *ServiceIntegrationSuite) WaitsFor(release func() error, call func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- call() }()
+
+	select {
+	case err := <-done:
+		s.Require().FailNowf("call did not wait for the lock", "returned %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	s.Require().NoError(release())
+	return <-done
+}
+
+func (s *ServiceIntegrationSuite) RunConcurrently(n int, call func(i int) error) []error {
+	errs := make([]error, n)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs[i] = call(i)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	return errs
 }
 
 // SetupTest empties mutable tables and the session store between tests, ensuring a clean slate

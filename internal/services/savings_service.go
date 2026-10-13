@@ -41,17 +41,20 @@ type SavingsServiceInterface interface {
 type SavingsService struct {
 	repo          repositories.SavingsRepositoryInterface
 	accountRepo   repositories.AccountRepositoryInterface
+	balanceRepo   repositories.BalanceRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 }
 
 func NewSavingsService(
 	repo *repositories.SavingsRepository,
 	accountRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *SavingsService {
 	return &SavingsService{
 		repo:          repo,
 		accountRepo:   accountRepo,
+		balanceRepo:   balanceRepo,
 		jobDispatcher: jobDispatcher,
 	}
 }
@@ -112,6 +115,11 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 	}
 
 	if req.InitialAmount != nil && req.InitialAmount.IsPositive() {
+		if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, req.AccountID); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+
 		uncategorized, err := s.repo.GetUncategorizedBalance(ctx, tx, req.AccountID, userID)
 		if err != nil {
 			tx.Rollback()
@@ -385,6 +393,20 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 		return 0, err
 	}
 
+	// The unlocked read above only finds the account; the goal is read again under its row lock
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, goal.AccountID); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	goal, err = s.repo.FindGoalByIDForUpdate(ctx, tx, goalID, userID)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrGoalNotFound
+		}
+		return 0, err
+	}
+
 	if goal.Status != models.SavingGoalStatusActive {
 		tx.Rollback()
 		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("cannot add contributions to a %s goal", goal.Status))
@@ -469,7 +491,7 @@ func (s *SavingsService) DeleteContribution(ctx context.Context, userID, goalID,
 		}
 	}()
 
-	goal, err := s.repo.FindGoalByID(ctx, tx, goalID, userID)
+	goal, err := s.repo.FindGoalByIDForUpdate(ctx, tx, goalID, userID)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -543,6 +565,11 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 			panic(p)
 		}
 	}()
+
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, goal.UserID, goal.AccountID); err != nil {
+		tx.Rollback()
+		return false, "", err
+	}
 
 	goal, err = s.repo.FindGoalByIDForUpdate(ctx, tx, goal.ID, goal.UserID)
 	if err != nil {
