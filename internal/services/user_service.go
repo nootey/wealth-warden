@@ -336,8 +336,8 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 		return 0, err
 	}
 
-	if req.Password != nil {
-		if req.Password != req.PasswordConfirmation {
+	if req.Password != nil && *req.Password != "" {
+		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
 			tx.Rollback()
 			return 0, apperr.New(apperr.Validation, "password confirmation must match provided password")
 		}
