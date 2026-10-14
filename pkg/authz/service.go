@@ -16,6 +16,7 @@ type Service struct {
 	mu        sync.RWMutex
 	roleCache map[int64]cachedPerms // roleID -> perms
 	userRoles map[int64]cachedRole  // userID -> roleID
+	gen       uint64
 	ttl       time.Duration
 }
 type cachedPerms struct {
@@ -44,13 +45,27 @@ func (s *Service) PermsForUser(ctx context.Context, userID int64) (map[string]st
 	return s.permsForRole(ctx, roleID)
 }
 
+func (s *Service) InvalidateUser(userID int64) {
+	s.mu.Lock()
+	delete(s.userRoles, userID)
+	s.gen++
+	s.mu.Unlock()
+}
+
+func (s *Service) InvalidateRole(roleID int64) {
+	s.mu.Lock()
+	delete(s.roleCache, roleID)
+	s.gen++
+	s.mu.Unlock()
+}
+
 func (s *Service) roleForUser(ctx context.Context, userID int64) (int64, error) {
-	// serve from cache
 	s.mu.RLock()
 	if e, ok := s.userRoles[userID]; ok && time.Since(e.by) < s.ttl {
 		s.mu.RUnlock()
 		return e.roleID, nil
 	}
+	gen := s.gen
 	s.mu.RUnlock()
 
 	// find role for the user
@@ -60,7 +75,7 @@ func (s *Service) roleForUser(ctx context.Context, userID int64) (int64, error) 
 	if err := s.DB.WithContext(ctx).
 		Table("users AS u").
 		Select("u.role_id AS role_id").
-		Where("u.id = ?", userID).
+		Where("u.id = ? AND u.deleted_at IS NULL", userID).
 		First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, gorm.ErrRecordNotFound
@@ -68,9 +83,11 @@ func (s *Service) roleForUser(ctx context.Context, userID int64) (int64, error) 
 		return 0, err
 	}
 
-	// cache
 	s.mu.Lock()
-	s.userRoles[userID] = cachedRole{roleID: row.RoleID, by: time.Now()}
+	// An invalidation during the query means the row may predate the change
+	if s.gen == gen {
+		s.userRoles[userID] = cachedRole{roleID: row.RoleID, by: time.Now()}
+	}
 	s.mu.Unlock()
 	return row.RoleID, nil
 }
@@ -82,6 +99,7 @@ func (s *Service) permsForRole(ctx context.Context, roleID int64) (map[string]st
 		s.mu.RUnlock()
 		return e.perms, nil
 	}
+	gen := s.gen
 	s.mu.RUnlock()
 
 	// load from DB
@@ -102,7 +120,9 @@ func (s *Service) permsForRole(ctx context.Context, roleID int64) (map[string]st
 
 	// cache
 	s.mu.Lock()
-	s.roleCache[roleID] = cachedPerms{perms: set, by: time.Now()}
+	if s.gen == gen {
+		s.roleCache[roleID] = cachedPerms{perms: set, by: time.Now()}
+	}
 	s.mu.Unlock()
 	return set, nil
 }

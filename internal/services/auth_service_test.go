@@ -92,6 +92,103 @@ func (s *AuthServiceTestSuite) TestPermsForUser_CachesRoleUntilTTL() {
 	s.NotContains(perms, "root_access")
 }
 
+func (s *AuthServiceTestSuite) setUserRole(user models.User, roleID int64) {
+	_, err := s.TC.App.UserService.UpdateUser(s.Ctx, user.ID, user.ID, &models.UserReq{
+		Email:          user.Email,
+		DisplayName:    user.DisplayName,
+		RoleID:         roleID,
+		EmailConfirmed: user.EmailConfirmed,
+	})
+	s.Require().NoError(err)
+}
+
+func (s *AuthServiceTestSuite) TestUpdateUser_RoleChangeClearsCachedRole() {
+	authzSvc := s.TC.App.AuthzService
+	cfg, err := config.LoadConfig(nil)
+	s.Require().NoError(err)
+
+	var user models.User
+	s.Require().NoError(s.TC.DB.Where("email = ?", cfg.Seed.SuperAdminEmail).First(&user).Error)
+	var memberRoleID int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&memberRoleID).Error)
+
+	perms, err := authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.Require().NoError(err)
+	s.Require().Contains(perms, "root_access")
+
+	s.setUserRole(user, memberRoleID)
+	defer s.setUserRole(user, user.RoleID)
+
+	perms, err = authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.NoError(err)
+	s.NotContains(perms, "root_access")
+}
+
+func (s *AuthServiceTestSuite) TestUpdateUser_ValidatesPassword() {
+	var memberRoleID int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&memberRoleID).Error)
+	user := models.User{Email: "password-change@example.com", Password: "x", DisplayName: "password change", RoleID: memberRoleID}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&user).Error)
+
+	updatePassword := func(password string, confirmation *string) error {
+		_, err := s.TC.App.UserService.UpdateUser(s.Ctx, user.ID, user.ID, &models.UserReq{
+			Email:                user.Email,
+			DisplayName:          user.DisplayName,
+			RoleID:               user.RoleID,
+			Password:             &password,
+			PasswordConfirmation: confirmation,
+		})
+		return err
+	}
+	login := func(password string) error {
+		_, err := s.TC.App.AuthService.ValidateLogin(s.Ctx, user.Email, password, "test-agent", "127.0.0.1")
+		return err
+	}
+
+	strong, mismatch, weak := "SecurePassword123!", "DifferentPassword123!", "weak"
+
+	s.Error(updatePassword(strong, nil))
+	s.Error(updatePassword(strong, &mismatch))
+	s.Error(updatePassword(weak, &weak))
+	s.Error(login(strong))
+
+	s.NoError(updatePassword("", nil), "an empty password must skip the change")
+
+	s.Require().NoError(updatePassword(strong, &strong))
+	s.NoError(login(strong))
+}
+
+func (s *AuthServiceTestSuite) TestUpdateRole_PermissionChangeClearsCachedPerms() {
+	authzSvc := s.TC.App.AuthzService
+	roleSvc := s.TC.App.RoleService
+	cfg, err := config.LoadConfig(nil)
+	s.Require().NoError(err)
+
+	var user models.User
+	s.Require().NoError(s.TC.DB.Where("email = ?", cfg.Seed.SuperAdminEmail).First(&user).Error)
+	var viewData, manageData models.Permission
+	s.Require().NoError(s.TC.DB.Where("name = ?", "view_data").First(&viewData).Error)
+	s.Require().NoError(s.TC.DB.Where("name = ?", "manage_data").First(&manageData).Error)
+
+	roleID, err := roleSvc.InsertRole(s.Ctx, user.ID, models.RoleReq{Name: "Cache Probe", Permissions: []models.Permission{viewData}})
+	s.Require().NoError(err)
+	defer func() { s.NoError(roleSvc.DeleteRole(s.Ctx, user.ID, roleID)) }()
+
+	s.setUserRole(user, roleID)
+	defer s.setUserRole(user, user.RoleID)
+
+	perms, err := authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.Require().NoError(err)
+	s.Require().NotContains(perms, "manage_data")
+
+	_, err = roleSvc.UpdateRole(s.Ctx, user.ID, roleID, &models.RoleReq{Name: "Cache Probe", Permissions: []models.Permission{viewData, manageData}})
+	s.Require().NoError(err)
+
+	perms, err = authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.NoError(err)
+	s.Contains(perms, "manage_data")
+}
+
 func (s *AuthServiceTestSuite) TestGetCurrentUser() {
 	svc := s.TC.App.AuthService
 	cfg, err := config.LoadConfig(nil)
