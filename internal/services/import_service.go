@@ -1692,7 +1692,6 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 		}
 	}()
 
-	// Every account the import posts to is locked before the checks below
 	lockIDs := []int64{payload.CheckingAccID}
 	for _, m := range payload.InvestmentMappings {
 		lockIDs = append(lockIDs, m.AccountID)
@@ -1999,7 +1998,6 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 		}
 	}()
 
-	// Every account the import posts to is locked before the checks below
 	lockIDs := []int64{payload.CheckingAccID}
 	for _, m := range payload.SavingsMappings {
 		lockIDs = append(lockIDs, m.AccountID)
@@ -2319,7 +2317,6 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 		}
 	}()
 
-	// Every account the import posts to is locked before the checks below
 	lockIDs := []int64{payload.CheckingAccID}
 	for _, m := range payload.RepaymentMappings {
 		lockIDs = append(lockIDs, m.AccountID)
