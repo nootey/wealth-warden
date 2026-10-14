@@ -44,6 +44,18 @@ func (s *Service) PermsForUser(ctx context.Context, userID int64) (map[string]st
 	return s.permsForRole(ctx, roleID)
 }
 
+func (s *Service) InvalidateUser(userID int64) {
+	s.mu.Lock()
+	delete(s.userRoles, userID)
+	s.mu.Unlock()
+}
+
+func (s *Service) InvalidateRole(roleID int64) {
+	s.mu.Lock()
+	delete(s.roleCache, roleID)
+	s.mu.Unlock()
+}
+
 func (s *Service) roleForUser(ctx context.Context, userID int64) (int64, error) {
 	// serve from cache
 	s.mu.RLock()

@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 
 	"go.uber.org/zap"
@@ -36,17 +37,20 @@ type RolePermissionService struct {
 	logger        *zap.Logger
 	repo          repositories.RolePermissionRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
+	authzSvc      *authz.Service
 }
 
 func NewRolePermissionService(
 	logger *zap.Logger,
 	repo *repositories.RolePermissionRepository,
 	jobDispatcher jobqueue.Dispatcher,
+	authzSvc *authz.Service,
 ) *RolePermissionService {
 	return &RolePermissionService{
 		logger:        logger,
 		repo:          repo,
 		jobDispatcher: jobDispatcher,
+		authzSvc:      authzSvc,
 	}
 }
 
@@ -263,6 +267,8 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
 	}
+
+	s.authzSvc.InvalidateRole(roleID)
 
 	changes := utils.InitChanges()
 	utils.CompareChanges(exRole.Name, role.Name, changes, "name")
