@@ -4409,17 +4409,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_DoesNotApplyRules() 
 }
 
 func (s *TransactionServiceTestSuite) newBulkAccount(userID int64, balance decimal.Decimal) int64 {
-	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
-		Name:           "Bulk Ops Account",
-		AccountTypeID:  1,
-		Type:           "asset",
-		Subtype:        "cash",
-		Classification: "current",
-		Balance:        &balance,
-		OpenedAt:       time.Now().AddDate(0, 0, -30),
-	})
-	s.Require().NoError(err)
-	return accID
+	return s.newNamedAccount(userID, "Bulk Ops Account", balance)
 }
 
 func (s *TransactionServiceTestSuite) insertLedgerTxn(userID, accID int64, dir models.TransactionDirection, amount decimal.Decimal, desc string) int64 {
