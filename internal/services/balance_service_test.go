@@ -470,3 +470,52 @@ func (s *BalanceServiceSuite) TestReconcileReportsNothingWhenBalancesAgree() {
 	s.Require().NoError(err)
 	s.Assert().Empty(repaired)
 }
+
+func (s *BalanceServiceSuite) TestRebuildDailyRangeWaitsForAccountLock() {
+	ids := s.seedAccounts()
+	repo := repositories.NewBalanceRepository(s.TC.DB)
+	id := ids[0]
+	today := s.today()
+
+	snapshot := func() decimal.Decimal {
+		var v decimal.Decimal
+		s.Require().NoError(s.TC.DB.Raw(
+			`SELECT end_balance FROM balance_snapshots WHERE account_id = ? AND as_of = ?`, id, today).Scan(&v).Error)
+		return v
+	}
+	before := snapshot()
+
+	var catID int64
+	s.Require().NoError(s.TC.DB.Raw(
+		`SELECT id FROM categories WHERE user_id = ? AND classification = 'uncategorized' AND parent_id IS NULL LIMIT 1`,
+		seedUserID).Scan(&catID).Error)
+
+	writer := s.LockAccount(id)
+	txn := models.NewOpeningTransaction(seedUserID, id, &catID, "EUR", today, decimal.NewFromInt(40))
+	s.Require().NoError(writer.Create(&txn).Error)
+
+	err := s.WaitsFor(func() error { return writer.Commit().Error }, func() error {
+		tx := s.TC.DB.Begin()
+		if err := repo.RebuildDailyRange(s.Ctx, tx, seedUserID, id, "EUR", today, today); err != nil {
+			tx.Rollback()
+			return err
+		}
+		return tx.Commit().Error
+	})
+	s.Require().NoError(err)
+
+	after := snapshot()
+	s.Assert().True(after.Equal(before.Add(decimal.NewFromInt(40))), "snapshot is %s, want %s",
+		after.StringFixed(4), before.Add(decimal.NewFromInt(40)).StringFixed(4))
+}
+
+func (s *BalanceServiceSuite) TestUpdateSnapshotMarketValuesWaitsForAccountLock() {
+	ids := s.seedAccounts()
+	repo := repositories.NewBalanceRepository(s.TC.DB)
+
+	writer := s.LockAccount(ids[1])
+	err := s.WaitsFor(func() error { return writer.Commit().Error }, func() error {
+		return repo.UpdateSnapshotMarketValues(s.Ctx, nil, seedUserID, nil)
+	})
+	s.Require().NoError(err)
+}

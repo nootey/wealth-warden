@@ -201,18 +201,25 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 
-	invTypeID, cryptoTypeID, err := bulkInvestmentAccountTypeIDs(ctx, db)
-	if err != nil {
-		return err
-	}
-
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	// Seed investments first: fetch the whole price pool + rate history once, so
-	// the per-user loop stays plain inserts.
-	pricePool, fx, err := seedBulkAssetPricePool(ctx, db, cfg, today)
-	if err != nil {
-		return fmt.Errorf("failed to seed asset price pool: %w", err)
+	var (
+		invTypeID, cryptoTypeID int64
+		pricePool               map[string]*bulkAssetPrices
+		fx                      *bulkFX
+	)
+	if !b.Lean {
+		invTypeID, cryptoTypeID, err = bulkInvestmentAccountTypeIDs(ctx, db)
+		if err != nil {
+			return err
+		}
+
+		// Seed investments first: fetch the whole price pool + rate history once, so
+		// the per-user loop stays plain inserts.
+		pricePool, fx, err = seedBulkAssetPricePool(ctx, db, cfg, today)
+		if err != nil {
+			return fmt.Errorf("failed to seed asset price pool: %w", err)
+		}
 	}
 
 	var taken []string
@@ -237,7 +244,11 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		return nil
 	}
 
-	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+	seed := b.RandSeed
+	if seed == 0 {
+		seed = time.Now().UTC().UnixNano()
+	}
+	rng := rand.New(rand.NewSource(seed))
 
 	balanceRepo := repositories.NewBalanceRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
@@ -260,8 +271,10 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	// One set-based pass over every bulk user's investment/crypto snapshots,
 	// bounded to the investment window. Runs after the chunks commit.
-	if err := recomputeBulkInvestmentSnapshots(ctx, db, balanceRepo, b.EmailDomain, today); err != nil {
-		return err
+	if !b.Lean {
+		if err := recomputeBulkInvestmentSnapshots(ctx, db, balanceRepo, b.EmailDomain, today); err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("bulk credentials: %s .. %s, password %q\n",
@@ -490,6 +503,10 @@ func seedBulkChunk(
 		if err := balanceRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i]); err != nil {
 			return fmt.Errorf("failed to rebuild balances: %w", err)
 		}
+	}
+
+	if b.Lean {
+		return nil
 	}
 
 	if err := seedBulkSavingGoals(ctx, tx, rng, today, accounts); err != nil {

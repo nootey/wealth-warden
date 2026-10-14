@@ -220,6 +220,22 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 
 func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error {
 
+	var hashedPassword string
+	if req.Password != nil && *req.Password != "" {
+		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
+			return apperr.New(apperr.Validation, "password confirmation must match provided password")
+		}
+		password, passwordErr := utils.ValidatePasswordStrength(*req.Password)
+		if passwordErr != nil {
+			return apperr.Wrap(apperr.Validation, passwordErr.Error(), passwordErr)
+		}
+		hashed, err := utils.HashAndSaltPassword(password)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
+		hashedPassword = hashed
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -259,17 +275,8 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 		return err
 	}
 
-	if req.Password != nil && *req.Password != "" {
-		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
-			tx.Rollback()
-			return apperr.New(apperr.Validation, "password confirmation must match provided password")
-		}
-		hashed, err := utils.HashAndSaltPassword(*req.Password)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to hash password: %w", err)
-		}
-		if err := s.userRepo.UpdateUserPassword(ctx, tx, existingUser.ID, hashed); err != nil {
+	if hashedPassword != "" {
+		if err := s.userRepo.UpdateUserPassword(ctx, tx, existingUser.ID, hashedPassword); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -279,9 +286,10 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 		return err
 	}
 
-	if req.Password != nil && *req.Password != "" {
+	if hashedPassword != "" {
 		if err := s.sessionStore.DeleteAllForUser(ctx, existingUser.ID); err != nil {
-			return err
+			s.logger.Warn("settings password change: old sessions not ended",
+				zap.Int64("user_id", existingUser.ID), zap.Error(err))
 		}
 	}
 

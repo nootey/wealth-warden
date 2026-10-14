@@ -33,6 +33,7 @@ var (
 	ErrOutflowTransactionNotFound  = apperr.New(apperr.NotFound, "Outflow transaction not found")
 	ErrExistingAccountNotFound     = apperr.New(apperr.Internal, "The transaction's existing account no longer exists")
 	ErrExistingCategoryNotFound    = apperr.New(apperr.Internal, "The transaction's existing category no longer exists")
+	ErrTransactionChanged          = apperr.New(apperr.Conflict, "The transaction was changed by another request, try again")
 )
 
 type TransactionServiceInterface interface {
@@ -247,7 +248,8 @@ func (s *TransactionService) autoAssignCategory(ctx context.Context, tx *gorm.DB
 
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
 
-	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
+	if !direction.IsValid() {
 		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
 	}
 
@@ -276,6 +278,14 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	}
 	ownsTx := len(existingTx) == 0 || existingTx[0] == nil
 
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, req.AccountID)
+	if err != nil {
+		if ownsTx {
+			tx.Rollback()
+		}
+		return models.InsertResult{}, err
+	}
+
 	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
 		if ownsTx {
@@ -293,16 +303,8 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, err
 	}
 
-	if req.Direction == "expense" {
-		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
-		if err != nil {
-			if ownsTx {
-				tx.Rollback()
-			}
-			return models.InsertResult{}, err
-		}
-
-		resultingBalance := latestBalance.Sub(req.Amount)
+	if direction == models.TxnDirectionExpense {
+		resultingBalance := balances[account.ID].Sub(req.Amount)
 		if utils.AccountBelowLimit(resultingBalance, account) {
 			if ownsTx {
 				tx.Rollback()
@@ -412,7 +414,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		UserID:         userID,
 		AccountID:      account.ID,
 		CategoryID:     &category.ID,
-		Direction:      models.TransactionDirection(strings.ToLower(string(req.Direction))),
+		Direction:      direction,
 		Amount:         req.Amount,
 		Currency:       account.Currency,
 		TxnDate:        txDay,
@@ -495,7 +497,13 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		}
 	}()
 
-	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.SourceID, userID, true)
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, req.SourceID, req.DestinationID)
+	if err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
+	}
+
+	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.SourceID, userID, false)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -508,8 +516,21 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		return models.InsertResult{}, err
 	}
 
+	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.DestinationID, userID, false)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.InsertResult{}, ErrInvalidDestinationAccountID
+		}
+		return models.InsertResult{}, fmt.Errorf("can't find destination account %w", err)
+	}
+	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
+	}
+
 	if fromAcc.AccountType.Classification == "asset" {
-		resultingBalance := fromAcc.Balance.Balance.Sub(req.Amount)
+		resultingBalance := balances[fromAcc.ID].Sub(req.Amount)
 		if utils.AccountBelowLimit(resultingBalance, fromAcc) {
 			tx.Rollback()
 			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, fromAcc)
@@ -526,19 +547,6 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 				return models.InsertResult{}, err
 			}
 		}
-	}
-
-	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.DestinationID, userID, false)
-	if err != nil {
-		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return models.InsertResult{}, ErrInvalidDestinationAccountID
-		}
-		return models.InsertResult{}, fmt.Errorf("can't find destination account %w", err)
-	}
-	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, err
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -840,7 +848,8 @@ func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *go
 }
 
 func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error) {
-	if direction := models.TransactionDirection(strings.ToLower(string(req.Direction))); !direction.IsValid() {
+	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
+	if !direction.IsValid() {
 		return 0, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
 	}
 
@@ -856,6 +865,17 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		}
 	}()
 
+	accountIDs, err := s.repo.FindTransactionAccountIDs(ctx, tx, userID, id)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, append(accountIDs, req.AccountID)...)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
 	// Load existing transaction
 	exTr, err := s.repo.FindTransactionByID(ctx, tx, id, userID, false)
 	if err != nil {
@@ -865,6 +885,10 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		}
 		return 0, fmt.Errorf("can't find transaction with given id %w", err)
 	}
+	if _, locked := balances[exTr.AccountID]; !locked {
+		tx.Rollback()
+		return 0, ErrTransactionChanged
+	}
 	if !exTr.TransactionType.IsUserEditable() {
 		tx.Rollback()
 		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("can't edit a %s transaction", exTr.TransactionType))
@@ -873,9 +897,8 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	if exTr.TransactionType.IsPartiallyEditable() {
 		sameCategory := (req.CategoryID == nil && exTr.CategoryID == nil) ||
 			(req.CategoryID != nil && exTr.CategoryID != nil && *req.CategoryID == *exTr.CategoryID)
-		newDirection := models.TransactionDirection(strings.ToLower(string(req.Direction)))
 
-		if req.AccountID != exTr.AccountID || !sameCategory || newDirection != exTr.Direction {
+		if req.AccountID != exTr.AccountID || !sameCategory || direction != exTr.Direction {
 			tx.Rollback()
 			return 0, apperr.New(apperr.Validation, fmt.Sprintf(
 				"only %s can be changed on a %s transaction", exTr.TransactionType.PartiallyEditableFields(), exTr.TransactionType,
@@ -947,7 +970,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		oldEffect = exTr.Amount
 	}
 
-	if req.Direction == "expense" {
+	if direction == models.TxnDirectionExpense {
 		newEffect = req.Amount.Neg()
 	} else {
 		newEffect = req.Amount
@@ -967,13 +990,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 			continue
 		}
 
-		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, bc.account.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-
-		resultingBalance := latestBalance.Add(bc.delta)
+		resultingBalance := balances[bc.account.ID].Add(bc.delta)
 		if utils.AccountBelowLimit(resultingBalance, bc.account) {
 			tx.Rollback()
 			return 0, utils.AccountLimitError(resultingBalance, bc.account)
@@ -1046,7 +1063,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		UserID:      userID,
 		AccountID:   newAccount.ID,
 		CategoryID:  &newCategory.ID,
-		Direction:   models.TransactionDirection(strings.ToLower(string(req.Direction))),
+		Direction:   direction,
 		Amount:      req.Amount,
 		Currency:    exTr.Currency,
 		TxnDate:     newDay,
@@ -1196,6 +1213,17 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		}
 	}()
 
+	accountIDs, err := s.repo.FindTransactionAccountIDs(ctx, tx, userID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Load the transaction + relations
 	tr, err := s.repo.FindTransactionByID(ctx, tx, id, userID, false)
 	if err != nil {
@@ -1204,6 +1232,10 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 			return ErrTransactionNotFound
 		}
 		return fmt.Errorf("can't find transaction with given id %w", err)
+	}
+	if _, locked := balances[tr.AccountID]; !locked {
+		tx.Rollback()
+		return ErrTransactionChanged
 	}
 	if !tr.TransactionType.IsUserDeletable() {
 		tx.Rollback()
@@ -1222,13 +1254,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 
 	// If deleting an income, balance will go down
 	if tr.Direction == "income" {
-		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		resultingBalance := latestBalance.Sub(tr.Amount)
+		resultingBalance := balances[account.ID].Sub(tr.Amount)
 		if utils.AccountBelowLimit(resultingBalance, account) {
 			tx.Rollback()
 			return utils.AccountLimitError(resultingBalance, account)
@@ -1320,6 +1346,17 @@ func (s *TransactionService) BulkOperateTransactions(ctx context.Context, userID
 		}
 	}()
 
+	accountIDs, err := s.repo.FindTransactionAccountIDs(ctx, tx, userID, req.IDs...)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	records, err := s.repo.FindTransactionsByIDs(ctx, tx, req.IDs, userID)
 	if err != nil {
 		tx.Rollback()
@@ -1329,21 +1366,27 @@ func (s *TransactionService) BulkOperateTransactions(ctx context.Context, userID
 		tx.Rollback()
 		return nil, ErrTransactionNotFound
 	}
+	for _, r := range records {
+		if _, locked := balances[r.AccountID]; !locked {
+			tx.Rollback()
+			return nil, ErrTransactionChanged
+		}
+	}
 
 	switch req.Action {
 	case models.BulkActionSetCategory:
-		return s.bulkSetCategory(ctx, tx, userID, records, req.CategoryID)
+		return s.bulkSetCategory(ctx, tx, userID, records, req.CategoryID, balances)
 	case models.BulkActionSetDescription:
 		return s.bulkSetDescription(ctx, tx, userID, records, req.Description)
 	case models.BulkActionDelete:
-		return s.bulkDelete(ctx, tx, userID, records)
+		return s.bulkDelete(ctx, tx, userID, records, balances)
 	default:
 		tx.Rollback()
 		return nil, apperr.New(apperr.Validation, fmt.Sprintf("unknown bulk action: %s", req.Action))
 	}
 }
 
-func (s *TransactionService) bulkSetCategory(ctx context.Context, tx *gorm.DB, userID int64, records []models.Transaction, categoryID *int64) (*models.BulkTransactionResult, error) {
+func (s *TransactionService) bulkSetCategory(ctx context.Context, tx *gorm.DB, userID int64, records []models.Transaction, categoryID *int64, balances map[int64]decimal.Decimal) (*models.BulkTransactionResult, error) {
 	if categoryID == nil {
 		tx.Rollback()
 		return nil, apperr.New(apperr.Validation, "a category is required")
@@ -1424,12 +1467,7 @@ func (s *TransactionService) bulkSetCategory(ctx context.Context, tx *gorm.DB, u
 		agg.account = account
 
 		if agg.netChange.IsNegative() {
-			latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
-			if err != nil {
-				tx.Rollback()
-				return nil, err
-			}
-			resultingBalance := latestBalance.Add(agg.netChange)
+			resultingBalance := balances[account.ID].Add(agg.netChange)
 			if utils.AccountBelowLimit(resultingBalance, account) {
 				tx.Rollback()
 				return nil, utils.AccountLimitError(resultingBalance, account)
@@ -1505,7 +1543,7 @@ func (s *TransactionService) bulkSetDescription(ctx context.Context, tx *gorm.DB
 	return &models.BulkTransactionResult{Processed: updated, Skipped: int64(skipped)}, nil
 }
 
-func (s *TransactionService) bulkDelete(ctx context.Context, tx *gorm.DB, userID int64, records []models.Transaction) (*models.BulkTransactionResult, error) {
+func (s *TransactionService) bulkDelete(ctx context.Context, tx *gorm.DB, userID int64, records []models.Transaction, balances map[int64]decimal.Decimal) (*models.BulkTransactionResult, error) {
 	eligible, skipped := utils.PartitionBulkTransactions(records, models.TransactionType.IsBulkDeletable)
 	if len(eligible) == 0 {
 		tx.Rollback()
@@ -1548,13 +1586,7 @@ func (s *TransactionService) bulkDelete(ctx context.Context, tx *gorm.DB, userID
 		}
 
 		if agg.incomeSum.IsPositive() {
-			latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
-			if err != nil {
-				tx.Rollback()
-				return nil, err
-			}
-
-			resultingBalance := latestBalance.Sub(agg.incomeSum)
+			resultingBalance := balances[account.ID].Sub(agg.incomeSum)
 			if utils.AccountBelowLimit(resultingBalance, account) {
 				tx.Rollback()
 				return nil, utils.AccountLimitError(resultingBalance, account)
@@ -1643,6 +1675,17 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 		return fmt.Errorf("can't find transfer: %w", err)
 	}
 
+	accountIDs, err := s.repo.FindTransactionAccountIDs(ctx, tx, userID, transfer.TransactionInflowID, transfer.TransactionOutflowID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	inflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionInflowID, userID, false)
 	if err != nil {
 		tx.Rollback()
@@ -1661,7 +1704,14 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 		return fmt.Errorf("can't find outflow transaction: %w", err)
 	}
 
-	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, outflow.AccountID, userID, true)
+	_, inflowLocked := balances[inflow.AccountID]
+	_, outflowLocked := balances[outflow.AccountID]
+	if !inflowLocked || !outflowLocked {
+		tx.Rollback()
+		return ErrTransactionChanged
+	}
+
+	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, outflow.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1705,7 +1755,7 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	// Sufficient funds check: only when the outflow increases
 	netChange := req.Amount.Sub(oldAmount)
 	if netChange.GreaterThan(decimal.Zero) && fromAcc.AccountType.Classification == "asset" {
-		resultingBalance := fromAcc.Balance.Balance.Sub(netChange)
+		resultingBalance := balances[fromAcc.ID].Sub(netChange)
 		if utils.AccountBelowLimit(resultingBalance, fromAcc) {
 			tx.Rollback()
 			return utils.AccountLimitError(resultingBalance, fromAcc)
@@ -1819,6 +1869,17 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return fmt.Errorf("can't find transfer with given id %w", err)
 	}
 
+	accountIDs, err := s.repo.FindTransactionAccountIDs(ctx, tx, userID, transfer.TransactionInflowID, transfer.TransactionOutflowID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Load associated transactions
 	inflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionInflowID, userID, false)
 	if err != nil {
@@ -1836,6 +1897,13 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 			return ErrOutflowTransactionNotFound
 		}
 		return fmt.Errorf("can't find outflow transaction with given id %w", err)
+	}
+
+	_, inflowLocked := balances[inflow.AccountID]
+	_, outflowLocked := balances[outflow.AccountID]
+	if !inflowLocked || !outflowLocked {
+		tx.Rollback()
+		return ErrTransactionChanged
 	}
 
 	// Load accounts
@@ -1866,13 +1934,7 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	}
 
 	// Check if removing from destination would violate investment constraint
-	latestToBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, toAcc.ID, userID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	resultingBalance := latestToBalance.Sub(inflow.Amount)
+	resultingBalance := balances[toAcc.ID].Sub(inflow.Amount)
 	if utils.AccountBelowLimit(resultingBalance, toAcc) {
 		tx.Rollback()
 		return utils.AccountLimitError(resultingBalance, toAcc)
@@ -2040,6 +2102,17 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 		}
 	}()
 
+	accountIDs, err := s.repo.FindTransactionAccountIDs(ctx, tx, userID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Load the transaction
 	tr, err := s.repo.FindTransactionByID(ctx, tx, id, userID, true)
 	if err != nil {
@@ -2048,6 +2121,10 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 			return ErrTransactionNotFound
 		}
 		return fmt.Errorf("can't find inflow transaction with given id %w", err)
+	}
+	if _, locked := balances[tr.AccountID]; !locked {
+		tx.Rollback()
+		return ErrTransactionChanged
 	}
 	if tr.DeletedAt == nil {
 		tx.Rollback()
@@ -2074,13 +2151,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 
 	// If restoring an expense, balance will go down
 	if tr.Direction == "expense" {
-		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, acc.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		resultingBalance := latestBalance.Sub(tr.Amount)
+		resultingBalance := balances[acc.ID].Sub(tr.Amount)
 		if utils.AccountBelowLimit(resultingBalance, acc) {
 			tx.Rollback()
 			return utils.AccountLimitError(resultingBalance, acc)
@@ -3111,6 +3182,16 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 	}()
 
+	accountIDs := []int64{template.AccountID}
+	if template.ToAccountID != nil {
+		accountIDs = append(accountIDs, *template.ToAccountID)
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, template.UserID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return 0, time.Time{}, err
+	}
+
 	currentTemplate, err := s.repo.FindTransactionTemplateByIDForUpdate(ctx, tx, template.ID, template.UserID)
 	if err != nil {
 		tx.Rollback()
@@ -3118,6 +3199,16 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			return 0, time.Time{}, ErrTemplateNotFound
 		}
 		return 0, time.Time{}, fmt.Errorf("template not found: %w", err)
+	}
+
+	_, sourceLocked := balances[currentTemplate.AccountID]
+	destinationLocked := true
+	if currentTemplate.ToAccountID != nil {
+		_, destinationLocked = balances[*currentTemplate.ToAccountID]
+	}
+	if !sourceLocked || !destinationLocked {
+		tx.Rollback()
+		return 0, time.Time{}, apperr.New(apperr.Conflict, "template accounts changed while it ran, try again")
 	}
 
 	if !currentTemplate.IsActive {
@@ -3167,7 +3258,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 	var transferSrcName, transferDstName string
 
 	if currentTemplate.TemplateType == "transfer" {
-		srcAcc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, true)
+		srcAcc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, false)
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -3178,11 +3269,6 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		if err := utils.ValidateAccount(srcAcc, "source"); err != nil {
 			tx.Rollback()
 			return 0, time.Time{}, err
-		}
-		if srcAcc.Balance.Balance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
-			tx.Rollback()
-			return 0, time.Time{}, apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds in source account %s (balance: %s, requested: %s)",
-				srcAcc.Name, srcAcc.Balance.Balance.StringFixed(2), currentTemplate.Amount.StringFixed(2)))
 		}
 
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *currentTemplate.ToAccountID, currentTemplate.UserID, false)
@@ -3196,6 +3282,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
 			tx.Rollback()
 			return 0, time.Time{}, err
+		}
+
+		if srcBalance := balances[srcAcc.ID]; srcBalance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
+			tx.Rollback()
+			return 0, time.Time{}, apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds in source account %s (balance: %s, requested: %s)",
+				srcAcc.Name, srcBalance.StringFixed(2), currentTemplate.Amount.StringFixed(2)))
 		}
 
 		transferCategory, err := s.repo.EnsureRootCategory(ctx, tx, "uncategorized", currentTemplate.UserID)

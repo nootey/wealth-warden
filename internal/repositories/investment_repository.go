@@ -18,6 +18,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error)
 	FindAllInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentAsset, error)
 	FindInvestmentAssetByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentAsset, error)
+	FindAssetAccountIDs(ctx context.Context, tx *gorm.DB, userID int64, assetIDs ...int64) ([]int64, error)
 	FindAssetsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentAsset, error)
 	FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error)
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
@@ -221,6 +222,19 @@ func (r *InvestmentRepository) FindInvestmentAssetByID(ctx context.Context, tx *
 	q = q.First(&record)
 
 	return record, q.Error
+}
+
+func (r *InvestmentRepository) FindAssetAccountIDs(ctx context.Context, tx *gorm.DB, userID int64, assetIDs ...int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var accountIDs []int64
+	err := db.WithContext(ctx).Raw(`
+		SELECT DISTINCT account_id FROM investment_assets WHERE id IN ? AND user_id = ?
+	`, assetIDs, userID).Scan(&accountIDs).Error
+	return accountIDs, err
 }
 
 func (r *InvestmentRepository) FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error) {

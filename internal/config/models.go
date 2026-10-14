@@ -33,6 +33,7 @@ type PostgresConfig struct {
 	Database string `mapstructure:"db" validate:"required"`
 	User     string `mapstructure:"user" validate:"required"`
 	Password string `mapstructure:"password" validate:"required"`
+	MaxConns int    `mapstructure:"max_conns" validate:"min=1"`
 }
 
 type RedisConfig struct {
@@ -68,6 +69,8 @@ type BulkSeedConfig struct {
 	TxnsPerUser int    `mapstructure:"txns_per_user"`
 	EmailDomain string `mapstructure:"email_domain"`
 	Password    string `mapstructure:"password"`
+	Lean        bool   `mapstructure:"lean"`
+	RandSeed    int64  `mapstructure:"rand_seed"`
 }
 
 type MailerConfig struct {

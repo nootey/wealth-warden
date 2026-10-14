@@ -8,6 +8,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/sessions"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/utils"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -60,16 +61,11 @@ func (s *SettingsServiceTestSuite) TestUpdateProfileSettings_PasswordChangeRevok
 	_, err = store.Validate(s.Ctx, otherDevice)
 	s.ErrorIs(err, sessions.ErrNotFound, "other session should have been revoked by the password change")
 
-	// restore the seeded password so other tests/suites relying on it keep working
-	restored := s.TC.App.Config.Seed.SuperAdminPassword
-	err = s.TC.App.SettingsService.UpdateProfileSettings(s.Ctx, user.ID, models.ProfileSettingsReq{
-		DisplayName:          user.DisplayName,
-		Email:                user.Email,
-		EmailUpdated:         false,
-		Password:             &restored,
-		PasswordConfirmation: &restored,
-	})
+	// restore the seeded password so other tests/suites relying on it keep working;
+	// written directly because the seed password fails the strength check
+	hashed, err := utils.HashAndSaltPassword(s.TC.App.Config.Seed.SuperAdminPassword)
 	s.Require().NoError(err)
+	s.Require().NoError(s.TC.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("password", hashed).Error)
 }
 
 // A display-name-only update must not disturb other active sessions.

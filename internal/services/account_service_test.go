@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
@@ -1859,4 +1860,59 @@ func (s *AccountServiceTestSuite) TestInsertAccount_OpeningTransactionUsesAdjust
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", *opening.CategoryID).First(&category).Error
 	s.Require().NoError(err)
 	s.Assert().Equal("adjustment", category.Classification)
+}
+
+func (s *AccountServiceTestSuite) newEmptyAccount(name string) int64 {
+	zero := decimal.Zero
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, int64(1), &models.AccountReq{
+		Name:          name,
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now().AddDate(0, 0, -1),
+	})
+	s.Require().NoError(err)
+	return accID
+}
+
+func (s *AccountServiceTestSuite) TestCloseAccount_WaitsForInFlightWrite() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	accID := s.newEmptyAccount("Close Race")
+
+	writer := s.LockAccount(accID)
+	s.Require().NoError(writer.Exec(`UPDATE balances SET balance = 50 WHERE account_id = ?`, accID).Error)
+
+	err := s.WaitsFor(func() error { return writer.Commit().Error }, func() error {
+		return svc.CloseAccount(s.Ctx, userID, accID)
+	})
+	s.Require().ErrorIs(err, services.ErrAccountNotEmpty)
+
+	var account models.Account
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&account, accID).Error)
+	s.Assert().Nil(account.ClosedAt, "a refused close must leave the account open")
+}
+
+func (s *AccountServiceTestSuite) TestInsertTransaction_WaitsForInFlightClose() {
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newEmptyAccount("Write Race")
+
+	closer := s.LockAccount(accID)
+	s.Require().NoError(closer.Exec(`UPDATE accounts SET closed_at = NOW(), is_active = false WHERE id = ?`, accID).Error)
+
+	err := s.WaitsFor(func() error { return closer.Commit().Error }, func() error {
+		_, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accID, Direction: "income", Amount: decimal.NewFromInt(50), TxnDate: time.Now().UTC().Truncate(24 * time.Hour),
+		})
+		return err
+	})
+	var appErr *apperr.Error
+	s.Require().ErrorAs(err, &appErr, "the write must fail validation, not hit the database guard")
+	s.Assert().Equal(apperr.Conflict, appErr.Kind)
+
+	var txnCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
+		Count(&txnCount).Error)
+	s.Assert().Zero(txnCount, "nothing may post to the closed account")
 }

@@ -420,6 +420,12 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		}
 	}()
 
+	// The balance reads for the credit limit and adjustment checks below run under this lock
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, id); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
 	// Load record
 	exAcc, _, err := s.repo.FindAccountByIDWithOpening(ctx, tx, id, userID)
 	if err != nil {
@@ -698,6 +704,11 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 		}
 	}()
 
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, id); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Load record to confirm it exists
 	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false)
 	if err != nil {
@@ -783,6 +794,13 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 			panic(p)
 		}
 	}()
+
+	// Every open account gets today's snapshot below, so all of them are locked up front.
+	// A write that waited on this lock sees the account as closed.
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// Load the account
 	acc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
@@ -877,6 +895,13 @@ func (s *AccountService) PurgeAccount(ctx context.Context, actorID, accountID in
 			panic(p)
 		}
 	}()
+
+	// The purge recomputes the far side of the account's transfers and the rebuild
+	// touches every account, so the owner's whole set is locked first
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, acc.UserID); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	if err := s.repo.PurgeAccount(ctx, tx, acc.ID, acc.UserID); err != nil {
 		tx.Rollback()
@@ -974,6 +999,11 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 
 	dfrom, dto, err := s.resolveUserDateRange(ctx, tx, userID, from, to)
 	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1426,6 +1456,12 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 			panic(p)
 		}
 	}()
+
+	// Locked before validation, so no write can reach the source after its transactions move
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, sourceID, destinationID); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	srcAcc, dstAcc, err := s.resolveAccountMerge(ctx, tx, userID, sourceID, destinationID)
 	if err != nil {

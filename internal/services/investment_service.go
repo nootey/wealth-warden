@@ -102,6 +102,7 @@ var (
 	ErrTradeNotFound      = apperr.New(apperr.NotFound, "Trade not found")
 	ErrIncomeNotFound     = apperr.New(apperr.NotFound, "Income record not found")
 	ErrTaxBracketNotFound = apperr.New(apperr.NotFound, "Tax bracket not found")
+	ErrAssetChanged       = apperr.New(apperr.Conflict, "The asset was changed by another request, try again")
 )
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
@@ -377,14 +378,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	// Validate sell quantity
-	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
-		return 0, apperr.New(apperr.Validation, fmt.Sprintf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
-			asset.Ticker,
-			asset.Quantity.String(),
-			req.Quantity.String()))
-	}
-
 	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
 	if err != nil {
 		return 0, err
@@ -427,13 +420,38 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		}
 	}()
 
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, asset.AccountID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// Read again under the lock: a concurrent trade may have changed the holdings since the read above
+	current, err := s.repo.FindInvestmentAssetByID(ctx, tx, req.AssetID, userID)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAssetNotFound
+		}
+		return 0, err
+	}
+	if current.AccountID != asset.AccountID {
+		tx.Rollback()
+		return 0, ErrAssetChanged
+	}
+	asset = current
+
+	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
+		tx.Rollback()
+		return 0, apperr.New(apperr.Validation, fmt.Sprintf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
+			asset.Ticker,
+			asset.Quantity.String(),
+			req.Quantity.String()))
+	}
+
 	// Validate buy affordability — balance already reflects cash only
 	if req.TradeType == models.InvestmentBuy {
-		availableBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
-		if err != nil {
-			tx.Rollback()
-			return 0, apperr.Wrap(apperr.Internal, "failed to get account balance", err)
-		}
+		availableBalance := balances[asset.AccountID]
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
 		if req.Fee != nil {
@@ -652,6 +670,11 @@ func (s *InvestmentService) RebuildInvestmentDerivedData(ctx context.Context, us
 		}
 	}()
 
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	trades, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
@@ -684,6 +707,11 @@ func (s *InvestmentService) CorrectFeeAccountingAndRebuild(ctx context.Context, 
 			panic(p)
 		}
 	}()
+
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	if err := s.correctTradeFeeAccounting(ctx, tx, userID); err != nil {
 		tx.Rollback()
@@ -1118,6 +1146,17 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 		}
 	}()
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
@@ -1125,6 +1164,10 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 			return ErrAssetNotFound
 		}
 		return err
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	earliestTxnDate, err := s.repo.GetEarliestTradeDate(ctx, tx, id, userID)
@@ -1212,6 +1255,17 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		return err
 	}
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, exTxn.AssetID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, exTxn.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
@@ -1219,6 +1273,10 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 			return ErrAssetNotFound
 		}
 		return err
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	// Validate deletion: check if removing this buy would cause negative quantity
@@ -1511,6 +1569,21 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		Notes:             req.Notes,
 	}
 
+	// Locked after the price lookups, so the account isn't held during external calls
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, asset.AccountID); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, asset.ID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	if len(accountIDs) != 1 || accountIDs[0] != asset.AccountID {
+		tx.Rollback()
+		return 0, ErrAssetChanged
+	}
+
 	id, err := s.repo.CreateInvestmentIncome(ctx, tx, &record)
 	if err != nil {
 		tx.Rollback()
@@ -1613,6 +1686,17 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 		return err
 	}
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, income.AssetID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, income.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
@@ -1620,6 +1704,10 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 			return ErrAssetNotFound
 		}
 		return err
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	if income.LinkedTransactionID != nil {
@@ -1864,10 +1952,25 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 		}
 	}()
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, assetID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, assetID, userID)
 	if err != nil {
 		tx.Rollback()
 		return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find asset %d", assetID), err)
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	incomeType := models.IncomeTypeStaking

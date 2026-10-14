@@ -748,6 +748,13 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 		}
 	}()
 
+	// Locked before the duplicate checks, so two imports into one account can't both pass them
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, sourceAcc.ID); err != nil {
+		tx.Rollback()
+		s.markImportFailed(ctx, userID, importID, err, zap.Int64("account_id", sourceAcc.ID))
+		return err
+	}
+
 	sort.SliceStable(payload.Txns, func(i, j int) bool {
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
@@ -1685,6 +1692,15 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 		}
 	}()
 
+	lockIDs := []int64{payload.CheckingAccID}
+	for _, m := range payload.InvestmentMappings {
+		lockIDs = append(lockIDs, m.AccountID)
+	}
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, lockIDs...); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
@@ -1697,21 +1713,25 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	if imp.InvestmentsTransferred {
+		tx.Rollback()
 		return ErrInvestmentsTransferred
 	}
 
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	b, err := os.ReadFile(filePath)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	var txnPayload models.TxnImportPayload
 	if err := json.Unmarshal(b, &txnPayload); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1906,6 +1926,7 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 		"investments_transferred": true,
 		"error":                   "",
 	}); err != nil {
+		tx.Rollback()
 		return fmt.Errorf("marking import %d successful failed: %w", payload.ImportID, err)
 	}
 
@@ -1977,6 +1998,15 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 		}
 	}()
 
+	lockIDs := []int64{payload.CheckingAccID}
+	for _, m := range payload.SavingsMappings {
+		lockIDs = append(lockIDs, m.AccountID)
+	}
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, lockIDs...); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
@@ -1989,21 +2019,25 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	if imp.SavingsTransferred {
+		tx.Rollback()
 		return ErrSavingsTransferred
 	}
 
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	b, err := os.ReadFile(filePath)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	var txnPayload models.TxnImportPayload
 	if err := json.Unmarshal(b, &txnPayload); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -2211,6 +2245,7 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 		"savings_transferred": true,
 		"error":               "",
 	}); err != nil {
+		tx.Rollback()
 		return fmt.Errorf("marking import %d successful failed: %w", payload.ImportID, err)
 	}
 
@@ -2282,6 +2317,15 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 		}
 	}()
 
+	lockIDs := []int64{payload.CheckingAccID}
+	for _, m := range payload.RepaymentMappings {
+		lockIDs = append(lockIDs, m.AccountID)
+	}
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, lockIDs...); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
@@ -2294,21 +2338,25 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	if imp.RepaymentsTransferred {
+		tx.Rollback()
 		return ErrRepaymentsTransferred
 	}
 
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	b, err := os.ReadFile(filePath)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	var txnPayload models.TxnImportPayload
 	if err := json.Unmarshal(b, &txnPayload); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -2516,6 +2564,7 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 		"repayments_transferred": true,
 		"error":                  "",
 	}); err != nil {
+		tx.Rollback()
 		return fmt.Errorf("marking import %d successful failed: %w", payload.ImportID, err)
 	}
 
@@ -2634,6 +2683,17 @@ func (s *ImportService) RunTransferTrades(ctx context.Context, userID, importID 
 			panic(p)
 		}
 	}()
+
+	// Asset rows of these accounts are written below, so the accounts are locked first
+	lockIDs := make([]int64, 0, len(payload.TradeMappings))
+	for _, m := range payload.TradeMappings {
+		lockIDs = append(lockIDs, m.AccountID)
+	}
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, lockIDs...); err != nil {
+		s.markImportFailed(ctx, userID, importID, err)
+		_ = tx.Rollback()
+		return err
+	}
 
 	tradeToAccID := make(map[string]int64, len(payload.TradeMappings))
 	distinctAccIDs := make(map[int64]struct{})
@@ -3070,11 +3130,28 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 		}
 	}()
 
+	accountIDs, err := s.txnRepo.FindImportAccountIDs(ctx, tx, userID, imp.ID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to find import accounts: %w", err)
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Collect all transactions and transfers to reverse their balance effects
 	txns, err := s.txnRepo.FindTransactionsByImportID(ctx, tx, imp.ID, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to find transactions: %w", err)
+	}
+	for _, t := range txns {
+		if _, locked := balances[t.AccountID]; !locked {
+			tx.Rollback()
+			return ErrTransactionChanged
+		}
 	}
 
 	trs, err := s.txnRepo.FindTransfersByImportID(ctx, tx, imp.ID, userID)
@@ -3227,11 +3304,6 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 
 func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
 
-	// Re-check under the worker: a transaction may have linked since staging.
-	if err := s.assertImportDeletable(ctx, userID, imp); err != nil {
-		return err
-	}
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -3242,6 +3314,18 @@ func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *
 			panic(p)
 		}
 	}()
+
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Re-check under the worker: a transaction may have linked since staging. With the
+	// accounts locked, no new one can link before the purge.
+	if err := s.assertImportDeletable(ctx, userID, imp); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// hard delete the data
 	if err := s.accRepo.PurgeImportedAccounts(ctx, tx, imp.ID, userID); err != nil {
@@ -3386,6 +3470,11 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 		}
 	}()
 
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	affectedAccountIDs := map[int64]bool{}
 
 	assets, err := s.investmentRepo.FindInvestmentAssetsByImportID(ctx, tx, imp.ID, userID)
@@ -3468,6 +3557,11 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 			panic(p)
 		}
 	}()
+
+	if _, err := s.balanceRepo.LockBalances(ctx, bfTx, userID, accountIDs...); err != nil {
+		bfTx.Rollback()
+		return err
+	}
 
 	affectedSet := make(map[int64]bool, len(accountIDs))
 	for _, id := range accountIDs {
