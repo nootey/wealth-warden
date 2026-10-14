@@ -124,6 +124,34 @@ func (s *AuthServiceTestSuite) TestUpdateUser_RoleChangeClearsCachedRole() {
 	s.NotContains(perms, "root_access")
 }
 
+func (s *AuthServiceTestSuite) TestUpdateUser_PasswordNeedsMatchingConfirmation() {
+	var memberRoleID int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&memberRoleID).Error)
+	user := models.User{Email: "password-change@example.com", Password: "x", DisplayName: "password change", RoleID: memberRoleID}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&user).Error)
+
+	updatePassword := func(password, confirmation string) error {
+		_, err := s.TC.App.UserService.UpdateUser(s.Ctx, user.ID, user.ID, &models.UserReq{
+			Email:                user.Email,
+			DisplayName:          user.DisplayName,
+			RoleID:               user.RoleID,
+			Password:             &password,
+			PasswordConfirmation: &confirmation,
+		})
+		return err
+	}
+	login := func(password string) error {
+		_, err := s.TC.App.AuthService.ValidateLogin(s.Ctx, user.Email, password, "test-agent", "127.0.0.1")
+		return err
+	}
+
+	s.Error(updatePassword("SecurePassword123!", "DifferentPassword123!"))
+	s.Error(login("SecurePassword123!"))
+
+	s.Require().NoError(updatePassword("SecurePassword123!", "SecurePassword123!"))
+	s.NoError(login("SecurePassword123!"))
+}
+
 func (s *AuthServiceTestSuite) TestUpdateRole_PermissionChangeClearsCachedPerms() {
 	authzSvc := s.TC.App.AuthzService
 	roleSvc := s.TC.App.RoleService
