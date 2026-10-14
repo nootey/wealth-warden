@@ -92,6 +92,69 @@ func (s *AuthServiceTestSuite) TestPermsForUser_CachesRoleUntilTTL() {
 	s.NotContains(perms, "root_access")
 }
 
+func (s *AuthServiceTestSuite) setUserRole(user models.User, roleID int64) {
+	_, err := s.TC.App.UserService.UpdateUser(s.Ctx, user.ID, user.ID, &models.UserReq{
+		Email:          user.Email,
+		DisplayName:    user.DisplayName,
+		RoleID:         roleID,
+		EmailConfirmed: user.EmailConfirmed,
+	})
+	s.Require().NoError(err)
+}
+
+func (s *AuthServiceTestSuite) TestUpdateUser_RoleChangeClearsCachedRole() {
+	authzSvc := s.TC.App.AuthzService
+	cfg, err := config.LoadConfig(nil)
+	s.Require().NoError(err)
+
+	var user models.User
+	s.Require().NoError(s.TC.DB.Where("email = ?", cfg.Seed.SuperAdminEmail).First(&user).Error)
+	var memberRoleID int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&memberRoleID).Error)
+
+	perms, err := authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.Require().NoError(err)
+	s.Require().Contains(perms, "root_access")
+
+	s.setUserRole(user, memberRoleID)
+	defer s.setUserRole(user, user.RoleID)
+
+	perms, err = authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.NoError(err)
+	s.NotContains(perms, "root_access")
+}
+
+func (s *AuthServiceTestSuite) TestUpdateRole_PermissionChangeClearsCachedPerms() {
+	authzSvc := s.TC.App.AuthzService
+	roleSvc := s.TC.App.RoleService
+	cfg, err := config.LoadConfig(nil)
+	s.Require().NoError(err)
+
+	var user models.User
+	s.Require().NoError(s.TC.DB.Where("email = ?", cfg.Seed.SuperAdminEmail).First(&user).Error)
+	var viewData, manageData models.Permission
+	s.Require().NoError(s.TC.DB.Where("name = ?", "view_data").First(&viewData).Error)
+	s.Require().NoError(s.TC.DB.Where("name = ?", "manage_data").First(&manageData).Error)
+
+	roleID, err := roleSvc.InsertRole(s.Ctx, user.ID, models.RoleReq{Name: "Cache Probe", Permissions: []models.Permission{viewData}})
+	s.Require().NoError(err)
+	defer func() { s.NoError(roleSvc.DeleteRole(s.Ctx, user.ID, roleID)) }()
+
+	s.setUserRole(user, roleID)
+	defer s.setUserRole(user, user.RoleID)
+
+	perms, err := authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.Require().NoError(err)
+	s.Require().NotContains(perms, "manage_data")
+
+	_, err = roleSvc.UpdateRole(s.Ctx, user.ID, roleID, &models.RoleReq{Name: "Cache Probe", Permissions: []models.Permission{viewData, manageData}})
+	s.Require().NoError(err)
+
+	perms, err = authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.NoError(err)
+	s.Contains(perms, "manage_data")
+}
+
 func (s *AuthServiceTestSuite) TestGetCurrentUser() {
 	svc := s.TC.App.AuthService
 	cfg, err := config.LoadConfig(nil)

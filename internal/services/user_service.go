@@ -11,6 +11,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/sessions"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 
@@ -45,6 +46,7 @@ type UserService struct {
 	jobDispatcher jobqueue.Dispatcher
 	mailer        *mailer.Mailer
 	sessionStore  *sessions.Store
+	authzSvc      *authz.Service
 }
 
 func NewUserService(
@@ -53,6 +55,7 @@ func NewUserService(
 	jobDispatcher jobqueue.Dispatcher,
 	mailer *mailer.Mailer,
 	sessionStore *sessions.Store,
+	authzSvc *authz.Service,
 ) *UserService {
 	return &UserService{
 		repo:          repo,
@@ -60,6 +63,7 @@ func NewUserService(
 		jobDispatcher: jobDispatcher,
 		mailer:        mailer,
 		sessionStore:  sessionStore,
+		authzSvc:      authzSvc,
 	}
 }
 
@@ -354,6 +358,8 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
 	}
+
+	s.authzSvc.InvalidateUser(exUsr.ID)
 
 	changes := utils.InitChanges()
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
