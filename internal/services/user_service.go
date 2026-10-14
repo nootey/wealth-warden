@@ -418,13 +418,17 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 		return err
 	}
 
+	// Before the commit: a Redis failure must keep the user, not leave a deleted user signed in
+	if err := s.sessionStore.DeleteAllForUser(ctx, usr.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	if err := s.sessionStore.DeleteAllForUser(ctx, usr.ID); err != nil {
-		return err
-	}
+	s.authzSvc.InvalidateUser(usr.ID)
 
 	changes := utils.InitChanges()
 	utils.CompareChanges("", strconv.FormatInt(usr.ID, 10), changes, "id")

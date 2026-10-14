@@ -12,6 +12,7 @@ import (
 	"wealth-warden/internal/tests"
 
 	"github.com/stretchr/testify/suite"
+	"gorm.io/gorm"
 )
 
 type SessionsServiceTestSuite struct {
@@ -85,6 +86,22 @@ func (s *SessionsServiceTestSuite) TestDeleteUser_EndsAllSessions() {
 	s.ErrorIs(err, sessions.ErrNotFound)
 	_, err = store.Validate(s.Ctx, second)
 	s.ErrorIs(err, sessions.ErrNotFound)
+}
+
+func (s *SessionsServiceTestSuite) TestDeleteUser_DropsCachedPermissions() {
+	admin := s.loginSuperAdmin()
+	authzSvc := s.TC.App.AuthzService
+
+	user := models.User{Email: "uncached@example.com", Password: "x", DisplayName: "uncached", RoleID: admin.RoleID}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&user).Error)
+
+	_, err := authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.Require().NoError(err)
+
+	s.Require().NoError(s.TC.App.UserService.DeleteUser(s.Ctx, admin.ID, user.ID))
+
+	_, err = authzSvc.PermsForUser(s.Ctx, user.ID)
+	s.ErrorIs(err, gorm.ErrRecordNotFound)
 }
 
 // A user must not be able to revoke the session they're currently authenticated with.

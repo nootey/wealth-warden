@@ -72,7 +72,7 @@ func (s *Service) roleForUser(ctx context.Context, userID int64) (int64, error) 
 	if err := s.DB.WithContext(ctx).
 		Table("users AS u").
 		Select("u.role_id AS role_id").
-		Where("u.id = ?", userID).
+		Where("u.id = ? AND u.deleted_at IS NULL", userID).
 		First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, gorm.ErrRecordNotFound
