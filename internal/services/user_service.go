@@ -15,6 +15,7 @@ import (
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -41,6 +42,7 @@ type UserServiceInterface interface {
 }
 
 type UserService struct {
+	logger        *zap.Logger
 	repo          *repositories.UserRepository
 	roleRepo      repositories.RolePermissionRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
@@ -50,6 +52,7 @@ type UserService struct {
 }
 
 func NewUserService(
+	logger *zap.Logger,
 	repo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
 	jobDispatcher jobqueue.Dispatcher,
@@ -58,6 +61,7 @@ func NewUserService(
 	authzSvc *authz.Service,
 ) *UserService {
 	return &UserService{
+		logger:        logger,
 		repo:          repo,
 		roleRepo:      roleRepo,
 		jobDispatcher: jobDispatcher,
@@ -285,6 +289,24 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 
 func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) (int64, error) {
 
+	var hashedPassword string
+	if req.Password != nil && *req.Password != "" {
+		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
+			return 0, apperr.New(apperr.Validation, "password confirmation must match provided password")
+		}
+
+		password, passwordErr := utils.ValidatePasswordStrength(*req.Password)
+		if passwordErr != nil {
+			return 0, apperr.Wrap(apperr.Validation, passwordErr.Error(), passwordErr)
+		}
+
+		hashed, err := utils.HashAndSaltPassword(password)
+		if err != nil {
+			return 0, err
+		}
+		hashedPassword = hashed
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -336,18 +358,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 		return 0, err
 	}
 
-	if req.Password != nil && *req.Password != "" {
-		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
-			tx.Rollback()
-			return 0, apperr.New(apperr.Validation, "password confirmation must match provided password")
-		}
-
-		hashedPassword, err := utils.HashAndSaltPassword(*req.Password)
-		if err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-
+	if hashedPassword != "" {
 		err = s.repo.UpdateUserPassword(ctx, tx, exUsr.ID, hashedPassword)
 		if err != nil {
 			_ = tx.Rollback()
@@ -361,9 +372,10 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 
 	s.authzSvc.InvalidateUser(exUsr.ID)
 
-	if req.Password != nil && *req.Password != "" {
+	if hashedPassword != "" {
 		if err := s.sessionStore.DeleteAllForUser(ctx, exUsr.ID); err != nil {
-			return 0, err
+			s.logger.Warn("admin password change: old sessions not ended",
+				zap.Int64("user_id", exUsr.ID), zap.Int64("admin_id", userID), zap.Error(err))
 		}
 	}
 
@@ -424,17 +436,16 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 		return err
 	}
 
-	// Before the commit: a Redis failure must keep the user, not leave a deleted user signed in
-	if err := s.sessionStore.DeleteAllForUser(ctx, usr.ID); err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
 	s.authzSvc.InvalidateUser(usr.ID)
+
+	if err := s.sessionStore.DeleteAllForUser(ctx, usr.ID); err != nil {
+		s.logger.Warn("user delete: sessions not ended",
+			zap.Int64("user_id", usr.ID), zap.Int64("admin_id", userID), zap.Error(err))
+	}
 
 	changes := utils.InitChanges()
 	utils.CompareChanges("", strconv.FormatInt(usr.ID, 10), changes, "id")
