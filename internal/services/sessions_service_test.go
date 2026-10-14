@@ -88,6 +88,37 @@ func (s *SessionsServiceTestSuite) TestDeleteUser_EndsAllSessions() {
 	s.ErrorIs(err, sessions.ErrNotFound)
 }
 
+func (s *SessionsServiceTestSuite) TestUpdateUser_PasswordChangeEndsAllSessions() {
+	admin := s.loginSuperAdmin()
+	store := s.TC.App.SessionStore
+
+	user := models.User{Email: "admin-reset@example.com", Password: "x", DisplayName: "admin reset", RoleID: admin.RoleID}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&user).Error)
+
+	session, err := store.Create(s.Ctx, user.ID, false, "device-a", "10.0.0.1")
+	s.Require().NoError(err)
+
+	update := func(password *string) {
+		_, err := s.TC.App.UserService.UpdateUser(s.Ctx, admin.ID, user.ID, &models.UserReq{
+			Email:                user.Email,
+			DisplayName:          user.DisplayName,
+			RoleID:               user.RoleID,
+			Password:             password,
+			PasswordConfirmation: password,
+		})
+		s.Require().NoError(err)
+	}
+
+	update(nil)
+	_, err = store.Validate(s.Ctx, session)
+	s.NoError(err, "an update without a password must keep the session")
+
+	newPassword := "SecurePassword123!"
+	update(&newPassword)
+	_, err = store.Validate(s.Ctx, session)
+	s.ErrorIs(err, sessions.ErrNotFound)
+}
+
 func (s *SessionsServiceTestSuite) TestDeleteUser_DropsCachedPermissions() {
 	admin := s.loginSuperAdmin()
 	authzSvc := s.TC.App.AuthzService
