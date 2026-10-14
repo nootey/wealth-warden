@@ -361,6 +361,12 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 
 	s.authzSvc.InvalidateUser(exUsr.ID)
 
+	if req.Password != nil && *req.Password != "" {
+		if err := s.sessionStore.DeleteAllForUser(ctx, exUsr.ID); err != nil {
+			return 0, err
+		}
+	}
+
 	changes := utils.InitChanges()
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
