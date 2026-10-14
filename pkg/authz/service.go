@@ -57,7 +57,6 @@ func (s *Service) InvalidateRole(roleID int64) {
 }
 
 func (s *Service) roleForUser(ctx context.Context, userID int64) (int64, error) {
-	// serve from cache
 	s.mu.RLock()
 	if e, ok := s.userRoles[userID]; ok && time.Since(e.by) < s.ttl {
 		s.mu.RUnlock()
@@ -80,7 +79,6 @@ func (s *Service) roleForUser(ctx context.Context, userID int64) (int64, error) 
 		return 0, err
 	}
 
-	// cache
 	s.mu.Lock()
 	s.userRoles[userID] = cachedRole{roleID: row.RoleID, by: time.Now()}
 	s.mu.Unlock()
