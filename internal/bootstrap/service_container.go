@@ -90,7 +90,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	loggingService := services.NewLoggingService(loggingRepo)
 	authService := services.NewAuthService(logger.Named("auth_srv"), userRepo, roleRepo, settingsRepo, jobDispatcher, mail, sessionStore, cfg.Release)
 	roleService := services.NewRolePermissionService(logger.Named("role_srv"), roleRepo, jobDispatcher, authzSvc)
-	userService := services.NewUserService(userRepo, roleRepo, jobDispatcher, mail, sessionStore, authzSvc)
+	userService := services.NewUserService(logger.Named("user_srv"), userRepo, roleRepo, jobDispatcher, mail, sessionStore, authzSvc)
 	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, balanceRepo, transactionRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
 	balanceService := services.NewBalanceService(logger.Named("balance_srv"), balanceRepo)
 	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, balanceRepo, settingsRepo, savingsRepo, rulesRepo, jobDispatcher)

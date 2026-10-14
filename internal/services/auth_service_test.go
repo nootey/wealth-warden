@@ -124,19 +124,19 @@ func (s *AuthServiceTestSuite) TestUpdateUser_RoleChangeClearsCachedRole() {
 	s.NotContains(perms, "root_access")
 }
 
-func (s *AuthServiceTestSuite) TestUpdateUser_PasswordNeedsMatchingConfirmation() {
+func (s *AuthServiceTestSuite) TestUpdateUser_ValidatesPassword() {
 	var memberRoleID int64
 	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&memberRoleID).Error)
 	user := models.User{Email: "password-change@example.com", Password: "x", DisplayName: "password change", RoleID: memberRoleID}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&user).Error)
 
-	updatePassword := func(password, confirmation string) error {
+	updatePassword := func(password string, confirmation *string) error {
 		_, err := s.TC.App.UserService.UpdateUser(s.Ctx, user.ID, user.ID, &models.UserReq{
 			Email:                user.Email,
 			DisplayName:          user.DisplayName,
 			RoleID:               user.RoleID,
 			Password:             &password,
-			PasswordConfirmation: &confirmation,
+			PasswordConfirmation: confirmation,
 		})
 		return err
 	}
@@ -145,11 +145,17 @@ func (s *AuthServiceTestSuite) TestUpdateUser_PasswordNeedsMatchingConfirmation(
 		return err
 	}
 
-	s.Error(updatePassword("SecurePassword123!", "DifferentPassword123!"))
-	s.Error(login("SecurePassword123!"))
+	strong, mismatch, weak := "SecurePassword123!", "DifferentPassword123!", "weak"
 
-	s.Require().NoError(updatePassword("SecurePassword123!", "SecurePassword123!"))
-	s.NoError(login("SecurePassword123!"))
+	s.Error(updatePassword(strong, nil))
+	s.Error(updatePassword(strong, &mismatch))
+	s.Error(updatePassword(weak, &weak))
+	s.Error(login(strong))
+
+	s.NoError(updatePassword("", nil), "an empty password must skip the change")
+
+	s.Require().NoError(updatePassword(strong, &strong))
+	s.NoError(login(strong))
 }
 
 func (s *AuthServiceTestSuite) TestUpdateRole_PermissionChangeClearsCachedPerms() {
