@@ -112,7 +112,11 @@ const factTiles = computed(() => {
       label: "Fee",
       value: isCrypto.value
         ? new Decimal(r.fee || 0).toString()
-        : vueHelper.displayAsCurrency(r.fee, r.currency),
+        : vueHelper.displayAssetPrice(
+            r.fee,
+            r.asset?.investment_type,
+            r.currency,
+          ),
     },
     {
       label: "Value at buy",
@@ -650,7 +654,7 @@ async function deleteRecord(id: number) {
               :locale="vueHelper.getCurrencyLocale(record.currency)"
               :min-fraction-digits="2"
               :max-fraction-digits="
-                record.asset?.investment_type === 'crypto' ? 6 : 2
+                record.asset?.investment_type === 'crypto' ? 6 : 4
               "
               :placeholder="getCurrencyPlaceholder(record.currency)"
               fluid
@@ -672,7 +676,7 @@ async function deleteRecord(id: number) {
               locale="de-DE"
               :min-fraction-digits="2"
               :max-fraction-digits="
-                record.asset?.investment_type === 'crypto' ? 6 : 2
+                record.asset?.investment_type === 'crypto' ? 6 : 4
               "
               :placeholder="getCurrencyPlaceholder(record.currency)"
               fluid

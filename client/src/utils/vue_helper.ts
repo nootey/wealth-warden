@@ -106,11 +106,9 @@ const vueHelper = {
     const num = Number(amount);
     if (isNaN(num)) return "Invalid Amount";
 
-    const decimals = forceDoubleDigitDecimal
-      ? 2
-      : investmentType === "crypto"
-        ? 4
-        : 2;
+    const minDecimals =
+      forceDoubleDigitDecimal || investmentType !== "crypto" ? 2 : 4;
+    const maxDecimals = forceDoubleDigitDecimal ? 2 : 4;
     const cur = (
       currency ||
       useSettingsStore().defaultCurrency ||
@@ -121,11 +119,11 @@ const vueHelper = {
       return new Intl.NumberFormat(CURRENCY_LOCALE[cur], {
         style: "currency",
         currency: cur,
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
+        minimumFractionDigits: minDecimals,
+        maximumFractionDigits: maxDecimals,
       }).format(num);
     } catch {
-      return num.toFixed(decimals) + " " + cur;
+      return num.toFixed(maxDecimals) + " " + cur;
     }
   },
   groupPieSlices(
