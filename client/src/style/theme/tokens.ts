@@ -15,6 +15,34 @@ export function tokenColor(token: string, fallback = "#6b7280"): string {
   return value;
 }
 
+export const BABY_BLUE = {
+  50: "#edf9ff",
+  100: "#daf2ff",
+  200: "#b7e6ff",
+  300: "#8ed7fd",
+  400: "#63c6f6",
+  500: "#38a7dd",
+  600: "#1987bb",
+  700: "#0d6b97",
+  800: "#0d567b",
+  900: "#0c4562",
+  950: "#052c42",
+};
+
+export const BLURPLE = {
+  50: "#f2f2ff",
+  100: "#e7e7ff",
+  200: "#d1d1fe",
+  300: "#b3b1fe",
+  400: "#9085fd",
+  500: "#7657fc",
+  600: "#6623fc",
+  700: "#5619d7",
+  800: "#451faa",
+  900: "#382483",
+  950: "#211650",
+};
+
 type AccentTokens = {
   primary: string;
   // Light-mode button text; white fails contrast on amber
@@ -26,11 +54,45 @@ type AccentTokens = {
 };
 
 const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
+  babyblue: {
+    primary: "babyblue",
+    lightContrast: "{surface.950}",
+    category: [
+      "--p-babyblue-400",
+      "--p-orange-400",
+      "--p-indigo-400",
+      "--p-amber-300",
+      "--p-teal-500",
+      "--p-rose-400",
+      "--p-babyblue-600",
+      "--p-yellow-500",
+      "--p-violet-400",
+      "--p-pink-400",
+      "--p-emerald-400",
+      "--p-fuchsia-400",
+    ],
+    account: {
+      cash: "--p-babyblue-400",
+      investment: "--p-babyblue-600",
+      crypto: "--p-cyan-400",
+      property: "--p-teal-500",
+      vehicle: "--p-indigo-400",
+      other_asset: "--p-emerald-500",
+      credit_card: "--p-red-500",
+      loan: "--p-orange-500",
+      other_liability: "--p-amber-500",
+    },
+    flow: {
+      savings: "--p-babyblue-400",
+      investments: "--p-indigo-400",
+      debt: "--p-orange-500",
+    },
+  },
   blurple: {
-    primary: "indigo",
+    primary: "blurple",
     lightContrast: "#ffffff",
     category: [
-      "--p-indigo-500",
+      "--p-blurple-500",
       "--p-blue-500",
       "--p-violet-500",
       "--p-cyan-500",
@@ -44,7 +106,7 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       "--p-amber-500",
     ],
     account: {
-      cash: "--p-indigo-500",
+      cash: "--p-blurple-500",
       investment: "--p-blue-500",
       crypto: "--p-sky-500",
       property: "--p-teal-500",
@@ -132,7 +194,7 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
 };
 
 export function accentTokens(accent: string): AccentTokens {
-  return ACCENT_TOKENS[accent as Accent] ?? ACCENT_TOKENS.blurple;
+  return ACCENT_TOKENS[accent as Accent] ?? ACCENT_TOKENS.babyblue;
 }
 
 const STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];

@@ -13,6 +13,7 @@ import { createPinia } from "pinia";
 import PrimeVue from "primevue/config";
 import Aura from "@primeuix/themes/aura";
 import { definePreset } from "@primeuix/themes";
+import { BABY_BLUE, BLURPLE } from "./style/theme/tokens.ts";
 
 const surface = (name: string) => ({
   0: "#ffffff",
@@ -39,20 +40,22 @@ const AppPreset = definePreset(Aura, {
       lg: "10px",
       xl: "14px",
     },
+    babyblue: BABY_BLUE,
+    blurple: BLURPLE,
   },
   semantic: {
     primary: {
-      50: "{indigo.50}",
-      100: "{indigo.100}",
-      200: "{indigo.200}",
-      300: "{indigo.300}",
-      400: "{indigo.400}",
-      500: "{indigo.500}",
-      600: "{indigo.600}",
-      700: "{indigo.700}",
-      800: "{indigo.800}",
-      900: "{indigo.900}",
-      950: "{indigo.950}",
+      50: "{babyblue.50}",
+      100: "{babyblue.100}",
+      200: "{babyblue.200}",
+      300: "{babyblue.300}",
+      400: "{babyblue.400}",
+      500: "{babyblue.500}",
+      600: "{babyblue.600}",
+      700: "{babyblue.700}",
+      800: "{babyblue.800}",
+      900: "{babyblue.900}",
+      950: "{babyblue.950}",
     },
     focusRing: { width: "2px", style: "solid", offset: "2px" },
     colorScheme: {
