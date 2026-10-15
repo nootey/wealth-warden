@@ -324,7 +324,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	}
 
 	changes := utils.InitChanges()
-	quantityString := hold.Quantity.StringFixed(2)
+	quantityString := hold.Quantity.String()
 
 	utils.CompareChanges("", strconv.FormatInt(holdID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
@@ -547,9 +547,9 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	changes := utils.InitChanges()
 	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", asset.Ticker, changes, "asset")
-	utils.CompareChanges("", txn.Quantity.StringFixed(2), changes, "quantity")
-	utils.CompareChanges("", txn.PricePerUnit.StringFixed(2), changes, "price_per_unit")
-	utils.CompareChanges("", txn.Fee.StringFixed(2), changes, "fee")
+	utils.CompareChanges("", txn.Quantity.String(), changes, "quantity")
+	utils.CompareChanges("", txn.PricePerUnit.String(), changes, "price_per_unit")
+	utils.CompareChanges("", txn.Fee.String(), changes, "fee")
 	utils.CompareChanges("", txn.TxnDate.UTC().Format(time.RFC3339), changes, "date")
 	utils.CompareChanges("", string(txn.TradeType), changes, "type")
 	utils.CompareChanges("", txn.Currency, changes, "currency")
@@ -1319,8 +1319,8 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 
 	changes := utils.InitChanges()
 	utils.CompareChanges(asset.Ticker, "", changes, "asset")
-	utils.CompareChanges(exTxn.Quantity.StringFixed(2), "", changes, "quantity")
-	utils.CompareChanges(exTxn.PricePerUnit.StringFixed(2), "", changes, "price_per_unit")
+	utils.CompareChanges(exTxn.Quantity.String(), "", changes, "quantity")
+	utils.CompareChanges(exTxn.PricePerUnit.String(), "", changes, "price_per_unit")
 	utils.CompareChanges(string(exTxn.TradeType), "", changes, "type")
 
 	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
