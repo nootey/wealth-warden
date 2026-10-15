@@ -107,7 +107,7 @@ export const useAuthStore = defineStore("auth", {
       sessionStorage.clear();
 
       const themeStore = useThemeStore();
-      themeStore.setTheme("dark", "blurple");
+      themeStore.setTheme("dark", "babyblue");
 
       router.push("/login").then();
     },
@@ -137,7 +137,7 @@ export const useAuthStore = defineStore("auth", {
             if (response.data) {
               themeStore.setTheme(
                 response.data.theme || "system",
-                response.data.accent || "blurple",
+                response.data.accent || "babyblue",
               );
               if (response.data.default_currency) {
                 settingsStore.defaultCurrency = response.data.default_currency;

@@ -5,7 +5,7 @@ import { accentPreset } from "../../style/theme/tokens.ts";
 export const useThemeStore = defineStore("theme", {
   state: () => ({
     theme: "system" as "system" | "dark" | "light",
-    accent: "blurple" as string,
+    accent: "babyblue" as string,
     systemDark: window.matchMedia("(prefers-color-scheme: dark)").matches,
   }),
   getters: {
