@@ -7,7 +7,7 @@
   --text-primary: var(--p-surface-950);
   --text-secondary: var(--p-surface-600);
   --text-faint: var(--p-surface-400);
-  --accent-primary: var(--p-primary-600); /* >= 6.3:1 on light */
+  --accent-primary: var(--p-primary-600); /* >= 6.2:1 on light */
   --accent-secondary: var(--p-primary-700); /* >= 7.9:1 on light */
   --accent-soft: color-mix(in srgb, var(--p-primary-500), transparent 88%);
   --border-color: var(--p-surface-200);
@@ -19,7 +19,8 @@
   color-scheme: light;
 }
 
-// Amber and green 600 are ~3.2:1 on light, so text accents step one shade darker.
+// Amber, green and baby blue 600 fail 4.5:1 on light, so text accents step one shade darker.
+:root[data-accent="babyblue"]:not(.my-app-dark),
 :root[data-accent="amber"]:not(.my-app-dark),
 :root[data-accent="green"]:not(.my-app-dark) {
   --accent-primary: var(--p-primary-700); /* 5:1 on light */
@@ -33,7 +34,7 @@
   --text-primary: var(--p-surface-50);
   --text-secondary: var(--p-surface-300);
   --text-faint: var(--p-surface-500);
-  --accent-primary: var(--p-primary-400); /* >= 6.6:1 on dark */
+  --accent-primary: var(--p-primary-400); /* >= 6.5:1 on dark */
   --accent-secondary: var(--p-primary-300); /* >= 9.9:1 on dark */
   --accent-soft: color-mix(in srgb, var(--p-primary-400), transparent 86%);
   --border-color: var(--p-surface-800);

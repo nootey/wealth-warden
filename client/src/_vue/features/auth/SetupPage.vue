@@ -35,7 +35,7 @@ const form = ref({
   timezone: "",
   default_currency: "",
   theme: "system",
-  accent: "blurple",
+  accent: "babyblue",
 });
 
 const languages = ref<LanguageInfo[]>([{ value: "en", label: "English" }]);
@@ -107,7 +107,7 @@ onMounted(async () => {
       form.value.timezone = settingsRes.data.timezone || "";
       form.value.default_currency = settingsRes.data.default_currency || "";
       form.value.theme = settingsRes.data.theme || "system";
-      form.value.accent = settingsRes.data.accent || "blurple";
+      form.value.accent = settingsRes.data.accent || "babyblue";
     }
 
     // First-time setup: any stored zone/currency is a backend default, so
