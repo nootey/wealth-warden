@@ -80,7 +80,7 @@ type InvestmentTrade struct {
 	TxnDate           time.Time       `gorm:"type:date;not null;index:idx_inv_trans_date" json:"txn_date"`
 	TradeType         TradeType       `gorm:"type:varchar(4);not null" json:"trade_type"`
 	Quantity          decimal.Decimal `gorm:"type:decimal(19,8);not null" json:"quantity"`
-	Fee               decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"fee"`
+	Fee               decimal.Decimal `gorm:"type:decimal(19,6);not null;default:0" json:"fee"`
 	PricePerUnit      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
 	ValueAtBuy        decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
 	RealizedValue     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"realized_value"`
