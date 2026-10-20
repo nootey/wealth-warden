@@ -105,7 +105,7 @@ const statTiles = computed(() => {
     {
       label: "Take home",
       value: t.takeHome,
-      tone: t.takeHome < 0 ? "text-loss" : "text-gain",
+      tone: "text-ink",
       hint: t.overflowMonths
         ? `${t.overflowMonths} ${t.overflowMonths === 1 ? "month" : "months"} in overflow`
         : "No overflow months",

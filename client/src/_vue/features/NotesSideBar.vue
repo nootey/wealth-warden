@@ -89,7 +89,7 @@
               <div class="flex flex-row items-center gap-2 text-xs text-muted">
                 <span
                   v-if="note.resolved_at"
-                  class="rounded-full bg-card px-2 py-0.5 font-medium text-gain"
+                  class="rounded-full bg-card px-2 py-0.5 font-medium text-accent"
                 >
                   Resolved
                 </span>
@@ -112,7 +112,7 @@
                   v-if="!note.resolved_at"
                   v-tooltip.top="'Resolve'"
                   type="button"
-                  class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-gain hover:bg-sunken transition-colors cursor-pointer"
+                  class="flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-accent hover:bg-sunken transition-colors cursor-pointer"
                   aria-label="Resolve"
                   @click="toggleResolve(note.id!)"
                 >

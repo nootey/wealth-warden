@@ -79,6 +79,9 @@ const { colors } = useChartColors();
 const activeColor = computed(() =>
   effectiveAbs.value >= 0 ? colors.value.pos : colors.value.neg,
 );
+const chartColor = computed(() =>
+  effectiveAbs.value >= 0 ? colors.value.primary : colors.value.neg,
+);
 
 const storageSuffix = computed(() =>
   props.accountId ? `acct_${props.accountId}` : "ALL",
@@ -291,7 +294,7 @@ onMounted(getData);
       :height="chartHeight"
       :data-points="displayPoints"
       :currency="payload.currency"
-      :active-color="activeColor"
+      :active-color="chartColor"
       :is-liability="payload?.asset_type === 'liability'"
     />
 

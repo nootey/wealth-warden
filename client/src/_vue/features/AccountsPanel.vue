@@ -97,6 +97,10 @@ async function getData(new_page: number | null = null) {
 
 const logoColor = (type?: string) => colorForAccountType(type);
 
+const isUnderLimit = (acc: Account) =>
+  acc.credit_limit != null &&
+  new Decimal(acc.balance.total_balance || 0).isNegative();
+
 const typeMap: Record<string, string> = {};
 
 accountStore.accountTypes.forEach((t) => {
@@ -347,7 +351,10 @@ defineExpose({ refresh: getData, hasAccounts });
               </div>
 
               <div class="flex items-center gap-2">
-                <div class="font-medium tracking-tight text-ink mr-1">
+                <div
+                  class="font-medium tracking-tight mr-1"
+                  :class="isUnderLimit(account) ? 'text-loss' : 'text-ink'"
+                >
                   {{
                     vueHelper.displayAsCurrency(account.balance.total_balance)
                   }}

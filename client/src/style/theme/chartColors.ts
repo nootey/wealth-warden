@@ -19,7 +19,8 @@ export function useChartColors() {
 
   const colors = computed(() => {
     const n = neutrals(isDark.value);
-    const flow = accentTokens(themeStore.accent).flow;
+    const tokens = accentTokens(themeStore.accent);
+    const flow = tokens.flow;
     return {
       // Common scaffolding (theme-aware neutrals)
       axisText: n.axisText,
@@ -36,6 +37,7 @@ export function useChartColors() {
       // Data semantics
       pos: tokenColor(SEMANTIC_TOKENS.positive),
       neg: tokenColor(SEMANTIC_TOKENS.negative),
+      primary: tokenColor(`--p-${tokens.primary}-${isDark.value ? 400 : 500}`),
 
       // Cash-flow (sankey) targets
       flow: {

@@ -94,6 +94,9 @@ const { colors } = useChartColors();
 const activeColor = computed(() =>
   isProfit.value ? colors.value.pos : colors.value.neg,
 );
+const chartColor = computed(() =>
+  isProfit.value ? colors.value.primary : colors.value.neg,
+);
 
 const unrealizedPnL = computed(() => {
   const mv = marketValuePoints.value;
@@ -228,7 +231,7 @@ onMounted(getData);
       :secondary-points="costBasisPoints"
       secondary-label="Cost basis"
       :currency="payload.currency"
-      :active-color="activeColor"
+      :active-color="chartColor"
     />
 
     <div
