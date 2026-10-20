@@ -303,7 +303,14 @@ defineExpose({ refresh });
             <template v-else-if="col.field == 'profit_loss'">
               <span
                 class="font-medium tabular-nums whitespace-nowrap"
-                :style="{ color: data[col.field] > 0 ? colors.pos : undefined }"
+                :style="{
+                  color:
+                    data[col.field] > 0
+                      ? colors.pos
+                      : data[col.field] < 0
+                        ? colors.neg
+                        : undefined,
+                }"
               >
                 {{ data[col.field] > 0 ? "+" : ""
                 }}{{

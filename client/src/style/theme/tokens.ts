@@ -83,9 +83,9 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-amber-500",
     },
     flow: {
-      savings: "--p-babyblue-400",
-      investments: "--p-indigo-400",
-      debt: "--p-orange-500",
+      savings: "--p-amber-400",
+      investments: "--p-indigo-500",
+      debt: "--p-fuchsia-500",
     },
   },
   blurple: {
@@ -117,9 +117,9 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-amber-500",
     },
     flow: {
-      savings: "--p-blue-500",
-      investments: "--p-violet-500",
-      debt: "--p-orange-500",
+      savings: "--p-amber-400",
+      investments: "--p-cyan-500",
+      debt: "--p-fuchsia-500",
     },
   },
   // Neighbours alternate warm/cool so adjacent slices stay distinguishable.
@@ -152,9 +152,9 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-pink-500",
     },
     flow: {
-      savings: "--p-amber-400",
-      investments: "--p-orange-500",
-      debt: "--p-rose-500",
+      savings: "--p-lime-600",
+      investments: "--p-cyan-400",
+      debt: "--p-indigo-500",
     },
   },
   green: {
@@ -186,9 +186,9 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-amber-500",
     },
     flow: {
-      savings: "--p-lime-400",
-      investments: "--p-teal-500",
-      debt: "--p-orange-500",
+      savings: "--p-amber-400",
+      investments: "--p-indigo-500",
+      debt: "--p-fuchsia-500",
     },
   },
 };

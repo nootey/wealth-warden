@@ -301,7 +301,7 @@ defineExpose({ refresh });
       </div>
       <div class="flex flex-col gap-1 px-5 py-4 min-w-0">
         <span class="label">Expenses</span>
-        <span class="text-xl font-medium tracking-tight truncate">
+        <span class="text-xl font-medium tracking-tight truncate text-loss">
           {{ vueHelper.displayAsCurrency(totals?.expenses!) }}
         </span>
       </div>

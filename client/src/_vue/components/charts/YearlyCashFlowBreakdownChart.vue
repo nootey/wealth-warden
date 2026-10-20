@@ -84,7 +84,7 @@ const allDatasets = computed(() => [
   {
     label: "Inflows",
     data: inflowsArr.value,
-    backgroundColor: colors.value.pos,
+    backgroundColor: colors.value.primary,
     borderRadius: 4,
     stack: "stack0",
   },
