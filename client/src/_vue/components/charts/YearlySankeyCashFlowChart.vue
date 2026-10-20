@@ -69,7 +69,7 @@ const chartData = computed(() => {
         data,
         colorFrom: (c: any) => {
           if (!c?.raw?.from) return colors.value.neg;
-          if (c.raw.from === "Total Income") return colors.value.pos;
+          if (c.raw.from === "Total Income") return colors.value.primary;
           if (c.raw.from === "Expenses") return colors.value.neg;
           return colors.value.neg;
         },
