@@ -83,9 +83,9 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-amber-500",
     },
     flow: {
-      savings: "--p-amber-400",
+      savings: "--p-teal-400",
       investments: "--p-indigo-500",
-      debt: "--p-fuchsia-500",
+      debt: "--p-purple-400",
     },
   },
   blurple: {
@@ -117,8 +117,8 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-amber-500",
     },
     flow: {
-      savings: "--p-amber-400",
-      investments: "--p-cyan-500",
+      savings: "--p-cyan-400",
+      investments: "--p-blue-500",
       debt: "--p-fuchsia-500",
     },
   },
@@ -186,9 +186,9 @@ const ACCENT_TOKENS: Record<Accent, AccentTokens> = {
       other_liability: "--p-amber-500",
     },
     flow: {
-      savings: "--p-amber-400",
-      investments: "--p-indigo-500",
-      debt: "--p-fuchsia-500",
+      savings: "--p-lime-400",
+      investments: "--p-cyan-400",
+      debt: "--p-blue-500",
     },
   },
 };
