@@ -32,6 +32,7 @@ import TransferForm from "./TransferForm.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import AvailableBalance from "../base/AvailableBalance.vue";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
@@ -243,6 +244,7 @@ function initData(): Transaction {
       name: "",
       display_name: "",
       classification: "",
+      necessity: null,
       is_default: true,
       parent_id: null,
       deleted_at: null,
@@ -305,6 +307,7 @@ const searchCategory = (event: { query: string }) => {
     availableCategories.value,
     event.query,
     (record) => [record.display_name, record.name],
+    { sort: true },
   );
 };
 
@@ -313,6 +316,7 @@ const searchAccount = (event: { query: string }) => {
     accounts.value,
     event.query,
     (record) => [record.name],
+    { sort: true },
   );
 };
 
@@ -436,7 +440,7 @@ async function startTransferOperation() {
   if (!isValid) return;
 
   const created_at = dateHelper.mergeDateWithCurrentTime(
-    dayjs(record.value.created_at).format("YYYY-MM-DD"),
+    dayjs(transfer.value.created_at).format("YYYY-MM-DD"),
     userSettings.value?.timezone || "UTC",
   );
 
@@ -618,6 +622,12 @@ async function deleteRecord(id: number, tx_type: string) {
             :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
             :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           />
+          <AvailableBalance
+            v-if="
+              mode === 'create' && selectedParentCategory?.name === 'expense'
+            "
+            :account="record.account"
+          />
         </div>
       </div>
 
@@ -712,14 +722,12 @@ async function deleteRecord(id: number, tx_type: string) {
           "
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
         <Button
           v-else-if="canRestore"
           class="main-button"
           label="Restore"
-          style="height: 42px"
           @click="restoreTransaction"
         />
         <Button
@@ -730,7 +738,6 @@ async function deleteRecord(id: number, tx_type: string) {
           "
           label="Delete transaction"
           class="delete-button"
-          style="height: 42px"
           @click="deleteConfirmation(record.id!, record.direction)"
         />
         <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">

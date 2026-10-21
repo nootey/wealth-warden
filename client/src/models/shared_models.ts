@@ -17,3 +17,5 @@ export type PaginatorState = {
   to: number;
   rowsPerPage: number;
 };
+
+export const NAV_WIDTH = { collapsed: "76px", expanded: "248px" };

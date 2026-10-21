@@ -602,7 +602,7 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 	}
 
 	// Get expense categories
-	categoryRows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accountID, year)
+	categoryRows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accountID, year, 12)
 	if err != nil {
 		return nil, err
 	}
@@ -784,9 +784,6 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 	takeHome := takeHomeYear
 	overflow := overflowYear
 
-	avgTakeHome := takeHome.Div(decimal.NewFromInt(12))
-	avgOverflow := overflow.Div(decimal.NewFromInt(12))
-
 	activeMonths := tot.ActiveMonths
 	if activeMonths < 1 {
 		activeMonths = 0
@@ -794,12 +791,16 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 
 	avgIn := decimal.Zero
 	avgOut := decimal.Zero
+	avgTakeHome := decimal.Zero
+	avgOverflow := decimal.Zero
 	if activeMonths > 0 {
 		avgIn = inflow.Div(decimal.NewFromInt(int64(activeMonths)))
 		avgOut = outflow.Div(decimal.NewFromInt(int64(activeMonths)))
+		avgTakeHome = takeHome.Div(decimal.NewFromInt(int64(activeMonths)))
+		avgOverflow = overflow.Div(decimal.NewFromInt(int64(activeMonths)))
 	}
 
-	rows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year)
+	rows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year, 12)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -859,6 +860,7 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 		AvgMonthlyTakeHome: avgTakeHome,
 		AvgMonthlyOverflow: avgOverflow,
 		ActiveMonths:       activeMonths,
+		Necessity:          utils.SplitByNecessity(rows),
 		Categories:         cats,
 		GeneratedAt:        time.Now().UTC(),
 	}, nil
@@ -1037,6 +1039,7 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		SavingsRate:       savingsRate,
 		InvestRate:        investRate,
 		DebtRepaymentRate: repaymentRate,
+		Necessity:         utils.SplitByNecessity(categoryRows),
 		GeneratedAt:       time.Now().UTC(),
 		Categories:        cats,
 	}, nil
@@ -1154,9 +1157,30 @@ func (s *AnalyticsService) GetYearlyBreakdownStats(ctx context.Context, accID *i
 		}
 	}
 
+	var categoryChanges *models.CategoryChanges
+	if comparisonStats != nil {
+		throughMonth := min(utils.CalendarMonths(year), utils.CalendarMonths(compareYear))
+
+		currentRows, err := s.repo.FetchYearlyCategoryTotals(ctx, nil, userID, accID, year, throughMonth)
+		if err != nil {
+			return nil, err
+		}
+		comparisonRows, err := s.repo.FetchYearlyCategoryTotals(ctx, nil, userID, accID, compareYear, throughMonth)
+		if err != nil {
+			return nil, err
+		}
+
+		categoryChanges = &models.CategoryChanges{
+			ThroughMonth: throughMonth,
+			Expense:      utils.TopCategoryChanges(currentRows, comparisonRows, false, models.CategoryChangesLimit),
+			Income:       utils.TopCategoryChanges(currentRows, comparisonRows, true, models.CategoryChangesLimit),
+		}
+	}
+
 	return &models.YearlyBreakdownStats{
-		CurrentYear:    currentStats,
-		ComparisonYear: comparisonStats,
+		CurrentYear:     currentStats,
+		ComparisonYear:  comparisonStats,
+		CategoryChanges: categoryChanges,
 	}, nil
 }
 
@@ -1299,13 +1323,13 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		debtPct = debtAllocated.Div(inflow).InexactFloat64() * 100.0
 	}
 
-	avgTakeHome := takeHomeYear.Div(decimal.NewFromInt(12))
-	avgOverflow := overflowYear.Div(decimal.NewFromInt(12))
-
 	divisor := int64(12)
 	if year == time.Now().Year() {
 		divisor = int64(time.Now().Month())
 	}
+
+	avgTakeHome := takeHomeYear.Div(decimal.NewFromInt(divisor))
+	avgOverflow := overflowYear.Div(decimal.NewFromInt(divisor))
 
 	avgIn := decimal.Zero
 	avgOut := decimal.Zero
@@ -1314,6 +1338,12 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 	}
 	if !outflow.IsZero() {
 		avgOut = outflow.Div(decimal.NewFromInt(divisor))
+	}
+
+	categoryRows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year, 12)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -1337,6 +1367,7 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		SavingsPct:          savingsPct,
 		InvestmentPct:       investmentPct,
 		DebtPct:             debtPct,
+		Necessity:           utils.SplitByNecessity(categoryRows),
 	}, nil
 }
 

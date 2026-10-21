@@ -13,6 +13,15 @@ export interface CategoryStat {
   pct_of_outflow: number;
 }
 
+export interface NecessitySplit {
+  needs: string;
+  wants: string;
+  other: string;
+  needs_pct: number;
+  wants_pct: number;
+  other_pct: number;
+}
+
 export interface BasicAccountStats {
   user_id: number;
   account_id?: number | null;
@@ -28,6 +37,7 @@ export interface BasicAccountStats {
   avg_monthly_take_home: string;
   avg_monthly_overflow: string;
   active_months: number;
+  necessity: NecessitySplit;
   categories?: CategoryStat[];
   generated_at: Date;
 }
@@ -48,6 +58,7 @@ export interface MonthlyStats {
   savings_rate: string;
   investments_rate: string;
   debt_repayment_rate: string;
+  necessity: NecessitySplit;
   generated_at: Date;
   categories?: CategoryStat[];
 }
@@ -80,11 +91,28 @@ export interface YearStatsWithAllocations {
   savings_pct: number;
   investment_pct: number;
   debt_pct: number;
+  necessity: NecessitySplit;
 }
 
 export interface YearlyBreakdownStats {
   current_year: YearStatsWithAllocations;
   comparison_year?: YearStatsWithAllocations | null;
+  category_changes?: CategoryChanges | null;
+}
+
+export interface CategoryChange {
+  category_id: number;
+  category: string;
+  current: string;
+  comparison: string;
+  change: string;
+  change_pct?: number | null;
+}
+
+export interface CategoryChanges {
+  through_month: number;
+  expense: CategoryChange[];
+  income: CategoryChange[];
 }
 
 export type ChartPoint = {

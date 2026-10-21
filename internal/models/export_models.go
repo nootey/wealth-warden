@@ -35,11 +35,12 @@ type AccountExport struct {
 }
 
 type CategoryExport struct {
-	Name           string `json:"name"`
-	DisplayName    string `json:"display_name"`
-	Classification string `json:"classification"`
-	ParentID       *int64 `json:"parent_id,omitempty"`
-	IsDefault      bool   `json:"is_default"`
+	Name           string             `json:"name"`
+	DisplayName    string             `json:"display_name"`
+	Classification string             `json:"classification"`
+	Necessity      *CategoryNecessity `json:"necessity,omitempty"`
+	ParentID       *int64             `json:"parent_id,omitempty"`
+	IsDefault      bool               `json:"is_default"`
 }
 
 type RuleExport struct {

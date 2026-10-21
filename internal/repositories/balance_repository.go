@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 	"wealth-warden/internal/models"
 
@@ -35,6 +36,8 @@ type BalanceRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	ApplyDelta(ctx context.Context, tx *gorm.DB, accountID int64, amount decimal.Decimal) error
 	GetBalance(ctx context.Context, tx *gorm.DB, accountID int64) (decimal.Decimal, error)
+	LockBalances(ctx context.Context, tx *gorm.DB, userID int64, accountIDs ...int64) (map[int64]decimal.Decimal, error)
+	LockUserBalances(ctx context.Context, tx *gorm.DB, userID int64) error
 	RecomputeFromTransactions(ctx context.Context, tx *gorm.DB, accountID int64) error
 	FindOpenAccountIDs(ctx context.Context, tx *gorm.DB, afterID int64, limit int) ([]int64, error)
 	FindDriftedAccounts(ctx context.Context, tx *gorm.DB, accountIDs []int64) ([]models.BalanceDrift, error)
@@ -100,6 +103,52 @@ func (r *BalanceRepository) GetBalance(ctx context.Context, tx *gorm.DB, account
 		return decimal.Zero, err
 	}
 	return record.Balance, nil
+}
+
+func (r *BalanceRepository) LockBalances(ctx context.Context, tx *gorm.DB, userID int64, accountIDs ...int64) (map[int64]decimal.Decimal, error) {
+	if tx == nil {
+		return nil, errors.New("LockBalances requires a transaction")
+	}
+	if len(accountIDs) == 0 {
+		return map[int64]decimal.Decimal{}, nil
+	}
+
+	var owned []int64
+	if err := tx.WithContext(ctx).Raw(`
+		SELECT id FROM accounts WHERE id IN ? AND user_id = ?
+	`, accountIDs, userID).Scan(&owned).Error; err != nil {
+		return nil, err
+	}
+	return r.lockBalanceRows(ctx, tx, owned)
+}
+
+func (r *BalanceRepository) LockUserBalances(ctx context.Context, tx *gorm.DB, userID int64) error {
+	if tx == nil {
+		return errors.New("LockUserBalances requires a transaction")
+	}
+
+	var ids []int64
+	if err := tx.WithContext(ctx).Raw(`SELECT id FROM accounts WHERE user_id = ?`, userID).Scan(&ids).Error; err != nil {
+		return err
+	}
+	_, err := r.lockBalanceRows(ctx, tx, ids)
+	return err
+}
+
+func (r *BalanceRepository) lockBalanceRows(ctx context.Context, tx *gorm.DB, accountIDs []int64) (map[int64]decimal.Decimal, error) {
+	ids := slices.Clone(accountIDs)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+
+	balances := make(map[int64]decimal.Decimal, len(ids))
+	for _, id := range ids {
+		row, err := r.lockBalanceRow(ctx, tx, id)
+		if err != nil {
+			return nil, err
+		}
+		balances[id] = row.Balance
+	}
+	return balances, nil
 }
 
 func (r *BalanceRepository) RecomputeFromTransactions(ctx context.Context, tx *gorm.DB, accountID int64) error {
@@ -271,16 +320,21 @@ func (r *BalanceRepository) RebuildBalances(ctx context.Context, tx *gorm.DB, us
 	}
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	return r.RebuildDailyRange(ctx, tx, userID, accountID, currency, from, today)
+	return r.rebuildDailyRange(ctx, tx, userID, accountID, currency, from, today)
 }
 
 func (r *BalanceRepository) RebuildDailyRange(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error {
-
-	db := tx
-	if db == nil {
-		db = r.db
+	if tx == nil {
+		return errors.New("RebuildDailyRange requires a transaction")
 	}
-	db = db.WithContext(ctx)
+	if _, err := r.lockBalanceRow(ctx, tx, accountID); err != nil {
+		return err
+	}
+	return r.rebuildDailyRange(ctx, tx, userID, accountID, currency, from, to)
+}
+
+func (r *BalanceRepository) rebuildDailyRange(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error {
+	db := tx.WithContext(ctx)
 
 	from = from.UTC().Truncate(24 * time.Hour)
 	to = to.UTC().Truncate(24 * time.Hour)
@@ -393,14 +447,27 @@ func (r *BalanceRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 }
 
 func (r *BalanceRepository) UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
 	if len(userIDs) == 0 {
 		return nil
+	}
+	if tx == nil {
+		return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			return r.UpdateSnapshotMarketValuesForUsers(ctx, tx, userIDs, from)
+		})
+	}
+	db := tx.WithContext(ctx)
+
+	var accountIDs []int64
+	if err := db.Raw(`
+		SELECT a.id
+		FROM   accounts a
+		JOIN   account_types at ON at.id = a.account_type_id
+		WHERE  a.user_id IN ? AND at.type IN ('investment', 'crypto')
+	`, userIDs).Scan(&accountIDs).Error; err != nil {
+		return err
+	}
+	if _, err := r.lockBalanceRows(ctx, tx, accountIDs); err != nil {
+		return err
 	}
 
 	dateFilter := ""

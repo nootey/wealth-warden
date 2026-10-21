@@ -113,15 +113,20 @@ defineExpose({ isDisabled, isBusy, startOperation });
           style="background: var(--background-secondary)"
         >
           <span>Sources</span>
+          <span
+            class="text-xs font-semibold uppercase px-2"
+            style="color: var(--text-secondary)"
+            >Native</span
+          >
+          <span
+            class="text-xs font-semibold px-2"
+            style="color: var(--text-secondary)"
+            >Import fresh data into the app from external sources.</span
+          >
           <div
             class="flex flex-col w-full rounded-2xl p-2 gap-2"
             style="background: var(--background-primary)"
           >
-            <span
-              class="text-xs font-semibold uppercase px-2"
-              style="color: var(--text-secondary)"
-              >Native</span
-            >
             <div
               class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'accounts'"
@@ -190,11 +195,23 @@ defineExpose({ isDisabled, isBusy, startOperation });
               />
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
-            <span
-              class="text-xs font-semibold uppercase px-2"
-              style="color: var(--text-secondary)"
-              >Custom</span
-            >
+          </div>
+
+          <span
+            class="text-sm font-semibold uppercase px-2"
+            style="color: var(--text-secondary)"
+            >Custom</span
+          >
+          <span
+            class="text-xs font-semibold px-2"
+            style="color: var(--text-secondary)"
+            >These require existing imports and build on top of them, with
+            transfers to specific domains.</span
+          >
+          <div
+            class="flex flex-col w-full rounded-2xl p-2 gap-2"
+            style="background: var(--background-primary)"
+          >
             <div
               class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'investments'"

@@ -59,7 +59,7 @@ func (h *ExportHandler) CreateExport(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Export created", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Export started", "Success", http.StatusAccepted)
 }
 
 func (h *ExportHandler) DownloadExport(c *gin.Context) {

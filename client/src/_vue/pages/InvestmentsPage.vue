@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
-import { ref } from "vue";
+import PageHeader from "../components/layout/PageHeader.vue";
+import { onMounted, ref } from "vue";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import InvestmentAssetForm from "../components/forms/InvestmentAssetForm.vue";
 import InvestmentAssetsPaginated from "../components/data/InvestmentAssetsPaginated.vue";
@@ -9,8 +11,15 @@ import InvestmentTradesPaginated from "../components/data/InvestmentTradesPagina
 import InvestmentAllocationPanel from "../components/InvestmentAllocationPanel.vue";
 import InvestmentReturnsPanel from "../components/InvestmentReturnsPanel.vue";
 import InvestmentTaxBracketsPanel from "../components/InvestmentTaxBracketsPanel.vue";
+import EmptyState from "../components/base/EmptyState.vue";
+import ShowLoading from "../components/base/ShowLoading.vue";
+import { useAccountStore } from "../../services/stores/account_store.ts";
+import { useInvestmentStore } from "../../services/stores/investment_store.ts";
+import type { Account } from "../../models/account_models.ts";
 
 const toastStore = useToastStore();
+const accountStore = useAccountStore();
+const investmentStore = useInvestmentStore();
 
 const { hasPermission } = usePermissions();
 
@@ -28,6 +37,34 @@ const updateTxnModal = ref(false);
 const updateTxnID = ref(null);
 
 const activeTab = ref("assets");
+
+const hasInvestmentAccount = ref<boolean | null>(null);
+const hasAssets = ref<boolean | null>(null);
+
+onMounted(async () => {
+  await Promise.all([checkInvestmentAccount(), checkHasAssets()]);
+});
+
+async function checkInvestmentAccount() {
+  try {
+    const all: Account[] = await accountStore.getAllAccounts(true, true);
+    hasInvestmentAccount.value = all.some((a) =>
+      ["investment", "crypto"].includes(a.account_type?.type),
+    );
+  } catch (error) {
+    hasInvestmentAccount.value = true;
+    toastStore.errorResponseToast(error);
+  }
+}
+
+async function checkHasAssets() {
+  try {
+    hasAssets.value = (await investmentStore.getAssetCount()) > 0;
+  } catch (error) {
+    hasAssets.value = true;
+    toastStore.errorResponseToast(error);
+  }
+}
 
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
@@ -89,6 +126,7 @@ async function handleEmit(emitType: any) {
       createAssetModal.value = false;
       updateAssetModal.value = false;
       holdRef.value?.refresh();
+      await checkHasAssets();
       break;
     }
     case "completeTxnOperation": {
@@ -108,6 +146,7 @@ async function handleEmit(emitType: any) {
       updateAssetModal.value = false;
       holdRef.value?.refresh();
       txnRef.value?.refresh();
+      await checkHasAssets();
       break;
     }
     default: {
@@ -181,93 +220,73 @@ async function handleEmit(emitType: any) {
   <main class="flex flex-col w-full items-center">
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-xl"
+      class="flex flex-col justify-center w-full gap-6"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
-          <div style="font-weight: bold">Investments</div>
-          <div>A detailed look into your investments.</div>
-        </div>
-        <Button class="main-button" @click="manipulateDialog('addAsset', true)">
-          <div class="flex flex-row gap-1 items-center">
-            <i class="pi pi-plus" />
-            <span class="mobile-hide"> Add </span>
-            <span> Asset </span>
-          </div>
-        </Button>
-        <Button class="main-button" @click="manipulateDialog('addTrade', true)">
-          <div class="flex flex-row gap-1 items-center">
-            <i class="pi pi-plus" />
-            <span class="mobile-hide"> Add </span>
-            <span> Trade </span>
-          </div>
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Portfolio"
+        title="Investments"
+        description="A detailed look into your investments."
+      >
+        <template #actions>
+          <Button
+            v-if="hasInvestmentAccount"
+            class="outline-button"
+            @click="manipulateDialog('addAsset', true)"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-plus" />
+              <span><span class="mobile-hide">Add </span>asset</span>
+            </div>
+          </Button>
+          <Button
+            v-if="hasInvestmentAccount && hasAssets"
+            class="main-button"
+            @click="manipulateDialog('addTrade', true)"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <i class="pi pi-plus" />
+              <span><span class="mobile-hide">Add </span>trade</span>
+            </div>
+          </Button>
+        </template>
+      </PageHeader>
 
-      <div class="flex flex-row gap-4 p-2">
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'assets'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'assets'"
-        >
-          Assets
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'trades'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'trades'"
-        >
-          Trades
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'allocation'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'allocation'"
-        >
-          Allocation
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'returns'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'returns'"
-        >
-          Return
-        </div>
-        <div
-          class="cursor-pointer pb-1"
-          style="color: var(--text-secondary)"
-          :style="
-            activeTab === 'tax'
-              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
-              : ''
-          "
-          @click="activeTab = 'tax'"
-        >
-          Tax
-        </div>
-      </div>
+      <ShowLoading
+        v-if="hasInvestmentAccount === null || hasAssets === null"
+        :num-fields="5"
+      />
 
-      <Transition name="fade" mode="out-in">
+      <EmptyState
+        v-else-if="!hasInvestmentAccount"
+        icon="pi pi-briefcase"
+        title="No investment account yet."
+        description="Create an investment or crypto account to start tracking assets."
+      />
+
+      <EmptyState
+        v-else-if="!hasAssets"
+        icon="pi pi-chart-line"
+        title="No assets yet."
+        description="Add an asset to start tracking your portfolio."
+      />
+
+      <SegmentedTabs
+        v-else
+        v-model="activeTab"
+        :options="[
+          { key: 'assets', label: 'Assets' },
+          { key: 'trades', label: 'Trades' },
+          { key: 'allocation', label: 'Allocation' },
+          { key: 'returns', label: 'Return' },
+          { key: 'tax', label: 'Tax' },
+        ]"
+      />
+
+      <Transition
+        v-if="hasInvestmentAccount && hasAssets"
+        name="fade"
+        mode="out-in"
+      >
         <div
           v-if="activeTab === 'assets'"
           key="assets"

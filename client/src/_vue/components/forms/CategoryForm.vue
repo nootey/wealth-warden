@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import type { Category } from "../../../models/transaction_models.ts";
-import { required } from "@regle/rules";
+import { required, requiredIf } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -13,6 +13,7 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import searchHelper from "../../../utils/search_helper.ts";
+import { useConfirm } from "primevue/useconfirm";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -21,6 +22,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "completeOperation"): void;
+  (event: "completeDelete"): void;
 }>();
 
 const apiPrefix = "transactions/categories";
@@ -29,6 +31,7 @@ const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const { hasPermission } = usePermissions();
+const confirm = useConfirm();
 
 onMounted(async () => {
   if (props.mode === "update" && props.recordId) {
@@ -46,9 +49,17 @@ const record = ref<Category>(initData());
 const classifications = ref<string[]>(["income", "expense"]);
 const filteredClassifications = ref<string[]>([]);
 
+const necessities = [
+  { label: "Need", value: "need" },
+  { label: "Want", value: "want" },
+];
+
+const isExpense = computed(() => record.value.classification === "expense");
+
 const rules = {
   display_name: { required },
   classification: { required },
+  necessity: { required: requiredIf(() => isExpense.value) },
 };
 
 const { r$ } = useRegle(record, rules);
@@ -59,6 +70,7 @@ function initData(): Category {
     name: "",
     display_name: "",
     classification: "",
+    necessity: "want",
     parent_id: null,
     is_default: false,
     deleted_at: null,
@@ -77,6 +89,7 @@ async function loadRecord(id: number) {
     record.value = {
       ...initData(),
       ...data,
+      necessity: data?.necessity ?? "want",
     };
 
     await nextTick();
@@ -114,6 +127,7 @@ async function manageRecord() {
   const recordData: any = {
     display_name: record.value.display_name,
     classification: record.value.classification,
+    necessity: isExpense.value ? record.value.necessity : null,
   };
 
   submitting.value = true;
@@ -153,6 +167,42 @@ const searchClassifications = (event: { query: string }) => {
     (t) => [t],
   );
 };
+
+// Default categories can only be archived; a custom one can be archived, then deleted.
+const canDelete = computed(
+  () =>
+    props.mode === "update" &&
+    (!record.value.is_default || !record.value.deleted_at),
+);
+
+function deleteConfirmation() {
+  const deleted = !!record.value.deleted_at;
+  confirm.require({
+    header: "Confirm operation",
+    message: `You are about to ${!deleted ? "archive" : "delete"} category: "${record.value.display_name}". ${!deleted ? "" : "This action is irreversible!"}`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Continue", severity: "danger" },
+    accept: () => deleteRecord(),
+  });
+}
+
+async function deleteRecord() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    const response = await sharedStore.deleteRecord(apiPrefix, props.recordId!);
+    toastStore.successResponseToast(response);
+    emit("completeDelete");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
 
 async function restoreCategory() {
   try {
@@ -249,6 +299,26 @@ async function restoreCategoryName() {
           />
         </div>
       </div>
+
+      <div v-if="isExpense" class="flex flex-row w-full">
+        <div class="flex flex-col gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="r$.necessity.$errors[0]"
+          >
+            <label>Necessity</label>
+          </ValidationError>
+          <SelectButton
+            v-model="record.necessity"
+            size="small"
+            :options="necessities"
+            option-label="label"
+            option-value="value"
+            :allow-empty="false"
+            :disabled="readOnly"
+          />
+        </div>
+      </div>
     </div>
 
     <div
@@ -270,22 +340,26 @@ async function restoreCategoryName() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-col w-full">
+      <div class="flex flex-col w-full gap-2">
         <Button
           v-if="!readOnly"
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' category'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
         <Button
           v-else
           class="main-button"
           label="Restore"
-          style="height: 42px"
           @click="restoreCategory"
+        />
+        <Button
+          v-if="canDelete"
+          :label="(readOnly ? 'Delete' : 'Archive') + ' category'"
+          class="delete-button"
+          @click="deleteConfirmation"
         />
       </div>
     </div>

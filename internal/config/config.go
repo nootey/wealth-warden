@@ -26,6 +26,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("postgres.password", "postgres")
 	v.SetDefault("postgres.port", 5432)
 	v.SetDefault("postgres.db", "wealth_warden")
+	v.SetDefault("postgres.max_conns", 25)
 
 	v.SetDefault("redis.host", "redis")
 	v.SetDefault("redis.port", 6379)
@@ -55,6 +56,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("seed.bulk.txns_per_user", 500)
 	v.SetDefault("seed.bulk.email_domain", "local.seed")
 	v.SetDefault("seed.bulk.password", "password")
+	v.SetDefault("seed.bulk.lean", false)
+	v.SetDefault("seed.bulk.rand_seed", 0)
 
 	v.SetDefault("scheduler.concurrent_workers", 5)
 	v.SetDefault("scheduler.immediate_jobs", []string{})

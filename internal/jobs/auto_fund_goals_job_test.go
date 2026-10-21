@@ -55,7 +55,11 @@ func (s *AutoFundGoalsJobTestSuite) createSavingsAccount(name string, balance de
 	}
 	s.Require().NoError(s.TC.DB.Create(&acc).Error)
 
-	opening := models.NewOpeningTransaction(s.memberUserID, acc.ID, nil, "EUR", openedAt, balance)
+	// category_id is NOT NULL; opening transactions carry the user's uncategorized root.
+	cat, err := repositories.NewTransactionRepository(s.TC.DB).
+		EnsureRootCategory(s.Ctx, s.TC.DB, "uncategorized", s.memberUserID)
+	s.Require().NoError(err)
+	opening := models.NewOpeningTransaction(s.memberUserID, acc.ID, &cat.ID, "EUR", openedAt, balance)
 	s.Require().NoError(s.TC.DB.Create(&opening).Error)
 	tx := s.TC.DB.Begin()
 	s.Require().NoError(repositories.NewBalanceRepository(s.TC.DB).

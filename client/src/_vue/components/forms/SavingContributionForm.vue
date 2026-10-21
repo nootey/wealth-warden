@@ -145,7 +145,6 @@ async function manageRecord() {
         label="Add contribution"
         :disabled="submitting"
         :loading="submitting"
-        style="height: 42px"
         @click="manageRecord"
       />
     </div>
