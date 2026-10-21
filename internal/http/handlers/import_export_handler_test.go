@@ -164,14 +164,14 @@ func (suite *ImportHandlerTestSuite) TestBankImport_SkipsRowsAfterSettingCategor
 
 	suite.mockService.On("ImportTransactions", mock.Anything, int64(123), int64(1), models.ImportTypeBank, mock.MatchedBy(func(p models.TxnImportPayload) bool {
 		return len(p.Txns) == 1 && *p.Txns[0].ExternalTxnID == "TX2" && p.Txns[0].CategoryID != nil && *p.Txns[0].CategoryID == 5
-	})).Return(0, nil).Once()
+	})).Return(int64(0), nil).Once()
 
 	w := suite.bankImport(map[string]string{
 		"row_categories": `[{"row":1,"category_id":5}]`,
 		"skip_rows":      `[0]`,
 	})
 
-	suite.Equal(http.StatusOK, w.Code)
+	suite.Equal(http.StatusAccepted, w.Code)
 }
 
 func (suite *ImportHandlerTestSuite) TestBankImport_AllRowsSkippedNeverReachesService() {

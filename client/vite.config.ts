@@ -5,7 +5,7 @@ import Components from "unplugin-vue-components/vite";
 import { PrimeVueResolver } from "@primevue/auto-import-resolver";
 import tailwindcss from "@tailwindcss/vite";
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   const DEV_PORT = Number(env.VITE_DEV_PORT) || 5000;
@@ -16,6 +16,8 @@ export default defineConfig(({ mode }) => {
       vue(),
       Components({
         resolvers: [PrimeVueResolver()],
+        // The dev server only appends, so stale entries flip-flop against build's overwrite.
+        dts: command === "build" ? "components.d.ts" : false,
       }),
       tailwindcss(),
     ],

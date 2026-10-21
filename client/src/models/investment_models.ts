@@ -101,6 +101,7 @@ export interface TradeTaxInfo {
 export interface AssetTaxSummary {
   estimated_tax_due: string;
   after_tax_pnl: string;
+  taxable_percent: string | null;
 }
 
 export type AllocationGroupKey = "type" | "ticker" | "currency" | "account";

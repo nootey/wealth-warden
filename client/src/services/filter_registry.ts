@@ -11,6 +11,7 @@ export type Column = {
   options?: any[];
   optionLabel?: string;
   optionValue?: string;
+  optionHint?: string;
   hideOnMobile?: boolean;
   hideFromFilter?: boolean;
   sortable?: boolean;
@@ -124,6 +125,7 @@ export const defs = {
         options,
         optionLabel,
         optionValue: valueKey,
+        optionHint: col?.optionHint,
       },
     };
   },

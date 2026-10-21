@@ -183,7 +183,7 @@ func (r *AccountRepository) FindAllAccounts(ctx context.Context, tx *gorm.DB, us
 		query = query.Preload("AccountType")
 	}
 
-	if err := query.Find(&records).Error; err != nil {
+	if err := query.Order("name ASC").Find(&records).Error; err != nil {
 		return nil, err
 	}
 
@@ -225,6 +225,7 @@ func (r *AccountRepository) FindAccountsBySubtype(ctx context.Context, tx *gorm.
 	err := query.
 		Select("accounts.*").
 		Preload("AccountType").
+		Order("accounts.name ASC").
 		Find(&records).
 		Error
 
@@ -253,6 +254,7 @@ func (r *AccountRepository) FetchAccountsByType(ctx context.Context, tx *gorm.DB
 	err := query.
 		Select("accounts.*").
 		Preload("AccountType").
+		Order("accounts.name ASC").
 		Find(&records).
 		Error
 

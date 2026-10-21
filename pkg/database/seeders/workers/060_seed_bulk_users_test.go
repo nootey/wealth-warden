@@ -64,6 +64,28 @@ func TestBulkTransactionsForAccount(t *testing.T) {
 	}
 }
 
+// Load test runs are only comparable if one seed always walks to the same rows
+func TestBulkTransactionsForAccountRepeatsForSeed(t *testing.T) {
+	today := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
+	opened := today.AddDate(-2, 0, 0)
+	acc := models.Account{ID: 7, UserID: 3, Currency: "EUR"}
+
+	walk := func() []models.Transaction {
+		rng := rand.New(rand.NewSource(42))
+		return bulkTransactionsForAccount(
+			rng, today, opened, acc, bulkAccountSeeds[0], 400, []int64{1, 2, 3}, []int64{4, 5, 6})
+	}
+
+	first, second := walk(), walk()
+	require.Len(t, second, len(first))
+	for i := range first {
+		assert.Equal(t, first[i].TxnDate, second[i].TxnDate)
+		assert.Equal(t, first[i].Direction, second[i].Direction)
+		assert.True(t, first[i].Amount.Equal(second[i].Amount))
+		assert.Equal(t, *first[i].CategoryID, *second[i].CategoryID)
+	}
+}
+
 func TestBulkEmailIsStable(t *testing.T) {
 	assert.Equal(t, "bulk00001@local.seed", bulkEmail(1, "local.seed"))
 	assert.Equal(t, "bulk10000@local.seed", bulkEmail(10000, "local.seed"))

@@ -9,7 +9,10 @@ import {
   PieController,
   type ChartOptions,
 } from "chart.js";
-import { categoryPalette } from "../../../style/theme/chartColors.ts";
+import {
+  categoryPalette,
+  useChartColors,
+} from "../../../style/theme/chartColors.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 
 ChartJS.register(PieController, ArcElement, Tooltip, Legend);
@@ -19,8 +22,11 @@ const props = defineProps<{
   labels: string[];
   size?: number;
   showLegend?: boolean;
+  showTotal?: boolean;
   options?: object;
 }>();
+
+const { colors: themeColors } = useChartColors();
 
 const chartRef = ref<any>(null);
 const isChartReady = ref(false);
@@ -41,7 +47,15 @@ const chartData = computed(() => {
   );
   return {
     labels: props.labels,
-    datasets: [{ data: props.values, backgroundColor: colors }],
+    datasets: [
+      {
+        data: props.values,
+        backgroundColor: colors,
+        borderWidth: 1,
+        borderColor: themeColors.value.sliceBorder,
+        hoverOffset: 4,
+      },
+    ],
   };
 });
 
@@ -63,9 +77,13 @@ function merge<T>(base: any, extra: any): T {
   return out as T;
 }
 
+const total = computed(() => props.values.reduce((a, b) => a + b, 0));
+
 const baseOptions = computed<ChartOptions<"pie">>(() => ({
   responsive: true,
   maintainAspectRatio: false,
+  cutout: "62%",
+  layout: { padding: 6 },
   animation: {
     animateScale: true,
     animateRotate: true,
@@ -75,6 +93,16 @@ const baseOptions = computed<ChartOptions<"pie">>(() => ({
   plugins: {
     legend: { display: props.showLegend ?? true, position: "top" },
     tooltip: {
+      backgroundColor: themeColors.value.ttipBg,
+      borderColor: themeColors.value.ttipBorder,
+      borderWidth: 1,
+      padding: 12,
+      cornerRadius: 12,
+      boxPadding: 6,
+      titleColor: themeColors.value.ttipTitle,
+      bodyColor: themeColors.value.ttipText,
+      titleFont: { weight: 600, size: 12 },
+      bodyFont: { weight: 600, size: 14 },
       callbacks: {
         label: (ctx) => {
           const label = ctx.label ?? "";
@@ -100,14 +128,24 @@ const chartOptions = computed<ChartOptions<"pie">>(() =>
       width: (size ?? 300) + 'px',
       height: (size ?? 300) + 'px',
     }"
-    class="flex justify-center items-center"
+    class="relative flex justify-center items-center"
   >
+    <div
+      v-if="showTotal"
+      class="absolute inset-0 flex flex-col items-center justify-center gap-1 pointer-events-none"
+    >
+      <span class="label">Total</span>
+      <span class="text-sm font-medium text-ink">
+        {{ vueHelper.displayAsCurrency(total) }}
+      </span>
+    </div>
     <Chart
       v-if="isChartReady"
       ref="chartRef"
       type="pie"
       :data="chartData"
       :options="chartOptions"
+      class="relative"
       style="width: 100%; height: 100%"
     />
   </div>

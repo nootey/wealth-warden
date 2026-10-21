@@ -359,3 +359,29 @@ func TestComputeAssetTaxSummary_LossOffsetting_ReducesTax(t *testing.T) {
 
 	assert.True(t, without.EstimatedTaxDue.GreaterThan(with.EstimatedTaxDue))
 }
+
+func TestComputeAssetTaxSummary_WithoutLossOffsetting_BracketFromAverageHold(t *testing.T) {
+	// lot1 at 1000 days, lot2 at 3000 days → average 2000 days → 0% bracket
+	// lot1 alone is still taxed at its own 100% bracket
+	trades := []models.InvestmentTrade{
+		buyTrade(1, 3000, 10, 100, 0, 0),
+		buyTrade(2, 1000, 10, 100, 0, 0),
+	}
+	asset, price := assetWithPrice(200, 20, models.InvestmentStock)
+
+	info := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
+
+	assert.True(t, df(0).Equal(*info.TaxablePercent))
+	assert.True(t, df(100).Equal(info.EstimatedTaxDue))
+}
+
+func TestComputeAssetTaxSummary_LossOffsetting_BracketSetOnNetLoss(t *testing.T) {
+	// net loss → no tax, but the bracket still shows
+	trades := []models.InvestmentTrade{buyTrade(1, 100, 10, 400, 0, 0)}
+	asset, price := assetWithPrice(-100, 30, models.InvestmentStock)
+
+	info := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: true}, taxToday)
+
+	assert.True(t, info.EstimatedTaxDue.IsZero())
+	assert.True(t, df(100).Equal(*info.TaxablePercent))
+}

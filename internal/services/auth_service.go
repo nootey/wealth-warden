@@ -577,6 +577,16 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 		return ErrPasswordMismatch
 	}
 
+	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
+	if passwordErr != nil {
+		return apperr.Wrap(apperr.Validation, passwordErr.Error(), passwordErr)
+	}
+
+	hashedPass, err := utils.HashAndSaltPassword(password)
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.userRepo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -596,17 +606,6 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 		return ErrInvalidToken
 	}
 
-	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
-	if passwordErr != nil {
-		_ = tx.Rollback()
-		return apperr.Wrap(apperr.Validation, passwordErr.Error(), passwordErr)
-	}
-
-	hashedPass, err := utils.HashAndSaltPassword(password)
-	if err != nil {
-		_ = tx.Rollback()
-		return err
-	}
 	err = s.userRepo.UpdateUserPassword(ctx, tx, user.ID, hashedPass)
 	if err != nil {
 		_ = tx.Rollback()
@@ -623,7 +622,8 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 	}
 
 	if err := s.sessionStore.DeleteAllForUser(ctx, user.ID); err != nil {
-		return err
+		s.logger.Warn("password reset: old sessions not ended",
+			zap.Int64("user_id", user.ID), zap.Error(err))
 	}
 
 	desc := "Reset password successfully"

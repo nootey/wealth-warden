@@ -11,6 +11,12 @@ export const useInvestmentStore = defineStore("investment", {
   }),
   getters: {},
   actions: {
+    async getAssetCount(): Promise<number> {
+      const response = await apiClient.get(`${this.apiPrefix}`, {
+        params: { page: 1, rowsPerPage: 1 },
+      });
+      return response.data?.total_records ?? 0;
+    },
     async getAllAssets() {
       const response = await apiClient.get(`${this.apiPrefix}/all`);
       return response.data;

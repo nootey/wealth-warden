@@ -1,9 +1,5 @@
 # Wealth Warden - Client Instructions
 
-## Stack
-
-Vue 3 + TypeScript, PrimeVue 4 components, Tailwind CSS v4 utility classes (with the `tailwindcss-primeui` plugin).
-
 ## Styling
 
 - Do NOT write custom CSS classes. Use inline Tailwind utility classes instead.
@@ -14,15 +10,13 @@ Vue 3 + TypeScript, PrimeVue 4 components, Tailwind CSS v4 utility classes (with
 
 - Use PrimeVue components where one exists for the use case before writing a custom component.
 - Check related existing pages/components for examples.
-- Always wrap form field labels with the `ValidationError` component - never use plain labels with inline hint text.
 
 ## Validation
 
+- Always wrap form field labels with the `ValidationError` component - never use plain labels with inline hint text.
 - Every form field must use existing methods of validation (see any _Form_ component for reference)
-- Success, error and validation messages come from the backend; just relay them in the client via toast_service.
 
 ## Code Style Guidelines
 
-- TypeScript: Strict type checking, ES modules, explicit return types
 - Use relative paths only - no aliases like `@/` or `~/`
 - Use `import type` for type-only imports; group them at the end of the import block

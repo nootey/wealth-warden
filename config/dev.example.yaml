@@ -16,6 +16,7 @@ postgres:
   password: "postgres"
   port: 5432
   db: "wealth_warden"
+  max_conns: 25        # app pool; River adds 10 more. Keep the sum below Postgres max_connections (default 100)
 
 redis:
   host: "localhost"
@@ -52,6 +53,8 @@ seed:
     txns_per_user: 500
     email_domain: "local.seed"
     password: "password"
+    lean: false
+    rand_seed: 0
 
 scheduler:
   concurrent_workers: 5             # goroutines inside one job; queue.scheduler_workers is how many jobs run at once

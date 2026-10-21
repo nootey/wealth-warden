@@ -25,6 +25,18 @@ export function isTransactionDeletable(type: TransactionType): boolean {
   return type === "ledger" || type === "transfer" || type === "adjustment";
 }
 
+export function isBulkFieldEditable(type: TransactionType): boolean {
+  return type === "ledger";
+}
+
+export function isBulkDeletable(type: TransactionType): boolean {
+  return type === "ledger" || type === "adjustment";
+}
+
+export function isBulkSelectable(type: TransactionType): boolean {
+  return isBulkDeletable(type) || isBulkFieldEditable(type);
+}
+
 export interface Transaction {
   id: number | null;
   account_id: number | null;
@@ -49,6 +61,7 @@ export interface Transfer {
   notes: string | null;
   deleted_at: Date | null;
   created_at?: Date | null;
+  updated_at?: Date | null;
   from: Transaction | null;
   to: Transaction | null;
 }
@@ -64,6 +77,7 @@ export interface Category {
   name: string;
   display_name: string;
   classification: string;
+  necessity: "need" | "want" | null;
   parent_id: number | null;
   is_default: boolean;
   deleted_at: Date | null;

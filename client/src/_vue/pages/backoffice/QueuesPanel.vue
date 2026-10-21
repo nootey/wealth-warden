@@ -77,7 +77,7 @@ function confirmToggle(q: RiverQueue) {
         Worker pools that pull jobs from the database. Pausing a queue stops
         workers from picking up new jobs.
       </div>
-      <Button class="main-button" style="height: 32px" @click="getData">
+      <Button class="main-button" @click="getData">
         <div class="flex flex-row gap-1 items-center">
           <i class="pi pi-refresh" />
           <span class="mobile-hide"> Refresh </span>

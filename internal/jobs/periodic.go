@@ -6,18 +6,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 
 	"github.com/riverqueue/river"
-	"github.com/riverqueue/river/rivertype"
 )
-
-// River's default set also holds `completed`, which would block tomorrow's run
-// while yesterday's row is still in the table.
-var periodicUniqueStates = []rivertype.JobState{
-	rivertype.JobStateAvailable,
-	rivertype.JobStatePending,
-	rivertype.JobStateRetryable,
-	rivertype.JobStateRunning,
-	rivertype.JobStateScheduled,
-}
 
 type periodicSpec struct {
 	schedule   river.PeriodicSchedule
@@ -33,7 +22,7 @@ func PeriodicJobs(cfg config.SchedulerConfig) []*river.PeriodicJob {
 		constructor := func() (river.JobArgs, *river.InsertOpts) {
 			return spec.args, &river.InsertOpts{
 				Queue:      jobqueue.QueueScheduler,
-				UniqueOpts: river.UniqueOpts{ByState: periodicUniqueStates},
+				UniqueOpts: river.UniqueOpts{ByState: jobqueue.InFlightStates},
 			}
 		}
 		jobs = append(jobs, river.NewPeriodicJob(spec.schedule, constructor, &river.PeriodicJobOpts{

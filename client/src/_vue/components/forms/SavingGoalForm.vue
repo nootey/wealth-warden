@@ -467,7 +467,6 @@ function confirmDelete() {
           :label="mode === 'create' ? 'Add goal' : 'Update goal'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
       </div>
@@ -481,7 +480,6 @@ function confirmDelete() {
           "
           label="Fund now"
           class="outline-button w-full"
-          style="height: 42px"
           @click="fundConfirmation"
         />
       </div>
@@ -490,7 +488,6 @@ function confirmDelete() {
           v-if="mode === 'update'"
           class="delete-button w-full"
           label="Delete goal"
-          style="height: 42px"
           :disabled="submitting"
           @click="confirmDelete"
         />

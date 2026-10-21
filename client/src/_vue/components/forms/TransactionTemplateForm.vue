@@ -215,6 +215,7 @@ function initData(): TransactionTemplate {
       name: "",
       display_name: "",
       classification: "",
+      necessity: null,
       is_default: true,
       parent_id: null,
       deleted_at: null,
@@ -273,6 +274,7 @@ const searchCategory = (event: { query: string }) => {
     availableCategories.value,
     event.query,
     (record) => [record.display_name, record.name],
+    { sort: true },
   );
 };
 
@@ -284,6 +286,7 @@ const searchAccount = (event: { query: string }) => {
     pool,
     event.query,
     (a) => [a.name],
+    { sort: true },
   );
 };
 
@@ -294,6 +297,7 @@ const searchToAccount = (event: { query: string }) => {
     pool,
     event.query,
     (a) => [a.name],
+    { sort: true },
   );
 };
 
@@ -843,7 +847,6 @@ async function startOperation() {
           :label="(mode == 'create' ? 'Add' : 'Update') + ' template'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
         <Button
@@ -852,7 +855,6 @@ async function startOperation() {
           label="Rename template"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="renameRecord"
         />
         <Button
@@ -863,14 +865,12 @@ async function startOperation() {
           "
           label="Execute now"
           class="outline-button"
-          style="height: 42px"
           @click="executeConfirmation"
         />
         <Button
           v-if="mode === 'update'"
           label="Delete template"
           class="delete-button"
-          style="height: 42px"
           @click="deleteConfirmation"
         />
       </div>

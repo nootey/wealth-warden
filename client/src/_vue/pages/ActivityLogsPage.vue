@@ -235,16 +235,11 @@ provide("removeFilter", removeFilter);
     />
   </FilterPopover>
 
-  <main class="flex flex-col w-full p-2 items-center">
+  <main class="flex flex-col w-full items-center">
     <div
-      class="flex flex-col justify-center p-4 w-full gap-4 rounded-md"
-      style="
-        border: 1px solid var(--border-color);
-        background: var(--background-secondary);
-        max-width: 1000px;
-      "
+      class="flex flex-col justify-center p-4 w-full gap-4 rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]"
     >
-      <div style="font-weight: bold">Audit logs</div>
+      <h3 class="m-0">Audit logs</h3>
 
       <div
         class="flex flex-row justify-between items-center p-1 gap-4 w-full rounded-md"
@@ -253,7 +248,7 @@ provide("removeFilter", removeFilter);
           background: var(--background-secondary);
         "
       >
-        <ActionRow>
+        <ActionRow pills-last>
           <template #activeFilters>
             <ActiveFilters
               :active-filters="filters"
@@ -263,16 +258,16 @@ provide("removeFilter", removeFilter);
           </template>
           <template #filterButton>
             <div
-              class="hover-icon flex flex-row items-center gap-2"
+              v-tooltip="'Filter'"
+              class="hover-icon flex flex-row items-center justify-center"
               style="
-                padding: 0.5rem 1rem;
+                padding: 0.5rem;
                 border-radius: 8px;
                 border: 1px solid var(--border-color);
               "
               @click="toggleFilterOverlay($event)"
             >
               <i class="pi pi-filter" style="font-size: 0.845rem" />
-              <div>Filter</div>
             </div>
           </template>
         </ActionRow>

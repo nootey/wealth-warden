@@ -96,25 +96,27 @@ async function signUp() {
     loading.value = false;
   }
 }
-
-function login() {
-  router.push({ name: "login" });
-}
 </script>
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 400px">
-      <div id="hideOnMobile" class="text-center mb-6">
+    <div class="w-full mx-auto" style="max-width: 400px">
+      <div class="mb-8">
         <h2
-          class="m-0 text-2xl sm:text-3xl font-bold"
+          class="m-0 text-3xl font-medium"
           style="color: var(--text-primary); letter-spacing: -0.025em"
         >
           Create an account
         </h2>
+        <p
+          class="mt-2 text-base leading-normal"
+          style="color: var(--text-secondary)"
+        >
+          Fill in your details to get started.
+        </p>
       </div>
 
-      <div class="flex flex-col gap-4">
+      <form class="flex flex-col gap-4" @submit.prevent="signUp">
         <div class="flex flex-row w-full">
           <div class="flex flex-col gap-1 w-full">
             <ValidationError
@@ -160,14 +162,15 @@ function login() {
             >
               <label>Password</label>
             </ValidationError>
-            <InputText
+            <Password
               id="password"
               v-model="form.password"
-              type="password"
               :placeholder="'Password'"
               :disabled="loading"
-              :readonly="loading"
-              class="w-full rounded-xl"
+              :feedback="false"
+              toggle-mask
+              fluid
+              input-class="rounded-xl"
             />
           </div>
         </div>
@@ -180,26 +183,26 @@ function login() {
             >
               <label>Confirm password</label>
             </ValidationError>
-            <InputText
+            <Password
               id="password_confirmation"
               v-model="form.password_confirmation"
-              type="password"
               :placeholder="'Confirm password'"
-              class="w-full rounded-xl"
+              :feedback="false"
+              toggle-mask
+              fluid
+              input-class="rounded-xl"
               :disabled="loading"
-              :readonly="loading"
-              @keydown.enter="signUp"
             />
           </div>
         </div>
 
         <Button
           label="Sign up"
-          class="w-full auth-accent-button"
+          class="w-full main-button"
           :disabled="loading"
-          @click="signUp"
+          type="submit"
         />
-      </div>
+      </form>
 
       <div
         class="flex items-center justify-center gap-2 mt-6 pt-4"
@@ -208,23 +211,13 @@ function login() {
         <span class="text-sm" style="color: var(--text-secondary)">
           Already have an account?
         </span>
-        <span class="text-sm hover-icon hover-dim" @click="login"> Log in</span>
+        <router-link
+          :to="{ name: 'login' }"
+          class="text-sm text-ink font-medium no-underline hover:opacity-80"
+        >
+          Log in
+        </router-link>
       </div>
     </div>
   </AuthSkeleton>
 </template>
-
-<style scoped>
-@media (max-width: 768px) {
-  #hideOnMobile {
-    display: none;
-  }
-}
-
-.hover-dim {
-  color: var(--accent-primary);
-}
-.hover-dim:hover {
-  color: var(--accent-secondary);
-}
-</style>

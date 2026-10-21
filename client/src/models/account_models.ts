@@ -12,6 +12,12 @@ export interface AccountBalance {
   total_balance: string | null;
 }
 
+export interface AvailableBalance {
+  account_id: number;
+  balance: string;
+  available: string;
+}
+
 export interface Account {
   id: number | null;
   name: string;

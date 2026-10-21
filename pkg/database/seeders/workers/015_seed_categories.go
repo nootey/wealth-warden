@@ -26,7 +26,8 @@ func SeedCategories(ctx context.Context, db *gorm.DB, cfg *config.Config) error 
 	balanceRepo := repositories.NewBalanceRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
-	txnService := services.NewTransactionService(zap.NewNop(), txnRepo, accRepo, balanceRepo, settingsRepo, savingsRepo, jobqueue.NoopDispatcher{})
+	rulesRepo := repositories.NewRulesRepository(db)
+	txnService := services.NewTransactionService(zap.NewNop(), txnRepo, accRepo, balanceRepo, settingsRepo, savingsRepo, rulesRepo, jobqueue.NoopDispatcher{})
 
 	for _, u := range users {
 		if _, err := txnService.SeedDefaultCategoriesWithTx(ctx, db, u.ID); err != nil {
