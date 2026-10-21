@@ -23,6 +23,7 @@ func TestLoadConfig_MissingDefaultFileFallsBackToDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 5, cfg.Queue.MaxAttempts)
 	assert.Equal(t, "wealth-warden", cfg.Otel.ServiceName)
+	assert.Equal(t, 25, cfg.Postgres.MaxConns)
 }
 
 func TestLoadConfig_MissingExplicitFileErrors(t *testing.T) {
@@ -84,6 +85,17 @@ func TestLoadConfig_RejectsInvalidSessionTTL(t *testing.T) {
 	dir := writeConfig(t, `
 session:
   ttl_hours: 0
+`)
+
+	_, err := config.LoadConfig(&dir, "test")
+
+	assert.Error(t, err)
+}
+
+func TestLoadConfig_RejectsInvalidPostgresMaxConns(t *testing.T) {
+	dir := writeConfig(t, `
+postgres:
+  max_conns: 0
 `)
 
 	_, err := config.LoadConfig(&dir, "test")

@@ -10,9 +10,9 @@ func (m *Mailer) SendRegistrationEmail(to, displayName, token string) error {
 	link := m.buildLink("auth", "validate-email?token="+token)
 
 	data := map[string]string{
-		"subjectName":      displayName,
-		"registrationLink": link,
-		"year":             time.Now().Format("2006"),
+		"subjectName": displayName,
+		"link":        link,
+		"year":        time.Now().Format("2006"),
 	}
 
 	body, err := renderTemplate("validate-registration-email.html", data)
@@ -26,7 +26,7 @@ func (m *Mailer) SendConfirmationEmail(to, displayName, token string) error {
 	link := m.buildLink("auth", "confirm-email?token="+token)
 	body, err := renderTemplate("confirm-email.html", map[string]string{
 		"subjectName": displayName,
-		"confirmLink": link,
+		"link":        link,
 		"year":        time.Now().Format("2006"),
 	})
 	if err != nil {
@@ -39,7 +39,7 @@ func (m *Mailer) SendPasswordResetEmail(to, displayName, token string) error {
 	link := m.buildLink("auth", "validate-password-reset?token="+token)
 	body, err := renderTemplate("reset-password.html", map[string]string{
 		"subjectName": displayName,
-		"resetLink":   link,
+		"link":        link,
 		"year":        time.Now().Format("2006"),
 	})
 	if err != nil {

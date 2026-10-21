@@ -7,6 +7,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const CategoryChangesLimit = 5
+
 type ChartPoint struct {
 	Date  time.Time       `json:"date"`
 	Value decimal.Decimal `json:"value"`
@@ -128,6 +130,7 @@ type BasicAccountStats struct {
 	AvgMonthlyTakeHome decimal.Decimal `json:"avg_monthly_take_home"`
 	AvgMonthlyOverflow decimal.Decimal `json:"avg_monthly_overflow"`
 	ActiveMonths       int             `json:"active_months"`
+	Necessity          NecessitySplit  `json:"necessity"`
 	Categories         []CategoryStat  `json:"categories,omitempty"`
 	GeneratedAt        time.Time       `json:"generated_at"`
 }
@@ -154,9 +157,19 @@ type YearlyCategoryRow struct {
 	Year        int
 	CategoryID  int64
 	DisplayName *string
+	Necessity   *CategoryNecessity
 	InflowText  string
 	OutflowText string
 	NetText     string
+}
+
+type NecessitySplit struct {
+	Needs    decimal.Decimal `json:"needs"`
+	Wants    decimal.Decimal `json:"wants"`
+	Other    decimal.Decimal `json:"other"`
+	NeedsPct float64         `json:"needs_pct"`
+	WantsPct float64         `json:"wants_pct"`
+	OtherPct float64         `json:"other_pct"`
 }
 
 type MonthlyTotalsRow struct {
@@ -188,6 +201,7 @@ type MonthlyStats struct {
 	SavingsRate       decimal.Decimal `json:"savings_rate"`
 	InvestRate        decimal.Decimal `json:"investments_rate"`
 	DebtRepaymentRate decimal.Decimal `json:"debt_repayment_rate"`
+	Necessity         NecessitySplit  `json:"necessity"`
 	GeneratedAt       time.Time       `json:"generated_at"`
 	Categories        []CategoryStat  `json:"categories,omitempty"`
 }
@@ -204,8 +218,24 @@ type TodayStats struct {
 }
 
 type YearlyBreakdownStats struct {
-	CurrentYear    *YearStatsWithAllocations `json:"current_year"`
-	ComparisonYear *YearStatsWithAllocations `json:"comparison_year,omitempty"`
+	CurrentYear     *YearStatsWithAllocations `json:"current_year"`
+	ComparisonYear  *YearStatsWithAllocations `json:"comparison_year,omitempty"`
+	CategoryChanges *CategoryChanges          `json:"category_changes,omitempty"`
+}
+
+type CategoryChanges struct {
+	ThroughMonth int              `json:"through_month"`
+	Expense      []CategoryChange `json:"expense"`
+	Income       []CategoryChange `json:"income"`
+}
+
+type CategoryChange struct {
+	CategoryID int64           `json:"category_id"`
+	Category   string          `json:"category"`
+	Current    decimal.Decimal `json:"current"`
+	Comparison decimal.Decimal `json:"comparison"`
+	Change     decimal.Decimal `json:"change"`
+	ChangePct  *float64        `json:"change_pct,omitempty"`
 }
 
 type YearStatsWithAllocations struct {
@@ -229,6 +259,8 @@ type YearStatsWithAllocations struct {
 	SavingsPct    float64 `json:"savings_pct"`
 	InvestmentPct float64 `json:"investment_pct"`
 	DebtPct       float64 `json:"debt_pct"`
+
+	Necessity NecessitySplit `json:"necessity"`
 }
 
 type NetWorthQuery struct {
@@ -246,7 +278,7 @@ type YearAccountQuery struct {
 
 type CategoryBreakdownQuery struct {
 	Year     int    `form:"year" validate:"required_without=Years,omitempty,min=1900,max=3000"`
-	Years    []int  `form:"years" collection_format:"csv" validate:"max=5"`
+	Years    []int  `form:"years" collection_format:"csv" validate:"max=6"`
 	Account  *int64 `form:"account"`
 	Category *int64 `form:"category"`
 	Class    string `form:"class,default=expense"`

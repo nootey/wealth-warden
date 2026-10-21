@@ -15,10 +15,17 @@ import (
 )
 
 type stubPostTradeSync struct {
+	recordErr   error
+	recorded    bool
 	backfillErr error
 	snapshotErr error
 	backfilled  bool
 	snapshotted bool
+}
+
+func (s *stubPostTradeSync) RecordCurrentPrice(context.Context, string, models.InvestmentType) error {
+	s.recorded = true
+	return s.recordErr
 }
 
 func (s *stubPostTradeSync) BackfillTickerPriceHistory(context.Context, string, time.Time, time.Time) error {
@@ -53,6 +60,17 @@ func TestSyncAssetAfterTrade_BackfillFailureStillUpdatesSnapshot(t *testing.T) {
 	require.ErrorIs(t, err, backfillErr)
 }
 
+func TestSyncAssetAfterTrade_RecordPriceFailureStillBackfills(t *testing.T) {
+	recordErr := errors.New("quote api down")
+	svc := &stubPostTradeSync{recordErr: recordErr}
+
+	err := runSyncAssetJob(t, svc)
+
+	require.True(t, svc.backfilled)
+	require.True(t, svc.snapshotted)
+	require.ErrorIs(t, err, recordErr)
+}
+
 func TestSyncAssetAfterTrade_ReturnsBothErrors(t *testing.T) {
 	backfillErr := errors.New("price api down")
 	snapshotErr := errors.New("db down")
@@ -68,6 +86,7 @@ func TestSyncAssetAfterTrade_SuccessReturnsNil(t *testing.T) {
 	svc := &stubPostTradeSync{}
 
 	require.NoError(t, runSyncAssetJob(t, svc))
+	require.True(t, svc.recorded)
 	require.True(t, svc.backfilled)
 	require.True(t, svc.snapshotted)
 }

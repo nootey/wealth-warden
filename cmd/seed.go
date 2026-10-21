@@ -42,6 +42,13 @@ var seedCmd = &cobra.Command{
 		if users > 0 {
 			cfg.Seed.Bulk.Users = users
 		}
+		lean, err := cmd.Flags().GetBool("lean")
+		if err != nil {
+			return err
+		}
+		if lean {
+			cfg.Seed.Bulk.Lean = true
+		}
 
 		return runSeeders(seedType, seederName, cfg, seedLogger, timeout)
 	},
@@ -50,6 +57,7 @@ var seedCmd = &cobra.Command{
 func init() {
 	seedCmd.Flags().Duration("timeout", 30*time.Minute, "Maximum time the seeding run may take")
 	seedCmd.Flags().Int("users", 0, "Override seed.bulk.users for a bulk run")
+	seedCmd.Flags().Bool("lean", false, "Bulk run without saving goals and investments")
 }
 
 var validSeedTypes = map[string]bool{

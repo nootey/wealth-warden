@@ -2,11 +2,7 @@
 
 <template>
   <div
-    class="w-full flex flex-col gap-2 p-2 rounded-lg"
-    style="
-      border: 1px solid var(--border-color);
-      background-color: var(--background-secondary);
-    "
+    class="w-full flex flex-col gap-2 p-4 rounded-2xl border border-line bg-card shadow-[var(--shadow-card)]"
   >
     <Transition appear name="settings-animation">
       <slot />
@@ -15,18 +11,14 @@
 </template>
 
 <style scoped>
-.settings-animation-enter-active,
-.settings-animation-leave-active {
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+.settings-animation-enter-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
 .settings-animation-enter-from {
   opacity: 0;
-  transform: translateY(30px) scale(0.95);
-}
-
-.settings-animation-leave-to {
-  opacity: 0;
-  transform: translateY(-30px) scale(0.95);
+  transform: translateY(6px);
 }
 </style>

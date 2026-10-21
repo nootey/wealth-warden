@@ -126,9 +126,12 @@ function searchAccount(event: { query: string }, accType: string) {
 
   const all = listRef.value ?? [];
 
-  filteredListRef.value = searchHelper.filterByQuery(all, event.query, (a) => [
-    a.name,
-  ]);
+  filteredListRef.value = searchHelper.filterByQuery(
+    all,
+    event.query,
+    (a) => [a.name],
+    { sort: true },
+  );
 }
 
 function resetWizard() {

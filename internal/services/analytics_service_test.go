@@ -39,6 +39,29 @@ func (s *AnalyticsServiceTestSuite) closedAccount(userID int64) int64 {
 	return accID
 }
 
+func (s *AnalyticsServiceTestSuite) checkingWithIncome(userID int64, amount int64, dates ...time.Time) int64 {
+	zero := decimal.Zero
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Analytics Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &zero,
+		OpenedAt:      time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+	})
+	s.Require().NoError(err)
+
+	for _, d := range dates {
+		_, err := s.TC.App.TransactionService.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accID,
+			Direction: "income",
+			Amount:    decimal.NewFromInt(amount),
+			TxnDate:   d,
+		})
+		s.Require().NoError(err)
+	}
+
+	return accID
+}
+
 func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_ValidationError_RequiresPrimaryWhenSecondarySet() {
 	svc := s.TC.App.AnalyticsService
 	_, err := svc.GenerateCategoryReport(s.Ctx, 1, models.CategoryReportParams{
@@ -214,4 +237,114 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_RejectsClosedAcc
 
 	s.Require().Error(err)
 	s.Assert().Contains(err.Error(), "closed")
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_AveragesTakeHomeOverActiveMonths() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	accID := s.checkingWithIncome(userID, 1000,
+		time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 4, 10, 0, 0, 0, 0, time.UTC),
+	)
+
+	stats, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, 2024)
+
+	s.Require().NoError(err)
+	s.Assert().True(stats.AvgMonthlyTakeHome.Equal(decimal.NewFromInt(1000)), "got %s", stats.AvgMonthlyTakeHome)
+	s.Assert().True(stats.AvgMonthlyTakeHome.Equal(stats.AvgMonthlyInflow))
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_AveragesTakeHomeOverElapsedMonths() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	accID := s.checkingWithIncome(userID, 1200, today)
+
+	res, err := svc.GetYearlyBreakdownStats(s.Ctx, &accID, userID, today.Year(), nil)
+
+	s.Require().NoError(err)
+	cur := res.CurrentYear
+	s.Assert().True(cur.AvgMonthlyTakeHome.Equal(cur.AvgMonthlyInflow), "take home %s, inflow %s", cur.AvgMonthlyTakeHome, cur.AvgMonthlyInflow)
+}
+
+func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_CategoryChangesCapBothYearsAtCurrentMonth() {
+	svc := s.TC.App.AnalyticsService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	lastYear := today.Year() - 1
+	accID := s.checkingWithIncome(userID, 1000, time.Date(lastYear, 1, 10, 0, 0, 0, 0, time.UTC))
+
+	for amount, date := range map[int64]time.Time{
+		5000: time.Date(lastYear, 12, 10, 0, 0, 0, 0, time.UTC),
+		1200: today,
+	} {
+		_, err := s.TC.App.TransactionService.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accID,
+			Direction: "income",
+			Amount:    decimal.NewFromInt(amount),
+			TxnDate:   date,
+		})
+		s.Require().NoError(err)
+	}
+
+	res, err := svc.GetYearlyBreakdownStats(s.Ctx, &accID, userID, today.Year(), nil)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res.CategoryChanges)
+	s.Assert().Equal(int(today.Month()), res.CategoryChanges.ThroughMonth)
+	s.Assert().Empty(res.CategoryChanges.Expense)
+	s.Require().Len(res.CategoryChanges.Income, 1)
+
+	wantComparison := decimal.NewFromInt(1000)
+	if today.Month() == time.December {
+		wantComparison = decimal.NewFromInt(6000)
+	}
+	inc := res.CategoryChanges.Income[0]
+	s.Assert().True(inc.Current.Equal(decimal.NewFromInt(1200)), "current %s", inc.Current)
+	s.Assert().True(inc.Comparison.Equal(wantComparison), "comparison %s", inc.Comparison)
+}
+
+func (s *AnalyticsServiceTestSuite) TestNecessitySplit_InBasicMonthlyAndBreakdownStats() {
+	svc := s.TC.App.AnalyticsService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+	date := time.Date(2024, 5, 10, 0, 0, 0, 0, time.UTC)
+	accID := s.checkingWithIncome(userID, 5000, date)
+
+	need := models.CategoryNecessityNeed
+	needID, err := txnSvc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Split Rent", Classification: "expense", Necessity: &need})
+	s.Require().NoError(err)
+	wantID, err := txnSvc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Split Concerts", Classification: "expense"})
+	s.Require().NoError(err)
+
+	for catID, amount := range map[int64]int64{needID: 750, wantID: 250} {
+		_, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID:  accID,
+			CategoryID: &catID,
+			Direction:  "expense",
+			Amount:     decimal.NewFromInt(amount),
+			TxnDate:    date,
+		})
+		s.Require().NoError(err)
+	}
+
+	assertSplit := func(split models.NecessitySplit) {
+		s.Assert().True(split.Needs.Equal(decimal.NewFromInt(750)), "needs %s", split.Needs)
+		s.Assert().True(split.Wants.Equal(decimal.NewFromInt(250)), "wants %s", split.Wants)
+		s.Assert().True(split.Other.IsZero(), "other %s", split.Other)
+		s.Assert().InDelta(75.0, split.NeedsPct, 0.001)
+		s.Assert().InDelta(25.0, split.WantsPct, 0.001)
+	}
+
+	basic, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, 2024)
+	s.Require().NoError(err)
+	assertSplit(basic.Necessity)
+
+	monthly, err := svc.GetMonthlyStats(s.Ctx, userID, &accID, 2024, 5)
+	s.Require().NoError(err)
+	assertSplit(monthly.Necessity)
+
+	breakdown, err := svc.GetYearlyBreakdownStats(s.Ctx, &accID, userID, 2024, nil)
+	s.Require().NoError(err)
+	assertSplit(breakdown.CurrentYear.Necessity)
 }

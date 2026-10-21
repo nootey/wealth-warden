@@ -27,16 +27,16 @@ async function resendConfirmationEmail() {
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 400px">
-      <div class="text-center mb-6">
+    <div class="w-full mx-auto" style="max-width: 400px">
+      <div class="mb-8">
         <h2
-          class="m-0 text-2xl sm:text-3xl font-bold"
+          class="m-0 text-3xl font-medium"
           style="color: var(--text-primary); letter-spacing: -0.025em"
         >
-          {{ "Hey " + (authStore.user?.display_name ?? "user") }}
+          Confirm email
         </h2>
         <p
-          class="mt-2 leading-normal text-base"
+          class="mt-2 text-base leading-normal"
           style="color: var(--text-secondary)"
         >
           You need to confirm your email to continue using the app.
@@ -60,7 +60,7 @@ async function resendConfirmationEmail() {
 
         <Button
           label="Resend email"
-          class="w-full auth-accent-button"
+          class="w-full main-button"
           :disabled="loading"
           @click="resendConfirmationEmail"
         />
@@ -73,22 +73,14 @@ async function resendConfirmationEmail() {
         <span class="text-sm" style="color: var(--text-secondary)">
           Sign in with a different account?
         </span>
-        <span
-          class="text-sm hover-icon hover-dim"
+        <button
+          type="button"
+          class="text-sm text-ink font-medium bg-transparent border-0 p-0 cursor-pointer hover:opacity-80"
           @click="authStore.logoutUser()"
         >
-          Log in</span
-        >
+          Log in
+        </button>
       </div>
     </div>
   </AuthSkeleton>
 </template>
-
-<style scoped>
-.hover-dim {
-  color: var(--accent-primary);
-}
-.hover-dim:hover {
-  color: var(--accent-secondary);
-}
-</style>

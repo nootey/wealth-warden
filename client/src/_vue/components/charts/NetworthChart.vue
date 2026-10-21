@@ -176,13 +176,21 @@ const data = computed(() => {
         date: p.date,
         value: Number(p.value),
       })),
-      borderWidth: 3,
+      borderWidth: 2.25,
       pointRadius: 0,
       tension: 0.35,
       cubicInterpolationMode: "monotone",
       spanGaps: true,
       borderColor: props.activeColor,
-      backgroundColor: hexToRgba(props.activeColor, 0.12),
+      fill: "start",
+      backgroundColor: (ctx: any) => {
+        const { ctx: c, chartArea } = ctx.chart;
+        if (!chartArea) return hexToRgba(props.activeColor, 0.12);
+        const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+        g.addColorStop(0, hexToRgba(props.activeColor, 0.22));
+        g.addColorStop(1, hexToRgba(props.activeColor, 0));
+        return g;
+      },
 
       segment: {
         borderColor: (ctx: any) => {

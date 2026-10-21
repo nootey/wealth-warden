@@ -102,6 +102,7 @@ var (
 	ErrTradeNotFound      = apperr.New(apperr.NotFound, "Trade not found")
 	ErrIncomeNotFound     = apperr.New(apperr.NotFound, "Income record not found")
 	ErrTaxBracketNotFound = apperr.New(apperr.NotFound, "Tax bracket not found")
+	ErrAssetChanged       = apperr.New(apperr.Conflict, "The asset was changed by another request, try again")
 )
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
@@ -323,7 +324,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	}
 
 	changes := utils.InitChanges()
-	quantityString := hold.Quantity.StringFixed(2)
+	quantityString := hold.Quantity.String()
 
 	utils.CompareChanges("", strconv.FormatInt(holdID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
@@ -346,25 +347,68 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	return holdID, nil
 }
 
-func (s *InvestmentService) recordCurrentPrice(ctx context.Context, asset models.InvestmentAsset) {
+func (s *InvestmentService) RecordCurrentPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) error {
 	if s.priceFetchClient == nil {
-		return
+		return nil
 	}
 
-	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
+	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, investmentType)
 	if err != nil {
-		return
+		return fmt.Errorf("ticker %s: %w", ticker, err)
 	}
 
 	price := decimal.NewFromFloat(priceData.Price)
 	asOf := time.Unix(priceData.LastUpdate, 0).UTC().Truncate(24 * time.Hour)
 
-	if err := s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{{Ticker: asset.Ticker, AsOf: asOf, Price: price, Currency: priceData.Currency}}); err != nil {
-		fmt.Printf("warn: failed to upsert ticker price history for %s: %v\n", asset.Ticker, err)
-	}
+	return s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{{Ticker: ticker, AsOf: asOf, Price: price, Currency: priceData.Currency}})
 }
 
 func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID int64, req *models.InvestmentTradeReq) (int64, error) {
+	// Rate lookups can hit the external API, so they run before the tx opens.
+	asset, err := s.repo.FindInvestmentAssetByID(ctx, nil, req.AssetID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAssetNotFound
+		}
+		return 0, err
+	}
+
+	exchangeRate, err := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
+	if err != nil {
+		return 0, err
+	}
+
+	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
+	if err != nil {
+		return 0, err
+	}
+
+	fee := decimal.NewFromFloat(0.00)
+	if req.Fee != nil {
+		fee = *req.Fee
+	}
+
+	effectiveQuantity, valueAtBuy := s.calculateTradeValue(req, asset.InvestmentType, fee)
+	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
+
+	var cashAmount decimal.Decimal
+	if req.TradeType == models.InvestmentBuy {
+		grossCost := valueAtBuy
+		if asset.InvestmentType != models.InvestmentCrypto {
+			grossCost = grossCost.Add(fee)
+		}
+		cashAmount = grossCost
+		if req.Currency != asset.Account.Currency {
+			cashAmount = grossCost.Mul(exchangeRate)
+		}
+	} else {
+		// Sell: cash returns via realized P&L
+		cashAmount, err = s.sellProceeds(ctx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, txnDate, req.Currency)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -376,7 +420,14 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		}
 	}()
 
-	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, req.AssetID, userID)
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, asset.AccountID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// Read again under the lock: a concurrent trade may have changed the holdings since the read above
+	current, err := s.repo.FindInvestmentAssetByID(ctx, tx, req.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -384,14 +435,12 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		}
 		return 0, err
 	}
-
-	exchangeRate, err := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
-	if err != nil {
+	if current.AccountID != asset.AccountID {
 		tx.Rollback()
-		return 0, err
+		return 0, ErrAssetChanged
 	}
+	asset = current
 
-	// Validate sell quantity
 	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
 		tx.Rollback()
 		return 0, apperr.New(apperr.Validation, fmt.Sprintf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
@@ -402,11 +451,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	// Validate buy affordability — balance already reflects cash only
 	if req.TradeType == models.InvestmentBuy {
-		availableBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
-		if err != nil {
-			tx.Rollback()
-			return 0, apperr.Wrap(apperr.Internal, "failed to get account balance", err)
-		}
+		availableBalance := balances[asset.AccountID]
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
 		if req.Fee != nil {
@@ -430,20 +475,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 				asset.Account.Currency))
 		}
 	}
-
-	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	fee := decimal.NewFromFloat(0.00)
-	if req.Fee != nil {
-		fee = *req.Fee
-	}
-
-	effectiveQuantity, valueAtBuy := s.calculateTradeValue(req, asset.InvestmentType, fee)
-	s.recordCurrentPrice(ctx, asset)
 
 	// The full req.Quantity leaves holdings on a sell; the fee (in coin units for
 	// crypto) only reduces cash proceeds, it does not stay in the position.
@@ -488,31 +519,10 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-
 	category, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to find uncategorized category: %w", err)
-	}
-
-	var cashAmount decimal.Decimal
-	if req.TradeType == models.InvestmentBuy {
-		grossCost := valueAtBuy
-		if asset.InvestmentType != models.InvestmentCrypto {
-			grossCost = grossCost.Add(fee)
-		}
-		cashAmount = grossCost
-		if req.Currency != asset.Account.Currency {
-			cashAmount = grossCost.Mul(exchangeRate)
-		}
-	} else {
-		// Sell: cash returns via realized P&L
-		cashAmount, err = s.sellProceeds(ctx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, txnDate, req.Currency)
-		if err != nil {
-			tx.Rollback()
-			return 0, err
-		}
 	}
 
 	if err := s.linkTradeTransaction(ctx, tx, userID, txnID, asset, req.TradeType, txnDate, cashAmount, &category.ID); err != nil {
@@ -537,9 +547,9 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	changes := utils.InitChanges()
 	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", asset.Ticker, changes, "asset")
-	utils.CompareChanges("", txn.Quantity.StringFixed(2), changes, "quantity")
-	utils.CompareChanges("", txn.PricePerUnit.StringFixed(2), changes, "price_per_unit")
-	utils.CompareChanges("", txn.Fee.StringFixed(2), changes, "fee")
+	utils.CompareChanges("", txn.Quantity.String(), changes, "quantity")
+	utils.CompareChanges("", txn.PricePerUnit.String(), changes, "price_per_unit")
+	utils.CompareChanges("", txn.Fee.String(), changes, "fee")
 	utils.CompareChanges("", txn.TxnDate.UTC().Format(time.RFC3339), changes, "date")
 	utils.CompareChanges("", string(txn.TradeType), changes, "type")
 	utils.CompareChanges("", txn.Currency, changes, "currency")
@@ -660,6 +670,11 @@ func (s *InvestmentService) RebuildInvestmentDerivedData(ctx context.Context, us
 		}
 	}()
 
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	trades, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
@@ -692,6 +707,11 @@ func (s *InvestmentService) CorrectFeeAccountingAndRebuild(ctx context.Context, 
 			panic(p)
 		}
 	}()
+
+	if err := s.balanceRepo.LockUserBalances(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	if err := s.correctTradeFeeAccounting(ctx, tx, userID); err != nil {
 		tx.Rollback()
@@ -1126,6 +1146,17 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 		}
 	}()
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
@@ -1133,6 +1164,10 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 			return ErrAssetNotFound
 		}
 		return err
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	earliestTxnDate, err := s.repo.GetEarliestTradeDate(ctx, tx, id, userID)
@@ -1220,6 +1255,17 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		return err
 	}
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, exTxn.AssetID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, exTxn.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
@@ -1227,6 +1273,10 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 			return ErrAssetNotFound
 		}
 		return err
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	// Validate deletion: check if removing this buy would cause negative quantity
@@ -1269,8 +1319,8 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 
 	changes := utils.InitChanges()
 	utils.CompareChanges(asset.Ticker, "", changes, "asset")
-	utils.CompareChanges(exTxn.Quantity.StringFixed(2), "", changes, "quantity")
-	utils.CompareChanges(exTxn.PricePerUnit.StringFixed(2), "", changes, "price_per_unit")
+	utils.CompareChanges(exTxn.Quantity.String(), "", changes, "quantity")
+	utils.CompareChanges(exTxn.PricePerUnit.String(), "", changes, "price_per_unit")
 	utils.CompareChanges(string(exTxn.TradeType), "", changes, "type")
 
 	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
@@ -1519,6 +1569,21 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		Notes:             req.Notes,
 	}
 
+	// Locked after the price lookups, so the account isn't held during external calls
+	if _, err := s.balanceRepo.LockBalances(ctx, tx, userID, asset.AccountID); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, asset.ID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	if len(accountIDs) != 1 || accountIDs[0] != asset.AccountID {
+		tx.Rollback()
+		return 0, ErrAssetChanged
+	}
+
 	id, err := s.repo.CreateInvestmentIncome(ctx, tx, &record)
 	if err != nil {
 		tx.Rollback()
@@ -1621,6 +1686,17 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 		return err
 	}
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, income.AssetID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, income.AssetID, userID)
 	if err != nil {
 		tx.Rollback()
@@ -1628,6 +1704,10 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 			return ErrAssetNotFound
 		}
 		return err
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	if income.LinkedTransactionID != nil {
@@ -1872,10 +1952,25 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 		}
 	}()
 
+	accountIDs, err := s.repo.FindAssetAccountIDs(ctx, tx, userID, assetID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, accountIDs...)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, assetID, userID)
 	if err != nil {
 		tx.Rollback()
 		return apperr.Wrap(apperr.Internal, fmt.Sprintf("failed to find asset %d", assetID), err)
+	}
+	if _, locked := balances[asset.AccountID]; !locked {
+		tx.Rollback()
+		return ErrAssetChanged
 	}
 
 	incomeType := models.IncomeTypeStaking

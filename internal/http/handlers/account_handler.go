@@ -45,6 +45,7 @@ func (h *AccountHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.POST(":id/projection/save", authz.RequireAllMW("manage_data"), h.SaveAccountProjection)
 	apiGroup.POST(":id/projection/revert", authz.RequireAllMW("manage_data"), h.RevertAccountProjection)
 	apiGroup.GET("/balances/:id/latest", authz.RequireAllMW("view_data"), h.GetLatestBalance)
+	apiGroup.GET("/balances/:id/available", authz.RequireAllMW("view_data"), h.GetAvailableBalance)
 	apiGroup.POST("/balances/backfill", authz.RequireAllMW("manage_data"), h.BackfillBalancesForUser)
 	apiGroup.GET("/defaults/all", authz.RequireAllMW("view_data"), h.GetAccountsWithDefaults)
 	apiGroup.GET("/defaults/types", authz.RequireAllMW("view_data"), h.GetAccountTypesWithoutDefaults)
@@ -409,6 +410,26 @@ func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
 	}
 
 	rec, err := h.service.FetchLatestBalance(ctx, id, userID)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, rec)
+}
+
+func (h *AccountHandler) GetAvailableBalance(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := utils.ParseID(c, "id")
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	rec, err := h.service.FetchAvailableBalance(ctx, id, userID)
 	if err != nil {
 		_ = c.Error(err)
 		return

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"time"
 	"wealth-warden/internal/jobqueue"
+	"wealth-warden/internal/models"
 
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
 
 type postTradeSyncSvc interface {
+	RecordCurrentPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) error
 	BackfillTickerPriceHistory(ctx context.Context, ticker string, from, to time.Time) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 }
@@ -30,6 +32,15 @@ func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[job
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	var errs []error
+
+	// Runs before the backfill, which skips dates that already have a price.
+	if err := w.investmentService.RecordCurrentPrice(ctx, args.Ticker, args.InvestmentType); err != nil {
+		w.logger.Warn("Failed to record current ticker price",
+			zap.String("ticker", args.Ticker),
+			zap.Error(err),
+		)
+		errs = append(errs, err)
+	}
 
 	if err := w.investmentService.BackfillTickerPriceHistory(ctx, args.Ticker, args.TradeDate, today); err != nil {
 		w.logger.Warn("Failed to backfill ticker price history",

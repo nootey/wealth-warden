@@ -2,19 +2,19 @@ package mailer
 
 import (
 	"bytes"
+	"html/template"
 	"path/filepath"
-	"text/template"
 )
 
 func renderTemplate(templateName string, data interface{}) (string, error) {
-	tmplPath := filepath.Join("storage", "mailer-templates", templateName)
-	t, err := template.ParseFiles(tmplPath)
+	dir := filepath.Join("storage", "mailer-templates")
+	t, err := template.ParseFiles(filepath.Join(dir, "base.html"), filepath.Join(dir, templateName))
 	if err != nil {
 		return "", err
 	}
 
 	var buf bytes.Buffer
-	if err := t.Execute(&buf, data); err != nil {
+	if err := t.ExecuteTemplate(&buf, "base.html", data); err != nil {
 		return "", err
 	}
 	return buf.String(), nil

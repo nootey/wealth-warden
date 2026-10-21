@@ -90,6 +90,20 @@ const styleHelper = {
     const [sr, sg, sb] = srgb;
     return 0.2126 * (sr ?? 0) + 0.7152 * (sg ?? 0) + 0.0722 * (sb ?? 0);
   },
+  neutralControlDt: {
+    root: {
+      checkedBackground: "var(--text-primary)",
+      checkedHoverBackground: "var(--text-primary)",
+      checkedBorderColor: "var(--text-primary)",
+      checkedHoverBorderColor: "var(--text-primary)",
+      checkedFocusBorderColor: "var(--text-primary)",
+      focusRing: { color: "var(--text-primary)" },
+    },
+    icon: {
+      checkedColor: "var(--background-primary)",
+      checkedHoverColor: "var(--background-primary)",
+    },
+  },
 };
 
 export default styleHelper;

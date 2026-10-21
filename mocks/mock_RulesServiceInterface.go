@@ -101,6 +101,63 @@ func (_c *MockRulesServiceInterface_DeleteRule_Call) RunAndReturn(run func(ctx c
 	return _c
 }
 
+// DispatchApplyRules provides a mock function for the type MockRulesServiceInterface
+func (_mock *MockRulesServiceInterface) DispatchApplyRules(ctx context.Context, userID int64) error {
+	ret := _mock.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DispatchApplyRules")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) error); ok {
+		r0 = returnFunc(ctx, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockRulesServiceInterface_DispatchApplyRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DispatchApplyRules'
+type MockRulesServiceInterface_DispatchApplyRules_Call struct {
+	*mock.Call
+}
+
+// DispatchApplyRules is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+func (_e *MockRulesServiceInterface_Expecter) DispatchApplyRules(ctx any, userID any) *MockRulesServiceInterface_DispatchApplyRules_Call {
+	return &MockRulesServiceInterface_DispatchApplyRules_Call{Call: _e.mock.On("DispatchApplyRules", ctx, userID)}
+}
+
+func (_c *MockRulesServiceInterface_DispatchApplyRules_Call) Run(run func(ctx context.Context, userID int64)) *MockRulesServiceInterface_DispatchApplyRules_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRulesServiceInterface_DispatchApplyRules_Call) Return(err error) *MockRulesServiceInterface_DispatchApplyRules_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockRulesServiceInterface_DispatchApplyRules_Call) RunAndReturn(run func(ctx context.Context, userID int64) error) *MockRulesServiceInterface_DispatchApplyRules_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FetchRuleByID provides a mock function for the type MockRulesServiceInterface
 func (_mock *MockRulesServiceInterface) FetchRuleByID(ctx context.Context, userID int64, id int64) (*models.Rule, error) {
 	ret := _mock.Called(ctx, userID, id)

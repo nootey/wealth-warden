@@ -10,9 +10,12 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/sessions"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -39,23 +42,32 @@ type UserServiceInterface interface {
 }
 
 type UserService struct {
+	logger        *zap.Logger
 	repo          *repositories.UserRepository
 	roleRepo      repositories.RolePermissionRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 	mailer        *mailer.Mailer
+	sessionStore  *sessions.Store
+	authzSvc      *authz.Service
 }
 
 func NewUserService(
+	logger *zap.Logger,
 	repo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
 	jobDispatcher jobqueue.Dispatcher,
 	mailer *mailer.Mailer,
+	sessionStore *sessions.Store,
+	authzSvc *authz.Service,
 ) *UserService {
 	return &UserService{
+		logger:        logger,
 		repo:          repo,
 		roleRepo:      roleRepo,
 		jobDispatcher: jobDispatcher,
 		mailer:        mailer,
+		sessionStore:  sessionStore,
+		authzSvc:      authzSvc,
 	}
 }
 
@@ -277,6 +289,24 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 
 func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) (int64, error) {
 
+	var hashedPassword string
+	if req.Password != nil && *req.Password != "" {
+		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
+			return 0, apperr.New(apperr.Validation, "password confirmation must match provided password")
+		}
+
+		password, passwordErr := utils.ValidatePasswordStrength(*req.Password)
+		if passwordErr != nil {
+			return 0, apperr.Wrap(apperr.Validation, passwordErr.Error(), passwordErr)
+		}
+
+		hashed, err := utils.HashAndSaltPassword(password)
+		if err != nil {
+			return 0, err
+		}
+		hashedPassword = hashed
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -328,18 +358,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 		return 0, err
 	}
 
-	if req.Password != nil {
-		if req.Password != req.PasswordConfirmation {
-			tx.Rollback()
-			return 0, apperr.New(apperr.Validation, "password confirmation must match provided password")
-		}
-
-		hashedPassword, err := utils.HashAndSaltPassword(*req.Password)
-		if err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-
+	if hashedPassword != "" {
 		err = s.repo.UpdateUserPassword(ctx, tx, exUsr.ID, hashedPassword)
 		if err != nil {
 			_ = tx.Rollback()
@@ -349,6 +368,15 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
+	}
+
+	s.authzSvc.InvalidateUser(exUsr.ID)
+
+	if hashedPassword != "" {
+		if err := s.sessionStore.DeleteAllForUser(ctx, exUsr.ID); err != nil {
+			s.logger.Warn("admin password change: old sessions not ended",
+				zap.Int64("user_id", exUsr.ID), zap.Int64("admin_id", userID), zap.Error(err))
+		}
 	}
 
 	changes := utils.InitChanges()
@@ -410,6 +438,13 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 
 	if err := tx.Commit().Error; err != nil {
 		return err
+	}
+
+	s.authzSvc.InvalidateUser(usr.ID)
+
+	if err := s.sessionStore.DeleteAllForUser(ctx, usr.ID); err != nil {
+		s.logger.Warn("user delete: sessions not ended",
+			zap.Int64("user_id", usr.ID), zap.Int64("admin_id", userID), zap.Error(err))
 	}
 
 	changes := utils.InitChanges()

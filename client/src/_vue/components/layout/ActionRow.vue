@@ -2,6 +2,8 @@
 import { useSlots } from "vue";
 import type { Slots } from "vue";
 
+defineProps<{ pillsLast?: boolean }>();
+
 const slots: Slots = useSlots();
 </script>
 
@@ -18,18 +20,38 @@ const slots: Slots = useSlots();
       <slot name="allocation" />
     </div>
 
-    <div v-if="slots.activeFilters" class="flex flex-col p-1">
+    <div
+      v-if="slots.activeFilters"
+      class="flex flex-col p-1 flex-1 min-w-0"
+      :class="{ 'order-last': pillsLast }"
+    >
       <slot name="activeFilters" />
     </div>
 
-    <div v-if="slots.includeDeleted" class="flex flex-col p-1 ml-auto">
+    <div
+      v-if="slots.includeDeleted"
+      class="flex flex-col p-1"
+      :class="{ 'ml-auto': !pillsLast }"
+    >
       <slot name="includeDeleted" />
+    </div>
+
+    <div
+      v-if="slots.selectButton"
+      class="flex flex-col p-1"
+      :class="{
+        'ml-auto': !pillsLast && !slots.includeDeleted && !slots.filterButton,
+      }"
+    >
+      <slot name="selectButton" />
     </div>
 
     <div
       v-if="slots.filterButton"
       class="flex flex-col p-1"
-      :class="{ 'ml-auto': !slots.includeDeleted }"
+      :class="{
+        'ml-auto': !pillsLast && !slots.includeDeleted && !slots.selectButton,
+      }"
     >
       <slot name="filterButton" />
     </div>

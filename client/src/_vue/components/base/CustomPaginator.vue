@@ -13,6 +13,7 @@ const emit = defineEmits<{
 
 <template>
   <Paginator
+    id="custom-paginator"
     class="small"
     :first="paginator.from"
     :rows="paginator.rowsPerPage"
@@ -29,14 +30,21 @@ const emit = defineEmits<{
     }"
     @page="(e) => emit('onPage', e)"
   >
-    <template #end>
-      <div id="end" class="ml-2 text-sm">
-        {{
-          `Showing ${paginator.from} to ${paginator.to} out of ${paginator.total} records`
+    <template #start>
+      <span class="text-xs text-muted whitespace-nowrap">
+        {{ paginator.from.toLocaleString() }}–{{
+          paginator.to.toLocaleString()
         }}
-      </div>
+        of {{ paginator.total.toLocaleString() }}
+      </span>
     </template>
   </Paginator>
 </template>
 
-<style scoped></style>
+<style scoped>
+@media (max-width: 960px) {
+  #custom-paginator :deep(.p-paginator-content-start) {
+    display: none;
+  }
+}
+</style>

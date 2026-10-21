@@ -90,16 +90,15 @@ async function getData(page = 1) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2 w-full p-4">
-    <div class="flex items-center gap-2">
-      <span class="font-semibold">{{ title }}</span>
-      <span class="opacity-60">·</span>
-      <span class="opacity-90">{{
-        vueHelper.displayAsCurrency(totalAmount)
-      }}</span>
+  <div class="flex flex-col gap-3 w-full py-3">
+    <div class="flex items-baseline justify-between gap-2">
+      <span class="label">{{ title }}</span>
+      <span class="text-lg font-medium tracking-tight text-ink">
+        {{ vueHelper.displayAsCurrency(totalAmount) }}
+      </span>
     </div>
 
-    <div class="px-2 pt-1 w-full" :class="{ 'opacity-60': loading }">
+    <div class="w-full" :class="{ 'opacity-60': loading }">
       <div
         v-if="!loading && totalAmount !== 0"
         class="flex w-full"
@@ -135,14 +134,14 @@ async function getData(page = 1) {
       />
     </div>
 
-    <div class="flex items-center flex-wrap gap-4 px-0 pt-1">
+    <div class="flex items-center flex-wrap gap-x-4 gap-y-1.5">
       <span v-if="loading" class="opacity-70 text-sm">Loading…</span>
 
       <template v-else-if="buckets.length">
         <div
           v-for="b in buckets"
           :key="b.key"
-          class="flex items-center gap-2 text-sm"
+          class="flex items-center gap-1.5 text-xs text-muted"
         >
           <span
             class="inline-block"
@@ -153,12 +152,8 @@ async function getData(page = 1) {
               backgroundColor: b.color,
             }"
           />
-          <span class="opacity-90">{{
-            vueHelper.capitalize(vueHelper.denormalize(b.key))
-          }}</span>
-          <span class="font-semibold opacity-95"
-            >{{ b.percent.toFixed(0) }}%</span
-          >
+          <span>{{ vueHelper.capitalize(vueHelper.denormalize(b.key)) }}</span>
+          <span class="font-medium text-ink">{{ b.percent.toFixed(0) }}%</span>
         </div>
       </template>
 
