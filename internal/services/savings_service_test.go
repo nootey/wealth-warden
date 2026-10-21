@@ -1,8 +1,10 @@
 package services_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
 
@@ -515,4 +517,95 @@ func (s *SavingsServiceTestSuite) TestAutoFundGoal_ConcurrentRunsFundOnce() {
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.SavingContribution{}).
 		Where("goal_id = ? AND month = ?", goalID, month).Count(&contributions).Error)
 	s.Equal(int64(1), contributions, "the month must hold a single contribution")
+}
+
+func (s *SavingsServiceTestSuite) newSavingsAccount(name string, balance decimal.Decimal) int64 {
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, int64(1), &models.AccountReq{
+		Name:          name,
+		AccountTypeID: 2,
+		Balance:       &balance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+	return accID
+}
+
+func (s *SavingsServiceTestSuite) TestInsertContribution_ConcurrentContributionsAllCount() {
+	svc := s.TC.App.SavingsService
+	userID := int64(1)
+	accID := s.newSavingsAccount("Contribution Race", decimal.NewFromInt(10000))
+
+	goalID, err := svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:    accID,
+		Name:         "Race Goal",
+		TargetAmount: decimal.NewFromInt(5000),
+	})
+	s.Require().NoError(err)
+
+	errs := s.RunConcurrently(20, func(int) error {
+		_, err := svc.InsertContribution(s.Ctx, userID, goalID, &models.SavingContributionReq{
+			Amount: decimal.NewFromInt(10),
+			Month:  "2026-05-01",
+		})
+		return err
+	})
+	for i, err := range errs {
+		s.Require().NoError(err, "call %d", i)
+	}
+
+	goal, err := svc.FetchGoalByID(s.Ctx, userID, goalID)
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(200).Equal(goal.CurrentAmount), "allocation is %s, want 200", goal.CurrentAmount)
+}
+
+func (s *SavingsServiceTestSuite) TestInsertContribution_RacingExpensesNeverOverAllocate() {
+	svc := s.TC.App.SavingsService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newSavingsAccount("Allocation Race", decimal.NewFromInt(1000))
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// One goal per contribution, so the race is over the account and not a goal row
+	goalIDs := make([]int64, 5)
+	for i := range goalIDs {
+		id, err := svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+			AccountID:    accID,
+			Name:         fmt.Sprintf("Race Goal %d", i),
+			TargetAmount: decimal.NewFromInt(1000),
+		})
+		s.Require().NoError(err)
+		goalIDs[i] = id
+	}
+
+	errs := s.RunConcurrently(10, func(i int) error {
+		if i%2 == 0 {
+			_, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+				AccountID: accID, Direction: "expense", Amount: decimal.NewFromInt(200), TxnDate: today,
+			})
+			return err
+		}
+		_, err := svc.InsertContribution(s.Ctx, userID, goalIDs[i/2], &models.SavingContributionReq{
+			Amount: decimal.NewFromInt(200),
+			Month:  "2026-05-01",
+		})
+		return err
+	})
+
+	accepted := 0
+	for _, err := range errs {
+		if err == nil {
+			accepted++
+			continue
+		}
+		var appErr *apperr.Error
+		s.Require().ErrorAs(err, &appErr, "only free-balance rejections may fail")
+		s.Require().Equal(apperr.Validation, appErr.Kind, "unexpected error: %v", err)
+	}
+	// Each accepted call takes 200 of the 1000 free, whatever the order
+	s.Assert().Equal(5, accepted, "accepted calls")
+
+	var balance, allocated decimal.Decimal
+	s.Require().NoError(s.TC.DB.Raw(`SELECT balance FROM balances WHERE account_id = ?`, accID).Scan(&balance).Error)
+	s.Require().NoError(s.TC.DB.Raw(`SELECT COALESCE(SUM(current_amount), 0) FROM saving_goals WHERE account_id = ?`, accID).Scan(&allocated).Error)
+	s.Assert().True(allocated.LessThanOrEqual(balance), "allocated %s exceeds balance %s", allocated, balance)
 }

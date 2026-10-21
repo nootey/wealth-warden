@@ -33,9 +33,12 @@ type TransactionRepositoryInterface interface {
 	FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID int64) (models.Category, error)
 	EnsureRootCategory(ctx context.Context, tx *gorm.DB, classification string, userID int64) (models.Category, error)
 	FindTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error)
+	FindTransactionAccountIDs(ctx context.Context, tx *gorm.DB, userID int64, ids ...int64) ([]int64, error)
+	FindImportAccountIDs(ctx context.Context, tx *gorm.DB, userID, importID int64) ([]int64, error)
 	FindTransactionsByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transaction, error)
 	FindTransactionByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transaction, error)
 	FindTransactionByExternalID(ctx context.Context, tx *gorm.DB, accountID int64, externalID string) (models.Transaction, error)
+	FindTransactionsForDedup(ctx context.Context, tx *gorm.DB, accountID int64, from, to time.Time) ([]models.Transaction, error)
 	FindTransferByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.Transfer, error)
 	FindTransfersByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transfer, error)
 	FindTransferByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transfer, error)
@@ -89,6 +92,12 @@ type TransactionRepositoryInterface interface {
 	BulkUpdateTemplateAccountIDs(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
 	BulkUpdateTransactionCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) (int64, error)
 	BulkUpdateTemplateCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) error
+	FindUncategorizedTransactions(ctx context.Context, tx *gorm.DB, userID, uncategorizedCategoryID, afterID int64, limit int) ([]models.Transaction, error)
+	BulkSetTransactionCategoryByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID, userID int64) (int64, error)
+	BulkSetTransactionDescriptionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, description *string, userID int64) (int64, error)
+	BulkSetTransactionCategoryDirectionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID int64, direction models.TransactionDirection, userID int64) (int64, error)
+	BulkDeleteTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) (int64, error)
+	FindTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) ([]models.Transaction, error)
 }
 
 type TransactionRepository struct {
@@ -453,6 +462,7 @@ func (r *TransactionRepository) EnsureRootCategory(ctx context.Context, tx *gorm
 		Name:           utils.NormalizeName(def.Name),
 		DisplayName:    def.Name,
 		Classification: classification,
+		Necessity:      models.NecessityForClassification(classification),
 		IsDefault:      true,
 	}
 	if err := db.Create(&rec).Error; err != nil {
@@ -481,6 +491,32 @@ func (r *TransactionRepository) FindTransactionByID(ctx context.Context, tx *gor
 	q = q.First(&record)
 
 	return record, q.Error
+}
+
+func (r *TransactionRepository) FindTransactionAccountIDs(ctx context.Context, tx *gorm.DB, userID int64, ids ...int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var accountIDs []int64
+	err := db.WithContext(ctx).Raw(`
+		SELECT DISTINCT account_id FROM transactions WHERE id IN ? AND user_id = ?
+	`, ids, userID).Scan(&accountIDs).Error
+	return accountIDs, err
+}
+
+func (r *TransactionRepository) FindImportAccountIDs(ctx context.Context, tx *gorm.DB, userID, importID int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var accountIDs []int64
+	err := db.WithContext(ctx).Raw(`
+		SELECT DISTINCT account_id FROM transactions WHERE import_id = ? AND user_id = ?
+	`, importID, userID).Scan(&accountIDs).Error
+	return accountIDs, err
 }
 
 func (r *TransactionRepository) FindTransactionsByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transaction, error) {
@@ -532,8 +568,24 @@ func (r *TransactionRepository) FindTransactionByExternalID(ctx context.Context,
 	db = db.WithContext(ctx)
 
 	var record models.Transaction
-	result := db.Where("account_id = ? AND external_txn_id = ?", accountID, externalID).First(&record)
+	result := db.Where("account_id = ? AND external_txn_id = ? AND deleted_at IS NULL", accountID, externalID).First(&record)
 	return record, result.Error
+}
+
+func (r *TransactionRepository) FindTransactionsForDedup(ctx context.Context, tx *gorm.DB, accountID int64, from, to time.Time) ([]models.Transaction, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Transaction
+	result := db.
+		Select("txn_date", "amount", "direction", "currency", "description", "category_id").
+		Preload("Category").
+		Where("account_id = ? AND deleted_at IS NULL AND txn_date >= ? AND txn_date <= ?", accountID, from, to).
+		Find(&records)
+	return records, result.Error
 }
 
 func (r *TransactionRepository) FindTransferByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transfer, error) {
@@ -688,6 +740,7 @@ func (r *TransactionRepository) UpdateCategory(ctx context.Context, tx *gorm.DB,
 		Updates(map[string]interface{}{
 			"display_name":   record.DisplayName,
 			"classification": record.Classification,
+			"necessity":      record.Necessity,
 			"updated_at":     time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err
@@ -1159,22 +1212,22 @@ func (r *TransactionRepository) PurgeImportedCategories(ctx context.Context, tx 
 	}
 	db = db.WithContext(ctx)
 
-	// reassign any transactions using these categories to (uncategorized)
 	updateSQL := `
         UPDATE transactions
         SET category_id = (
-            SELECT id FROM categories 
-            WHERE name = '(uncategorized)' 
+            SELECT id FROM categories
+            WHERE user_id = ?
             AND classification = 'uncategorized'
+            AND parent_id IS NULL
             LIMIT 1
         )
         WHERE category_id IN (
-            SELECT id FROM categories 
+            SELECT id FROM categories
             WHERE user_id = ? AND import_id = ?
         )
     `
 
-	if err := db.Exec(updateSQL, userID, importID).Error; err != nil {
+	if err := db.Exec(updateSQL, userID, userID, importID).Error; err != nil {
 		return 0, err
 	}
 
@@ -1514,6 +1567,123 @@ func (r *TransactionRepository) BulkUpdateTransactionCategoryID(ctx context.Cont
 			"updated_at":  time.Now().UTC(),
 		})
 	return res.RowsAffected, res.Error
+}
+
+// FindUncategorizedTransactions pages a user's uncategorized transactions by id
+// cursor. Uncategorized means the seeded uncategorized category or a null
+// category. It selects only the columns rule matching needs.
+func (r *TransactionRepository) FindUncategorizedTransactions(ctx context.Context, tx *gorm.DB, userID, uncategorizedCategoryID, afterID int64, limit int) ([]models.Transaction, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Transaction
+	err := db.Model(&models.Transaction{}).
+		Select("id", "category_id", "description", "amount", "direction").
+		Where("user_id = ? AND deleted_at IS NULL AND id > ? AND (category_id = ? OR category_id IS NULL)", userID, afterID, uncategorizedCategoryID).
+		Order("id").
+		Limit(limit).
+		Find(&records).Error
+	return records, err
+}
+
+func (r *TransactionRepository) BulkSetTransactionCategoryByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"category_id": categoryID,
+			"updated_at":  time.Now().UTC(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) BulkSetTransactionDescriptionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, description *string, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"description": description,
+			"updated_at":  time.Now().UTC(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) BulkSetTransactionCategoryDirectionByIDs(ctx context.Context, tx *gorm.DB, ids []int64, categoryID int64, direction models.TransactionDirection, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"category_id": categoryID,
+			"direction":   direction,
+			"updated_at":  time.Now().UTC(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) BulkDeleteTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	now := time.Now().UTC()
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"deleted_at": now,
+			"updated_at": now,
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) FindTransactionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64, userID int64) ([]models.Transaction, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Transaction
+	err := db.
+		Preload("Category").
+		Preload("Account").
+		Where("id IN ? AND user_id = ? AND transactions.deleted_at IS NULL", ids, userID).
+		Find(&records).Error
+	return records, err
 }
 
 func (r *TransactionRepository) BulkUpdateTemplateCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) error {

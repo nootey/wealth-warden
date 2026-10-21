@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
@@ -107,4 +108,71 @@ func (s *CategoryServiceTestSuite) TestDefaultCategory_EditAndMerge() {
 	// untouched by the edit above).
 	_, err = svc.MergeCategories(s.Ctx, user.ID, salary.ID, bonus.ID)
 	s.Require().NoError(err)
+}
+
+func (s *CategoryServiceTestSuite) TestCategoryNecessity_InsertAndUpdate() {
+	svc := s.TC.App.TransactionService
+	user := s.newTestUser("necessity@test.local")
+	need, want := models.CategoryNecessityNeed, models.CategoryNecessityWant
+
+	load := func(id int64) models.Category {
+		var c models.Category
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&c, id).Error)
+		return c
+	}
+
+	defaultID, err := svc.InsertCategory(s.Ctx, user.ID, &models.CategoryReq{DisplayName: "Hobbies", Classification: "expense"})
+	s.Require().NoError(err)
+	s.Equal(&want, load(defaultID).Necessity)
+
+	needID, err := svc.InsertCategory(s.Ctx, user.ID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense", Necessity: &need})
+	s.Require().NoError(err)
+	s.Equal(&need, load(needID).Necessity)
+
+	incomeID, err := svc.InsertCategory(s.Ctx, user.ID, &models.CategoryReq{DisplayName: "Tips", Classification: "income", Necessity: &need})
+	s.Require().NoError(err)
+	s.Nil(load(incomeID).Necessity)
+
+	_, err = svc.UpdateCategory(s.Ctx, user.ID, needID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	s.Equal(&need, load(needID).Necessity)
+
+	_, err = svc.UpdateCategory(s.Ctx, user.ID, needID, &models.CategoryReq{DisplayName: "Groceries", Classification: "income", Necessity: &need})
+	s.Require().NoError(err)
+	s.Nil(load(needID).Necessity)
+
+	_, err = svc.UpdateCategory(s.Ctx, user.ID, needID, &models.CategoryReq{DisplayName: "Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	s.Equal(&want, load(needID).Necessity)
+}
+
+func (s *CategoryServiceTestSuite) TestSeedDefaultCategories_SetsNecessity() {
+	svc := s.TC.App.TransactionService
+	user := s.newTestUser("seed-necessity@test.local")
+
+	_, err := svc.SeedDefaultCategories(s.Ctx, user.ID)
+	s.Require().NoError(err)
+
+	need, want := models.CategoryNecessityNeed, models.CategoryNecessityWant
+	expenseDef, ok := models.FindDefaultCategoryDef("expense")
+	s.Require().True(ok)
+	s.Require().NotEmpty(expenseDef.Needs)
+
+	var cats []models.Category
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("user_id = ?", user.ID).Find(&cats).Error)
+	s.Require().NotEmpty(cats)
+
+	needs := 0
+	for _, c := range cats {
+		switch {
+		case c.Classification != "expense":
+			s.Nil(c.Necessity, c.Name)
+		case slices.Contains(expenseDef.Needs, c.DisplayName):
+			s.Equal(&need, c.Necessity, c.Name)
+			needs++
+		default:
+			s.Equal(&want, c.Necessity, c.Name)
+		}
+	}
+	s.Equal(len(expenseDef.Needs), needs)
 }

@@ -157,6 +157,32 @@ func AccountLimitError(balance decimal.Decimal, acc *models.Account) error {
 	return apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds: resulting balance (%s) would be negative", balance.StringFixed(2)))
 }
 
+func DirectionEffect(direction models.TransactionDirection, amount decimal.Decimal) decimal.Decimal {
+	if direction == models.TxnDirectionExpense {
+		return amount.Neg()
+	}
+	return amount
+}
+
+func PartitionBulkTransactions(records []models.Transaction, allow func(models.TransactionType) bool) (eligible []models.Transaction, skipped int) {
+	for i := range records {
+		if allow(records[i].TransactionType) {
+			eligible = append(eligible, records[i])
+		} else {
+			skipped++
+		}
+	}
+	return eligible, skipped
+}
+
+func TransactionIDs(records []models.Transaction) []int64 {
+	ids := make([]int64, len(records))
+	for i := range records {
+		ids[i] = records[i].ID
+	}
+	return ids
+}
+
 func IsUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"

@@ -41,6 +41,80 @@ func (_m *MockTransactionServiceInterface) EXPECT() *MockTransactionServiceInter
 	return &MockTransactionServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// BulkOperateTransactions provides a mock function for the type MockTransactionServiceInterface
+func (_mock *MockTransactionServiceInterface) BulkOperateTransactions(ctx context.Context, userID int64, req *models.BulkTransactionReq) (*models.BulkTransactionResult, error) {
+	ret := _mock.Called(ctx, userID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BulkOperateTransactions")
+	}
+
+	var r0 *models.BulkTransactionResult
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, *models.BulkTransactionReq) (*models.BulkTransactionResult, error)); ok {
+		return returnFunc(ctx, userID, req)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, *models.BulkTransactionReq) *models.BulkTransactionResult); ok {
+		r0 = returnFunc(ctx, userID, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.BulkTransactionResult)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, *models.BulkTransactionReq) error); ok {
+		r1 = returnFunc(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockTransactionServiceInterface_BulkOperateTransactions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BulkOperateTransactions'
+type MockTransactionServiceInterface_BulkOperateTransactions_Call struct {
+	*mock.Call
+}
+
+// BulkOperateTransactions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - req *models.BulkTransactionReq
+func (_e *MockTransactionServiceInterface_Expecter) BulkOperateTransactions(ctx any, userID any, req any) *MockTransactionServiceInterface_BulkOperateTransactions_Call {
+	return &MockTransactionServiceInterface_BulkOperateTransactions_Call{Call: _e.mock.On("BulkOperateTransactions", ctx, userID, req)}
+}
+
+func (_c *MockTransactionServiceInterface_BulkOperateTransactions_Call) Run(run func(ctx context.Context, userID int64, req *models.BulkTransactionReq)) *MockTransactionServiceInterface_BulkOperateTransactions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 *models.BulkTransactionReq
+		if args[2] != nil {
+			arg2 = args[2].(*models.BulkTransactionReq)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_BulkOperateTransactions_Call) Return(bulkTransactionResult *models.BulkTransactionResult, err error) *MockTransactionServiceInterface_BulkOperateTransactions_Call {
+	_c.Call.Return(bulkTransactionResult, err)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_BulkOperateTransactions_Call) RunAndReturn(run func(ctx context.Context, userID int64, req *models.BulkTransactionReq) (*models.BulkTransactionResult, error)) *MockTransactionServiceInterface_BulkOperateTransactions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteCategory provides a mock function for the type MockTransactionServiceInterface
 func (_mock *MockTransactionServiceInterface) DeleteCategory(ctx context.Context, userID int64, id int64) error {
 	ret := _mock.Called(ctx, userID, id)

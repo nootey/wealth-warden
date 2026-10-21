@@ -21,7 +21,11 @@ type RulesServiceInterface interface {
 	InsertRule(ctx context.Context, userID int64, req *models.RuleReq) (int64, error)
 	UpdateRule(ctx context.Context, userID, id int64, req *models.RuleReq) (int64, error)
 	DeleteRule(ctx context.Context, userID, id int64) error
+	DispatchApplyRules(ctx context.Context, userID int64) error
 }
+
+// One page of uncategorized transactions per read while scanning.
+const applyRulesBatchSize = 500
 
 type RulesService struct {
 	repo          repositories.RulesRepositoryInterface
@@ -287,4 +291,120 @@ func (s *RulesService) DeleteRule(ctx context.Context, userID, id int64) error {
 		Payload:     changes,
 		Causer:      &userID,
 	})
+}
+
+func (s *RulesService) DispatchApplyRules(ctx context.Context, userID int64) error {
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.ApplyRulesArgs{UserID: userID})
+}
+
+// ApplyRules scans a user's uncategorized transactions and sets a category on
+// each one an active rule matches. The first matching rule wins, same as import.
+// Already categorized transactions are never touched. It returns how many rows
+// it scanned and how many it recategorized.
+func (s *RulesService) ApplyRules(ctx context.Context, userID int64) (scanned int, categorized int, err error) {
+	rules, err := s.repo.FindRules(ctx, nil, userID, true)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(rules) == 0 {
+		return 0, 0, nil
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Drop rules whose target category no longer exists, so a broken rule cannot
+	// point transactions at a missing category. Import skips them the same way.
+	validRules, err := s.filterRulesWithExistingCategory(ctx, tx, userID, rules)
+	if err != nil {
+		tx.Rollback()
+		return 0, 0, err
+	}
+	if len(validRules) == 0 {
+		tx.Rollback()
+		return 0, 0, nil
+	}
+
+	uncategorized, err := s.txnRepo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, 0, err
+	}
+
+	// Collect matches read-only, paged by id, then bulk update per target category.
+	byCategory := map[int64][]int64{}
+	var afterID int64
+	for {
+		batch, err := s.txnRepo.FindUncategorizedTransactions(ctx, tx, userID, uncategorized.ID, afterID, applyRulesBatchSize)
+		if err != nil {
+			tx.Rollback()
+			return 0, 0, err
+		}
+		for _, t := range batch {
+			scanned++
+			afterID = t.ID
+			cats := utils.MatchingRuleCategories(validRules, utils.SafeString(t.Description), t.Amount, t.Direction)
+			if len(cats) == 0 {
+				continue
+			}
+			target := cats[0]
+			if t.CategoryID != nil && *t.CategoryID == target {
+				continue
+			}
+			byCategory[target] = append(byCategory[target], t.ID)
+		}
+		if len(batch) < applyRulesBatchSize {
+			break
+		}
+	}
+
+	for categoryID, ids := range byCategory {
+		moved, err := s.txnRepo.BulkSetTransactionCategoryByIDs(ctx, tx, ids, categoryID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, 0, err
+		}
+		categorized += int(moved)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, 0, err
+	}
+	return scanned, categorized, nil
+}
+
+func (s *RulesService) filterRulesWithExistingCategory(ctx context.Context, tx *gorm.DB, userID int64, rules []models.Rule) ([]models.Rule, error) {
+	exists := map[int64]bool{}
+	var valid []models.Rule
+	for _, rule := range rules {
+		categoryID, ok := rule.CategoryID()
+		if !ok {
+			continue
+		}
+		found, cached := exists[categoryID]
+		if !cached {
+			_, lookupErr := s.txnRepo.FindCategoryByID(ctx, tx, categoryID, userID, false)
+			switch {
+			case lookupErr == nil:
+				found = true
+			case errors.Is(lookupErr, gorm.ErrRecordNotFound):
+				found = false
+			default:
+				return nil, lookupErr
+			}
+			exists[categoryID] = found
+		}
+		if found {
+			valid = append(valid, rule)
+		}
+	}
+	return valid, nil
 }

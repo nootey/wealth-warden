@@ -205,7 +205,7 @@ defineExpose({ refresh });
 
   <div class="flex flex-col w-full">
     <div class="flex flex-row w-full">
-      <ActionRow>
+      <ActionRow pills-last>
         <template #activeFilters>
           <ActiveFilters
             :active-filters="filters"
@@ -215,28 +215,22 @@ defineExpose({ refresh });
         </template>
         <template #filterButton>
           <div
-            class="hover-icon flex flex-row items-center gap-2"
+            v-tooltip="'Filter'"
+            class="hover-icon flex flex-row items-center justify-center"
             style="
-              padding: 0.5rem 1rem;
+              padding: 0.5rem;
               border-radius: 8px;
               border: 1px solid var(--border-color);
             "
             @click="toggleFilterOverlay($event)"
           >
             <i class="pi pi-filter" style="font-size: 0.845rem" />
-            <div>Filter</div>
           </div>
         </template>
       </ActionRow>
     </div>
 
-    <div
-      class="flex flex-col w-full rounded-2xl"
-      style="
-        padding: 0.25rem 0.25rem 0 0.25rem;
-        border: 1px solid var(--border-color);
-      "
-    >
+    <div class="flex flex-col w-full">
       <DataTable
         data-key="id"
         class="w-full enhanced-table"
@@ -307,25 +301,22 @@ defineExpose({ refresh });
               }}
             </template>
             <template v-else-if="col.field == 'profit_loss'">
-              <div class="flex flex-row gap-2 items-center">
-                <i
-                  class="text-xs"
-                  :class="
-                    data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'
-                  "
-                  :style="{
-                    color: data[col.field] >= 0 ? colors.pos : colors.neg,
-                  }"
-                />
-                <span>
-                  {{
-                    vueHelper.displayAsCurrency(
-                      data[col.field],
-                      data["currency"],
-                    )
-                  }}
-                </span>
-              </div>
+              <span
+                class="font-medium tabular-nums whitespace-nowrap"
+                :style="{
+                  color:
+                    data[col.field] > 0
+                      ? colors.pos
+                      : data[col.field] < 0
+                        ? colors.neg
+                        : undefined,
+                }"
+              >
+                {{ data[col.field] > 0 ? "+" : ""
+                }}{{
+                  vueHelper.displayAsCurrency(data[col.field], data["currency"])
+                }}
+              </span>
             </template>
             <template v-else-if="col.field === 'asset.ticker'">
               <div class="flex flex-row gap-2 items-center">

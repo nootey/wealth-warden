@@ -286,6 +286,7 @@ const searchCategory = (event: { query: string }) => {
     categories.value,
     event.query,
     (c) => [c.display_name, c.name],
+    { sort: true },
   );
 };
 </script>
@@ -453,14 +454,12 @@ const searchCategory = (event: { query: string }) => {
           :label="(mode == 'create' ? 'Add' : 'Update') + ' rule'"
           :disabled="submitting"
           :loading="submitting"
-          style="height: 42px"
           @click="manageRecord"
         />
         <Button
           v-if="mode == 'update'"
           label="Delete rule"
           class="delete-button"
-          style="height: 42px"
           @click="deleteConfirmation"
         />
       </div>

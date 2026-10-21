@@ -167,8 +167,9 @@ func (s *RulesServiceSuite) TestBankImportAppliesRules() {
 		row("R4", "SPAR - big trip", "600.00"),
 	}}
 
-	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	rulesImpID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
 	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, rulesImpID, accID, models.ImportTypeBank))
 
 	var txns []models.Transaction
 	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
@@ -181,4 +182,64 @@ func (s *RulesServiceSuite) TestBankImportAppliesRules() {
 	s.Equal(uncategorized.ID, *txns[1].CategoryID) // inactive rule is skipped
 	s.Equal(bigID, *txns[2].CategoryID)            // amount rule
 	s.Equal(groceriesID, *txns[3].CategoryID)      // first matching rule wins
+}
+
+// ApplyRules recategorizes uncategorized transactions through active rules,
+// leaves non-matching and already categorized rows untouched, and reports counts.
+func (s *RulesServiceSuite) TestApplyRulesRecategorizesUncategorized() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	txnSvc := s.TC.App.TransactionService
+	groceriesID, err := txnSvc.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Apply Groceries", Classification: "expense"})
+	s.Require().NoError(err)
+	otherID, err := txnSvc.InsertCategory(s.Ctx, seedUserID, &models.CategoryReq{DisplayName: "Apply Other", Classification: "expense"})
+	s.Require().NoError(err)
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Apply Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	// Import with no rules yet, so every row lands uncategorized.
+	day := time.Date(time.Now().Year()-1, 4, 12, 0, 0, 0, 0, time.UTC)
+	row := func(id, desc, amount string) models.JSONTxn {
+		extID := id
+		return models.JSONTxn{TransactionType: "expense", Amount: amount, Currency: "EUR", TxnDate: day, Category: "(uncategorized)", Description: desc, ExternalTxnID: &extID}
+	}
+	payload := models.TxnImportPayload{Identifier: "apply_rules", GeneratedAt: time.Now().UTC(), Txns: []models.JSONTxn{
+		row("A1", "SPAR LJUBLJANA - nakup", "12.30"),
+		row("A2", "HOFER - nakup", "8.00"),
+		row("A3", "SPAR - big trip", "40.00"),
+	}}
+	impID, err := s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeBank, payload)
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.App.ImportService.RunImportTransactions(s.Ctx, seedUserID, impID, accID, models.ImportTypeBank))
+
+	var txns []models.Transaction
+	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
+	s.Require().Len(txns, 3)
+
+	// A3 is already categorized by hand, so the scan must skip it even though the rule matches it.
+	s.Require().NoError(s.TC.DB.Model(&models.Transaction{}).Where("id = ?", txns[2].ID).Update("category_id", otherID).Error)
+
+	// Add the rule after the import.
+	_, err = s.TC.App.RulesService.InsertRule(s.Ctx, seedUserID, s.ruleReq("description", "contains", "spar", groceriesID))
+	s.Require().NoError(err)
+
+	scanned, categorized, err := s.TC.App.RulesService.ApplyRules(s.Ctx, seedUserID)
+	s.Require().NoError(err)
+	s.Equal(2, scanned)     // A1 and A2 are uncategorized; A3 is not scanned
+	s.Equal(1, categorized) // only A1 matches
+
+	var uncategorized models.Category
+	s.Require().NoError(s.TC.DB.Where("classification = ?", "uncategorized").First(&uncategorized).Error)
+
+	s.Require().NoError(s.TC.DB.Where("account_id = ? AND external_txn_id IS NOT NULL", accID).Order("external_txn_id").Find(&txns).Error)
+	s.Equal(groceriesID, *txns[0].CategoryID)      // matched, recategorized
+	s.Equal(uncategorized.ID, *txns[1].CategoryID) // no rule matched, left alone
+	s.Equal(otherID, *txns[2].CategoryID)          // already categorized, untouched
 }

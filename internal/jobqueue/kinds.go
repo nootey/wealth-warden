@@ -19,12 +19,20 @@ const (
 	TypeBalanceReconcileBatch  = "balance_reconcile_batch"
 	TypeRecurringTransactions  = "recurring_transactions"
 	TypeAssetPriceSync         = "asset_price_sync"
+	TypeImport                 = "import"
+	TypeExport                 = "export"
+	TypeImportDelete           = "import_delete"
+	TypeApplyRules             = "apply_rules"
 )
 
 // Kinds a user may see and act on from their own settings pages.
 var SelfServiceKinds = map[string]bool{
 	TypeMergeCategories: true,
 	TypeMergeAccounts:   true,
+	TypeExport:          true,
+	TypeImport:          true,
+	TypeImportDelete:    true,
+	TypeApplyRules:      true,
 }
 
 // Two rebuilds at once would count every trade twice, so this queue runs one job
