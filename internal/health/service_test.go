@@ -16,31 +16,37 @@ import (
 )
 
 type stub struct {
-	name    string
-	err     error
-	checked chan struct{}
+	name string
+	err  error
 }
 
 func newStub(name string, err error) *stub {
-	return &stub{name: name, err: err, checked: make(chan struct{}, 1)}
+	return &stub{name: name, err: err}
 }
 
-func (s *stub) Name() string { return s.name }
-func (s *stub) Check(_ context.Context) error {
-	select {
-	case s.checked <- struct{}{}:
-	default:
-	}
-	return s.err
-}
+func (s *stub) Name() string                  { return s.name }
+func (s *stub) Check(_ context.Context) error { return s.err }
 
-func (s *stub) waitChecked(t *testing.T) {
+// waitReported polls the handler until it reports every named check.
+// Check returns before Run stores the result, so a signal from the stub races the handler.
+func waitReported(t *testing.T, svc *health.Service, names ...string) {
 	t.Helper()
-	select {
-	case <-s.checked:
-	case <-time.After(time.Second):
-		t.Fatal("check not called within 1s")
-	}
+	require.Eventually(t, func() bool {
+		rec := httptest.NewRecorder()
+		svc.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+		var body struct {
+			Checks map[string]any `json:"checks"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			return false
+		}
+		for _, name := range names {
+			if _, ok := body.Checks[name]; !ok {
+				return false
+			}
+		}
+		return true
+	}, time.Second, 5*time.Millisecond, "checks %v not reported within 1s", names)
 }
 
 func newSvc(t *testing.T) *health.Service {
@@ -63,7 +69,7 @@ func TestHandler_AllHealthy(t *testing.T) {
 	db := newStub("db", nil)
 	svc.Add(db)
 	startSvc(t, svc)
-	db.waitChecked(t)
+	waitReported(t, svc, "db")
 
 	rec := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
@@ -84,7 +90,7 @@ func TestHandler_Degraded(t *testing.T) {
 	db := newStub("db", errors.New("connection refused"))
 	svc.Add(db)
 	startSvc(t, svc)
-	db.waitChecked(t)
+	waitReported(t, svc, "db")
 
 	rec := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
@@ -107,8 +113,7 @@ func TestHandler_PartialFailure(t *testing.T) {
 	svc.Add(db)
 	svc.Add(kafka)
 	startSvc(t, svc)
-	db.waitChecked(t)
-	kafka.waitChecked(t)
+	waitReported(t, svc, "db", "kafka")
 
 	rec := httptest.NewRecorder()
 	svc.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
