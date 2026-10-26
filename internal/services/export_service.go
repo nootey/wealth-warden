@@ -533,20 +533,17 @@ func (s *ExportService) DeleteExport(ctx context.Context, userID, id int64) erro
 		return err
 	}
 
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
 	exportName := utils.NormalizeName(ex.Name)
 
 	// Delete import files
 	finalPath := filepath.Join("storage", "exports", strconv.FormatInt(userID, 10), exportName+".zip")
 	tmpPath := finalPath + ".tmp"
 	for _, p := range []string{tmpPath, finalPath} {
-		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
-			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", p, err)
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
+		_ = os.Remove(p)
 	}
 
 	changes := utils.InitChanges()

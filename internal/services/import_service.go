@@ -1695,6 +1695,21 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, importID, checkingAccID int64, mappings []models.TransferMapping) error {
 	payload := models.InvestmentTransferPayload{ImportID: importID, CheckingAccID: checkingAccID, InvestmentMappings: mappings}
 
+	imp, err := s.repo.FindImportByID(ctx, nil, payload.ImportID, userID, "custom")
+	if err != nil {
+		return err
+	}
+
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
+	if err != nil {
+		return err
+	}
+
+	var txnPayload models.TxnImportPayload
+	if err := json.Unmarshal(b, &txnPayload); err != nil {
+		return err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1727,7 +1742,7 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 		return err
 	}
 
-	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
+	imp, err = s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -1736,18 +1751,6 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 	if imp.InvestmentsTransferred {
 		tx.Rollback()
 		return ErrInvestmentsTransferred
-	}
-
-	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	var txnPayload models.TxnImportPayload
-	if err := json.Unmarshal(b, &txnPayload); err != nil {
-		tx.Rollback()
-		return err
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -1998,6 +2001,21 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID, checkingAccID int64, mappings []models.TransferMapping) error {
 	payload := models.SavingTransferPayload{ImportID: importID, CheckingAccID: checkingAccID, SavingsMappings: mappings}
 
+	imp, err := s.repo.FindImportByID(ctx, nil, payload.ImportID, userID, "custom")
+	if err != nil {
+		return err
+	}
+
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
+	if err != nil {
+		return err
+	}
+
+	var txnPayload models.TxnImportPayload
+	if err := json.Unmarshal(b, &txnPayload); err != nil {
+		return err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2030,7 +2048,7 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 		return err
 	}
 
-	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
+	imp, err = s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -2039,18 +2057,6 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 	if imp.SavingsTransferred {
 		tx.Rollback()
 		return ErrSavingsTransferred
-	}
-
-	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	var txnPayload models.TxnImportPayload
-	if err := json.Unmarshal(b, &txnPayload); err != nil {
-		tx.Rollback()
-		return err
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -2314,6 +2320,21 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, importID, checkingAccID int64, mappings []models.TransferMapping) error {
 	payload := models.RepaymentTransferPayload{ImportID: importID, CheckingAccID: checkingAccID, RepaymentMappings: mappings}
 
+	imp, err := s.repo.FindImportByID(ctx, nil, payload.ImportID, userID, "custom")
+	if err != nil {
+		return err
+	}
+
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
+	if err != nil {
+		return err
+	}
+
+	var txnPayload models.TxnImportPayload
+	if err := json.Unmarshal(b, &txnPayload); err != nil {
+		return err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2346,7 +2367,7 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 		return err
 	}
 
-	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
+	imp, err = s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -2355,18 +2376,6 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 	if imp.RepaymentsTransferred {
 		tx.Rollback()
 		return ErrRepaymentsTransferred
-	}
-
-	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	var txnPayload models.TxnImportPayload
-	if err := json.Unmarshal(b, &txnPayload); err != nil {
-		tx.Rollback()
-		return err
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -3292,17 +3301,14 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 		return err
 	}
 
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
 	// Delete import files
 	finalName := imp.Name + ".json"
 	for _, name := range []string{finalName + ".tmp", finalName} {
-		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
-			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", name, err)
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), name)
 	}
 
 	return nil
@@ -3344,17 +3350,14 @@ func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *
 		return err
 	}
 
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
 	// Delete import files
 	finalName := imp.Name + ".json"
 	for _, name := range []string{finalName + ".tmp", finalName} {
-		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
-			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", name, err)
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), name)
 	}
 
 	return nil
@@ -3384,17 +3387,14 @@ func (s *ImportService) deleteRulesImport(ctx context.Context, userID int64, imp
 		return err
 	}
 
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
 	// Delete import files
 	finalName := imp.Name + ".json"
 	for _, name := range []string{finalName + ".tmp", finalName} {
-		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
-			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", name, err)
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), name)
 	}
 
 	return nil
@@ -3441,17 +3441,14 @@ func (s *ImportService) deleteCatImport(ctx context.Context, userID int64, imp *
 		return err
 	}
 
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
 	// Delete import files
 	finalName := imp.Name + ".json"
 	for _, name := range []string{finalName + ".tmp", finalName} {
-		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
-			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", name, err)
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), name)
 	}
 
 	return nil
@@ -3521,16 +3518,13 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 		return err
 	}
 
-	finalName := imp.Name + ".json"
-	for _, name := range []string{finalName + ".tmp", finalName} {
-		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
-			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", name, err)
-		}
-	}
-
 	if err := tx.Commit().Error; err != nil {
 		return err
+	}
+
+	finalName := imp.Name + ".json"
+	for _, name := range []string{finalName + ".tmp", finalName} {
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), name)
 	}
 
 	accountIDList := make([]int64, 0, len(affectedAccountIDs))
