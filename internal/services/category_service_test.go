@@ -75,11 +75,11 @@ func (s *CategoryServiceTestSuite) TestSeedDefaultCategories_Idempotent() {
 
 	created, err := svc.SeedDefaultCategories(s.Ctx, user.ID)
 	s.Require().NoError(err)
-	s.Assert().Greater(created, 0)
+	s.Positive(created)
 
 	createdAgain, err := svc.SeedDefaultCategories(s.Ctx, user.ID)
 	s.Require().NoError(err)
-	s.Assert().Equal(0, createdAgain)
+	s.Equal(0, createdAgain)
 }
 
 // Once categories are per-user, editing and merging a default category must work

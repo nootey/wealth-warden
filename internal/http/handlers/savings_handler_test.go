@@ -28,7 +28,6 @@ type SavingsHandlerTestSuite struct {
 }
 
 func (suite *SavingsHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockSavingsServiceInterface(suite.T())
@@ -69,7 +68,7 @@ func (suite *SavingsHandlerTestSuite) TestGetGoalByID_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Goal not found", response["message"])
 }
 
@@ -85,7 +84,7 @@ func (suite *SavingsHandlerTestSuite) TestGetGoalByID_UnclassifiedDoesNotLeak() 
 	suite.NotContains(w.Body.String(), "saving_goals")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -97,7 +96,7 @@ func (suite *SavingsHandlerTestSuite) TestGetGoalByID_BadID() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("id must be a valid integer", response["message"])
 }
 
@@ -113,7 +112,7 @@ func (suite *SavingsHandlerTestSuite) TestFundGoalNow_AlreadyFunded() {
 	suite.Equal(http.StatusConflict, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("goal already funded this month", response["message"])
 }
 
@@ -132,7 +131,7 @@ func (suite *SavingsHandlerTestSuite) TestInsertContribution_ExceedsBalance() {
 	suite.Equal(http.StatusUnprocessableEntity, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("contribution of 50.00 exceeds uncategorized balance of 10.00", response["message"])
 }
 
@@ -145,7 +144,7 @@ func (suite *SavingsHandlerTestSuite) TestInsertContribution_BadJSON() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Invalid JSON", response["message"])
 }
 

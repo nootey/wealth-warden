@@ -78,7 +78,6 @@ func (s *UserService) GetAllActiveUserIDs(ctx context.Context) ([]int64, error) 
 }
 
 func (s *UserService) SearchUsersByEmail(ctx context.Context, q string) ([]models.UserLookup, error) {
-
 	q = strings.TrimSpace(q)
 	if len(q) < 2 {
 		return nil, apperr.New(apperr.Invalid, "Search needs at least 2 characters")
@@ -88,7 +87,6 @@ func (s *UserService) SearchUsersByEmail(ctx context.Context, q string) ([]model
 }
 
 func (s *UserService) FetchUsersPaginated(ctx context.Context, p utils.PaginationParams, includeDeleted bool) ([]models.User, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountUsers(ctx, nil, p.Filters, includeDeleted)
 	if err != nil {
 		return nil, nil, err
@@ -123,7 +121,6 @@ func (s *UserService) FetchUsersPaginated(ctx context.Context, p utils.Paginatio
 }
 
 func (s *UserService) FetchInvitationsPaginated(ctx context.Context, p utils.PaginationParams) ([]models.Invitation, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountInvitations(ctx, nil, p.Filters)
 	if err != nil {
 		return nil, nil, err
@@ -170,7 +167,6 @@ func (s *UserService) FetchUserByID(ctx context.Context, ID int64) (*models.User
 }
 
 func (s *UserService) FetchUserByToken(ctx context.Context, tokenType, tokenValue string) (*models.User, error) {
-
 	token, err := s.repo.FindTokenByValue(ctx, nil, tokenType, tokenValue)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -214,7 +210,6 @@ func (s *UserService) FetchInvitationByHash(ctx context.Context, hash string) (*
 }
 
 func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req models.InvitationReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -288,7 +283,6 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) (int64, error) {
-
 	var hashedPassword string
 	if req.Password != nil && *req.Password != "" {
 		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
@@ -401,7 +395,6 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -469,7 +462,6 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 }
 
 func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -549,7 +541,6 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 }
 
 func (s *UserService) DeleteInvitation(ctx context.Context, userID, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err

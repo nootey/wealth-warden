@@ -116,7 +116,6 @@ func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *m
 		); err != nil {
 			return err
 		}
-
 	}
 
 	return nil
@@ -187,7 +186,6 @@ func (s *ImportService) ApplyRulesToBankPayload(ctx context.Context, userID int6
 }
 
 func (s *ImportService) markImportFailed(ctx context.Context, userID, importID int64, cause error, extra ...zap.Field) {
-
 	var appErr *apperr.Error
 	isAppErr := errors.As(cause, &appErr)
 
@@ -232,7 +230,7 @@ func (s *ImportService) writeImportPayload(userID int64, name string, payload an
 	finalName := name + ".json"
 	tmpName := finalName + ".tmp"
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
 
@@ -249,7 +247,7 @@ func (s *ImportService) writeImportPayload(userID int64, name string, payload an
 	}
 
 	// Exclusive temp file reserves the name against a concurrent write.
-	tmpFile, err := root.OpenFile(tmpName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	tmpFile, err := root.OpenFile(tmpName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return ErrImportFileExists
@@ -395,7 +393,7 @@ func (s *ImportService) ParseBankStatements(bankName string, files []models.Bank
 	for _, f := range files {
 		ext := strings.ToLower(filepath.Ext(f.Name))
 		if ext != ".csv" && ext != ".pdf" {
-			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, fmt.Sprintf("%s: only CSV and PDF statements are supported", f.Name))
+			return models.TxnImportPayload{}, apperr.New(apperr.Invalid, f.Name+": only CSV and PDF statements are supported")
 		}
 		if kind == "" {
 			kind = ext
@@ -409,22 +407,23 @@ func (s *ImportService) ParseBankStatements(bankName string, files []models.Bank
 	for _, f := range files {
 		var parsed []statement.Transaction
 		var err error
-		if auto {
+		switch {
+		case auto:
 			var detected string
 			parsed, detected, err = bank.ParseAuto(f.Reader, kind)
 			if detected != "" {
 				label = detected
 			}
-		} else if kind == ".csv" {
+		case kind == ".csv":
 			parsed, err = parser.ParseCSV(f.Reader)
-		} else {
+		default:
 			parsed, err = parser.ParsePDF(f.Reader)
 		}
 		if err != nil {
 			if errors.Is(err, pdftext.ErrNotInstalled) {
 				return models.TxnImportPayload{}, apperr.Wrap(apperr.Internal, "PDF parsing is not available on this server", err)
 			}
-			return models.TxnImportPayload{}, apperr.Wrap(apperr.Validation, fmt.Sprintf("%s could not be parsed", f.Name), err)
+			return models.TxnImportPayload{}, apperr.Wrap(apperr.Validation, f.Name+" could not be parsed", err)
 		}
 		txns = append(txns, parsed...)
 	}
@@ -619,7 +618,6 @@ func (s *ImportService) FetchImportByID(ctx context.Context, id, userID int64, i
 }
 
 func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int64, error) {
-
 	if source != models.ImportTypeCustom && source != models.ImportTypeBank {
 		return 0, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported import source %q", source))
 	}
@@ -703,7 +701,6 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 }
 
 func (s *ImportService) RunImportTransactions(ctx context.Context, userID, importID, checkID int64, source string) error {
-
 	imp, err := s.FetchImportByID(ctx, importID, userID, "")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -984,7 +981,6 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 }
 
 func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) (int64, error) {
-
 	accCount, err := s.accRepo.CountAccounts(ctx, nil, userID, nil, false, nil)
 	if err != nil {
 		return 0, err
@@ -1000,7 +996,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
-	importName := fmt.Sprintf("custom_accounts_generated_%s", todayStr)
+	importName := "custom_accounts_generated_" + todayStr
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
@@ -1045,7 +1041,6 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 }
 
 func (s *ImportService) RunImportAccounts(ctx context.Context, userID, importID int64, useBalances bool) error {
-
 	imp, err := s.FetchImportByID(ctx, importID, userID, "")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1210,9 +1205,8 @@ func (s *ImportService) RunImportAccounts(ctx context.Context, userID, importID 
 }
 
 func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) (int64, error) {
-
 	todayStr := time.Now().UTC().Format("2006-01-02")
-	importName := fmt.Sprintf("custom_categories_generated_%s", todayStr)
+	importName := "custom_categories_generated_" + todayStr
 
 	catSettings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
@@ -1256,7 +1250,6 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 }
 
 func (s *ImportService) RunImportCategories(ctx context.Context, userID, importID int64) error {
-
 	imp, err := s.FetchImportByID(ctx, importID, userID, "")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1505,9 +1498,8 @@ func ruleConditionReqsFromExport(conditions []models.RuleConditionExport) []mode
 }
 
 func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload models.RuleImportPayload) (int64, error) {
-
 	todayStr := time.Now().UTC().Format("2006-01-02")
-	importName := fmt.Sprintf("custom_rules_generated_%s", todayStr)
+	importName := "custom_rules_generated_" + todayStr
 
 	ruleSettings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
@@ -1551,7 +1543,6 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 }
 
 func (s *ImportService) RunImportRules(ctx context.Context, userID, importID int64) error {
-
 	imp, err := s.FetchImportByID(ctx, importID, userID, "")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1659,7 +1650,6 @@ func (s *ImportService) RunImportRules(ctx context.Context, userID, importID int
 }
 
 func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error {
-
 	imp, err := s.repo.FindImportByID(ctx, nil, payload.ImportID, userID, "custom")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1681,7 +1671,6 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 }
 
 func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, importID, checkingAccID int64, mappings []models.TransferMapping) error {
-
 	payload := models.InvestmentTransferPayload{ImportID: importID, CheckingAccID: checkingAccID, InvestmentMappings: mappings}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -1964,7 +1953,6 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 }
 
 func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error {
-
 	imp, err := s.repo.FindImportByID(ctx, nil, payload.ImportID, userID, "custom")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1986,7 +1974,6 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 }
 
 func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID, checkingAccID int64, mappings []models.TransferMapping) error {
-
 	payload := models.SavingTransferPayload{ImportID: importID, CheckingAccID: checkingAccID, SavingsMappings: mappings}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -2282,7 +2269,6 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 }
 
 func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error {
-
 	imp, err := s.repo.FindImportByID(ctx, nil, payload.ImportID, userID, "custom")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2304,7 +2290,6 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 }
 
 func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, importID, checkingAccID int64, mappings []models.TransferMapping) error {
-
 	payload := models.RepaymentTransferPayload{ImportID: importID, CheckingAccID: checkingAccID, RepaymentMappings: mappings}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -2600,7 +2585,6 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 }
 
 func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error {
-
 	var txnPayload models.TxnImportPayload
 	if err := json.Unmarshal(txnBytes, &txnPayload); err != nil {
 		return err
@@ -2654,7 +2638,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 }
 
 func (s *ImportService) RunTransferTrades(ctx context.Context, userID, importID int64, mappings []models.TransferMapping) error {
-
 	payload := models.InvestmentTradesPayload{TradeMappings: mappings}
 
 	imp, err := s.FetchImportByID(ctx, importID, userID, "")
@@ -2747,7 +2730,7 @@ func (s *ImportService) RunTransferTrades(ctx context.Context, userID, importID 
 		_ = tx.Rollback()
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL, s.logger)
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		_ = tx.Rollback()
@@ -2801,7 +2784,7 @@ func (s *ImportService) RunTransferTrades(ctx context.Context, userID, importID 
 			investmentType = models.InvestmentETF
 			// This importer targets Amsterdam-listed ETFs; default the exchange when absent.
 			if !strings.Contains(rawTicker, ".") {
-				rawTicker = rawTicker + ".AS"
+				rawTicker += ".AS"
 			}
 		}
 
@@ -3030,7 +3013,6 @@ func (s *ImportService) RunTransferTrades(ctx context.Context, userID, importID 
 }
 
 func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) error {
-
 	// Both custom and bank imports are listed for deletion, so no type filter here.
 	imp, err := s.FetchImportByID(ctx, id, userID, "")
 	if err != nil {
@@ -3064,7 +3046,6 @@ func (s *ImportService) assertImportDeletable(ctx context.Context, userID int64,
 }
 
 func (s *ImportService) RunImportDelete(ctx context.Context, userID, id int64) error {
-
 	// Both custom and bank imports are listed for deletion, so no type filter here.
 	imp, err := s.FetchImportByID(ctx, id, userID, "")
 	if err != nil {
@@ -3123,7 +3104,6 @@ func (s *ImportService) RunImportDelete(ctx context.Context, userID, id int64) e
 }
 
 func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -3307,7 +3287,6 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 }
 
 func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -3360,7 +3339,6 @@ func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *
 }
 
 func (s *ImportService) deleteRulesImport(ctx context.Context, userID int64, imp *models.Import) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -3401,7 +3379,6 @@ func (s *ImportService) deleteRulesImport(ctx context.Context, userID int64, imp
 }
 
 func (s *ImportService) deleteCatImport(ctx context.Context, userID int64, imp *models.Import) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -3459,7 +3436,6 @@ func (s *ImportService) deleteCatImport(ctx context.Context, userID int64, imp *
 }
 
 func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, imp *models.Import) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err

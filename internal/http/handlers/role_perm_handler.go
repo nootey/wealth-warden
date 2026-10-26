@@ -38,7 +38,6 @@ func (h *RolePermissionHandler) Routes(apiGroup *gin.RouterGroup) {
 }
 
 func (h *RolePermissionHandler) GetAllRoles(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	qp := c.Request.URL.Query()
 	withPermissions := strings.EqualFold(qp.Get("with_permissions"), "true")
@@ -53,7 +52,6 @@ func (h *RolePermissionHandler) GetAllRoles(c *gin.Context) {
 }
 
 func (h *RolePermissionHandler) GetAllPermissions(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	records, err := h.service.FetchAllPermissions(ctx)
 	if err != nil {
@@ -64,7 +62,6 @@ func (h *RolePermissionHandler) GetAllPermissions(c *gin.Context) {
 }
 
 func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	qp := c.Request.URL.Query()
 	wp := strings.EqualFold(qp.Get("with_permissions"), "true")
@@ -84,7 +81,6 @@ func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 }
 
 func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -115,7 +111,6 @@ func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 }
 
 func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -147,7 +142,6 @@ func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 }
 
 func (h *RolePermissionHandler) DeleteRole(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 

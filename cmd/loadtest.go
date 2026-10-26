@@ -54,7 +54,6 @@ var loadtestCmd = &cobra.Command{
 	Args:         cobra.ExactArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		test := args[0]
 		users, ok := loadtestUsers[test]
 		if !ok {
@@ -231,7 +230,7 @@ func init() {
 }
 
 func prepareLoadtestDatabase(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
-	db, err := database.ConnectToPostgres(cfg, logger.Named("database"))
+	db, err := database.ConnectToPostgres(ctx, cfg, logger.Named("database"))
 	if err != nil {
 		return fmt.Errorf("failed to connect to Postgres: %w", err)
 	}

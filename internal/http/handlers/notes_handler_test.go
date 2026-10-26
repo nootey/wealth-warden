@@ -26,7 +26,6 @@ type NotesHandlerTestSuite struct {
 }
 
 func (suite *NotesHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockNotesServiceInterface(suite.T())
@@ -65,7 +64,7 @@ func (suite *NotesHandlerTestSuite) TestGetNoteByID_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Note not found", response["message"])
 }
 
@@ -83,7 +82,7 @@ func (suite *NotesHandlerTestSuite) TestGetNoteByID_UnclassifiedErrorDoesNotLeak
 	suite.NotContains(w.Body.String(), "relation")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -96,7 +95,7 @@ func (suite *NotesHandlerTestSuite) TestGetNoteByID_BadID() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("id must be a valid integer", response["message"])
 }
 

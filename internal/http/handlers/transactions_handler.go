@@ -70,7 +70,6 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 }
 
 func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -108,7 +107,6 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 	qp := c.Request.URL.Query()
@@ -141,7 +139,6 @@ func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -164,7 +161,6 @@ func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetCategories(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -177,11 +173,9 @@ func (h *TransactionHandler) GetCategories(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *TransactionHandler) GetCategoryByID(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -200,11 +194,9 @@ func (h *TransactionHandler) GetCategoryByID(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -235,7 +227,6 @@ func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
 }
 
 func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -295,7 +286,6 @@ func (h *TransactionHandler) UpdateTransfer(c *gin.Context) {
 }
 
 func (h *TransactionHandler) InsertCategory(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -321,7 +311,6 @@ func (h *TransactionHandler) InsertCategory(c *gin.Context) {
 }
 
 func (h *TransactionHandler) SeedDefaultCategories(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -344,7 +333,6 @@ func (h *TransactionHandler) SeedDefaultCategories(c *gin.Context) {
 }
 
 func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -376,7 +364,6 @@ func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 }
 
 func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -408,7 +395,6 @@ func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
 }
 
 func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -427,7 +413,6 @@ func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 }
 
 func (h *TransactionHandler) BulkTransactions(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -461,7 +446,6 @@ func (h *TransactionHandler) BulkTransactions(c *gin.Context) {
 }
 
 func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -480,7 +464,6 @@ func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
 }
 
 func (h *TransactionHandler) MergeCategories(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -505,7 +488,6 @@ func (h *TransactionHandler) MergeCategories(c *gin.Context) {
 }
 
 func (h *TransactionHandler) DeleteCategory(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -524,7 +506,6 @@ func (h *TransactionHandler) DeleteCategory(c *gin.Context) {
 }
 
 func (h *TransactionHandler) RestoreTransaction(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -549,7 +530,6 @@ func (h *TransactionHandler) RestoreTransaction(c *gin.Context) {
 }
 
 func (h *TransactionHandler) RestoreCategory(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -574,7 +554,6 @@ func (h *TransactionHandler) RestoreCategory(c *gin.Context) {
 }
 
 func (h *TransactionHandler) RestoreCategoryName(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -599,7 +578,6 @@ func (h *TransactionHandler) RestoreCategoryName(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -626,7 +604,6 @@ func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetTransactionTemplateByID(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -646,7 +623,6 @@ func (h *TransactionHandler) GetTransactionTemplateByID(c *gin.Context) {
 }
 
 func (h *TransactionHandler) InsertTransactionTemplate(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -672,7 +648,6 @@ func (h *TransactionHandler) InsertTransactionTemplate(c *gin.Context) {
 }
 
 func (h *TransactionHandler) UpdateTransactionTemplate(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -733,7 +708,6 @@ func (h *TransactionHandler) RenameTransactionTemplate(c *gin.Context) {
 }
 
 func (h *TransactionHandler) ToggleTransactionTemplateActiveState(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -752,7 +726,6 @@ func (h *TransactionHandler) ToggleTransactionTemplateActiveState(c *gin.Context
 }
 
 func (h *TransactionHandler) ExecuteTransactionTemplateEarly(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -771,7 +744,6 @@ func (h *TransactionHandler) ExecuteTransactionTemplateEarly(c *gin.Context) {
 }
 
 func (h *TransactionHandler) DeleteTransactionTemplate(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -790,7 +762,6 @@ func (h *TransactionHandler) DeleteTransactionTemplate(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -805,7 +776,6 @@ func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetTransactionTemplateSummary(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -819,7 +789,6 @@ func (h *TransactionHandler) GetTransactionTemplateSummary(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetCategoryGroups(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -829,11 +798,9 @@ func (h *TransactionHandler) GetCategoryGroups(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *TransactionHandler) GetCategoriesWithGroups(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -843,11 +810,9 @@ func (h *TransactionHandler) GetCategoriesWithGroups(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *TransactionHandler) GetCategoryGroupByID(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -863,11 +828,9 @@ func (h *TransactionHandler) GetCategoryGroupByID(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, record)
-
 }
 
 func (h *TransactionHandler) InsertCategoryGroup(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -893,7 +856,6 @@ func (h *TransactionHandler) InsertCategoryGroup(c *gin.Context) {
 }
 
 func (h *TransactionHandler) UpdateCategoryGroup(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -925,7 +887,6 @@ func (h *TransactionHandler) UpdateCategoryGroup(c *gin.Context) {
 }
 
 func (h *TransactionHandler) DeleteCategoryGroup(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 

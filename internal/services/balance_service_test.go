@@ -140,14 +140,14 @@ func (s *BalanceServiceSuite) TestApplyDeltaAccumulates() {
 
 	after, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
-	s.Assert().True(after.Sub(before).Equal(decimal.NewFromInt(70)),
+	s.True(after.Sub(before).Equal(decimal.NewFromInt(70)),
 		"two deltas moved the balance by %s, want 70", after.Sub(before).StringFixed(4))
 
 	// A recompute reads only transactions, so it must undo deltas nothing backed.
 	s.recompute(repo, id)
 	healed, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
-	s.Assert().True(healed.Equal(before), "recompute left %s, want %s",
+	s.True(healed.Equal(before), "recompute left %s, want %s",
 		healed.StringFixed(4), before.StringFixed(4))
 }
 
@@ -201,7 +201,7 @@ func (s *BalanceServiceSuite) TestRecomputeWaitsForConcurrentDelta() {
 
 	after, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
-	s.Assert().True(after.Equal(before.Add(amount)), "balance is %s, want %s",
+	s.True(after.Equal(before.Add(amount)), "balance is %s, want %s",
 		after.StringFixed(4), before.Add(amount).StringFixed(4))
 }
 
@@ -223,7 +223,7 @@ func (s *BalanceServiceSuite) TestApplyDeltaSeedsAMissingRow() {
 
 	got, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
-	s.Assert().True(got.Equal(decimal.NewFromInt(25)), "got %s, want 25", got.StringFixed(4))
+	s.True(got.Equal(decimal.NewFromInt(25)), "got %s, want 25", got.StringFixed(4))
 }
 
 // The dual write contract: after any write path, the one row balance equals the sum
@@ -250,10 +250,10 @@ func (s *BalanceServiceSuite) assertBalanceMatchesLedger(context string) {
 
 	s.Require().NotEmpty(rows)
 	for _, r := range rows {
-		s.Assert().True(r.Balance.Round(4).Equal(r.TxnSum.Round(4)),
+		s.True(r.Balance.Round(4).Equal(r.TxnSum.Round(4)),
 			"%s: account %d holds %s, its transactions sum to %s",
 			context, r.AccountID, r.Balance.StringFixed(4), r.TxnSum.StringFixed(4))
-		s.Assert().EqualValues(1, r.Openings,
+		s.EqualValues(1, r.Openings,
 			"%s: account %d needs exactly one opening transaction, with a category", context, r.AccountID)
 	}
 }
@@ -419,16 +419,16 @@ func (s *BalanceServiceSuite) TestReconcileRepairsOnlyTheDriftedAccount() {
 	s.Require().NoError(err)
 
 	s.Require().Len(repaired, 1)
-	s.Assert().Equal(broken, repaired[0].AccountID)
-	s.Assert().NotZero(repaired[0].UserID)
-	s.Assert().True(repaired[0].Actual.Equal(want.Add(decimal.NewFromFloat(42.5))),
+	s.Equal(broken, repaired[0].AccountID)
+	s.NotZero(repaired[0].UserID)
+	s.True(repaired[0].Actual.Equal(want.Add(decimal.NewFromFloat(42.5))),
 		"actual was %s", repaired[0].Actual.StringFixed(4))
-	s.Assert().True(repaired[0].Expected.Equal(want), "expected was %s", repaired[0].Expected.StringFixed(4))
-	s.Assert().True(repaired[0].Difference().Equal(decimal.NewFromFloat(-42.5)),
+	s.True(repaired[0].Expected.Equal(want), "expected was %s", repaired[0].Expected.StringFixed(4))
+	s.True(repaired[0].Difference().Equal(decimal.NewFromFloat(-42.5)),
 		"difference was %s", repaired[0].Difference().StringFixed(4))
 
-	s.Assert().True(s.balanceOf(broken).Equal(want), "the drifted balance was not repaired")
-	s.Assert().True(s.balanceOf(untouched).Equal(wantUntouched), "a sound balance was rewritten")
+	s.True(s.balanceOf(broken).Equal(want), "the drifted balance was not repaired")
+	s.True(s.balanceOf(untouched).Equal(wantUntouched), "a sound balance was rewritten")
 }
 
 // A missing row is drift too, and it has nothing to lock until the repair makes one.
@@ -446,8 +446,8 @@ func (s *BalanceServiceSuite) TestReconcileRebuildsAMissingBalanceRow() {
 	s.Require().NoError(err)
 
 	s.Require().Len(repaired, 1)
-	s.Assert().Equal(orphan, repaired[0].AccountID)
-	s.Assert().True(s.balanceOf(orphan).Equal(want), "the missing row was not rebuilt")
+	s.Equal(orphan, repaired[0].AccountID)
+	s.True(s.balanceOf(orphan).Equal(want), "the missing row was not rebuilt")
 }
 
 // A closed account is out of scope: nothing can post to it and no read shows it.
@@ -462,7 +462,7 @@ func (s *BalanceServiceSuite) TestReconcileSkipsClosedAccounts() {
 
 	repaired, err := s.reconcileAll()
 	s.Require().NoError(err)
-	s.Assert().Empty(repaired)
+	s.Empty(repaired)
 }
 
 func (s *BalanceServiceSuite) TestReconcileReportsNothingWhenBalancesAgree() {
@@ -470,7 +470,7 @@ func (s *BalanceServiceSuite) TestReconcileReportsNothingWhenBalancesAgree() {
 
 	repaired, err := s.reconcileAll()
 	s.Require().NoError(err)
-	s.Assert().Empty(repaired)
+	s.Empty(repaired)
 }
 
 func (s *BalanceServiceSuite) TestRebuildDailyRangeWaitsForAccountLock() {
@@ -507,7 +507,7 @@ func (s *BalanceServiceSuite) TestRebuildDailyRangeWaitsForAccountLock() {
 	s.Require().NoError(err)
 
 	after := snapshot()
-	s.Assert().True(after.Equal(before.Add(decimal.NewFromInt(40))), "snapshot is %s, want %s",
+	s.True(after.Equal(before.Add(decimal.NewFromInt(40))), "snapshot is %s, want %s",
 		after.StringFixed(4), before.Add(decimal.NewFromInt(40)).StringFixed(4))
 }
 

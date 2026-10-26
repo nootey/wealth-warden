@@ -77,7 +77,6 @@ var (
 )
 
 func (s *AuthService) log(ctx context.Context, event, email, userAgent, ip, status string, description *string, userID *int64) error {
-
 	changes := utils.InitChanges()
 	service := utils.DetermineServiceSource(userAgent)
 
@@ -102,7 +101,6 @@ func (s *AuthService) log(ctx context.Context, event, email, userAgent, ip, stat
 }
 
 func (s *AuthService) dispatchConfirmationEmail(ctx context.Context, user *models.User) error {
-
 	tx, err := s.userRepo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -137,7 +135,6 @@ func (s *AuthService) dispatchConfirmationEmail(ctx context.Context, user *model
 }
 
 func (s *AuthService) dispatchPasswordResetEmail(ctx context.Context, user *models.User) error {
-
 	tx, err := s.userRepo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -205,7 +202,6 @@ func (s *AuthService) ValidateLogin(ctx context.Context, email, password, userAg
 }
 
 func (s *AuthService) GetCurrentUser(ctx context.Context, userID int64) (*models.User, error) {
-
 	user, repoError := s.userRepo.FindUserByID(ctx, nil, userID)
 	if repoError != nil {
 		return nil, apperr.Wrap(apperr.Internal, "failed to find current session user", repoError)
@@ -275,7 +271,6 @@ func (s *AuthService) ValidateInvitation(ctx context.Context, hash string) error
 }
 
 func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) (int64, error) {
-
 	// Validation
 	settings, err := s.settingsRepo.FetchGeneralSettings(ctx, nil)
 	if err != nil {
@@ -417,7 +412,6 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 }
 
 func (s *AuthService) ResendConfirmationEmail(ctx context.Context, email, userAgent, ip string) error {
-
 	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -441,7 +435,6 @@ func (s *AuthService) ResendConfirmationEmail(ctx context.Context, email, userAg
 }
 
 func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, ip string) error {
-
 	tx, err := s.userRepo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -502,7 +495,6 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, i
 }
 
 func (s *AuthService) RequestPasswordReset(ctx context.Context, email, userAgent, ip string) error {
-
 	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -528,7 +520,6 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email, userAgent
 }
 
 func (s *AuthService) resolvePasswordResetToken(ctx context.Context, tx *gorm.DB, tokenValue string) (*models.User, error) {
-
 	token, err := s.userRepo.FindTokenByValue(ctx, tx, "password-reset", tokenValue)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -563,7 +554,6 @@ func (s *AuthService) resolvePasswordResetToken(ctx context.Context, tx *gorm.DB
 }
 
 func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error) {
-
 	if _, err := s.resolvePasswordResetToken(ctx, nil, tokenValue); err != nil {
 		return "", err
 	}
@@ -572,7 +562,6 @@ func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue stri
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error {
-
 	if form.Password != form.PasswordConfirmation {
 		return ErrPasswordMismatch
 	}

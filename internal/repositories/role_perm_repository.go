@@ -54,7 +54,6 @@ func (r *RolePermissionRepository) CountActiveUsersForRole(ctx context.Context, 
 }
 
 func (r *RolePermissionRepository) FindAllRoles(ctx context.Context, tx *gorm.DB, withPermissions bool) ([]models.Role, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -75,7 +74,6 @@ func (r *RolePermissionRepository) FindAllRoles(ctx context.Context, tx *gorm.DB
 }
 
 func (r *RolePermissionRepository) FindAllPermissions(ctx context.Context, tx *gorm.DB) ([]models.Permission, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -91,7 +89,6 @@ func (r *RolePermissionRepository) FindAllPermissions(ctx context.Context, tx *g
 }
 
 func (r *RolePermissionRepository) FindRoleByID(ctx context.Context, tx *gorm.DB, id int64, withPermissions bool) (*models.Role, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -110,7 +107,6 @@ func (r *RolePermissionRepository) FindRoleByID(ctx context.Context, tx *gorm.DB
 }
 
 func (r *RolePermissionRepository) FindRoleByName(ctx context.Context, tx *gorm.DB, roleName string) (*models.Role, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -123,7 +119,6 @@ func (r *RolePermissionRepository) FindRoleByName(ctx context.Context, tx *gorm.
 }
 
 func (r *RolePermissionRepository) InsertRole(ctx context.Context, tx *gorm.DB, record *models.Role) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -137,7 +132,6 @@ func (r *RolePermissionRepository) InsertRole(ctx context.Context, tx *gorm.DB, 
 }
 
 func (r *RolePermissionRepository) CountPermissionsByIDs(ctx context.Context, tx *gorm.DB, ids []int64) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -150,7 +144,6 @@ func (r *RolePermissionRepository) CountPermissionsByIDs(ctx context.Context, tx
 }
 
 func (r *RolePermissionRepository) AttachPermissionIDs(ctx context.Context, tx *gorm.DB, roleID int64, permIDs []int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -166,7 +159,6 @@ func (r *RolePermissionRepository) AttachPermissionIDs(ctx context.Context, tx *
 }
 
 func (r *RolePermissionRepository) ReplaceRolePermissions(ctx context.Context, tx *gorm.DB, roleID int64, permIDs []int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -188,7 +180,6 @@ func (r *RolePermissionRepository) ReplaceRolePermissions(ctx context.Context, t
 }
 
 func (r *RolePermissionRepository) UpdateRole(ctx context.Context, tx *gorm.DB, record models.Role) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db

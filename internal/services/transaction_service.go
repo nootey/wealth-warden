@@ -115,7 +115,6 @@ func NewTransactionService(
 var _ TransactionServiceInterface = (*TransactionService)(nil)
 
 func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountTransactions(ctx, nil, userID, p.Filters, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, nil, err
@@ -160,7 +159,6 @@ func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, use
 }
 
 func (s *TransactionService) FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transfer, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountTransfers(ctx, nil, userID, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, err
@@ -195,7 +193,6 @@ func (s *TransactionService) FetchTransfersPaginated(ctx context.Context, userID
 }
 
 func (s *TransactionService) FetchTransactionByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Transaction, error) {
-
 	record, err := s.repo.FindTransactionByID(ctx, nil, id, userID, includeDeleted)
 	if err != nil {
 		return nil, err
@@ -205,7 +202,6 @@ func (s *TransactionService) FetchTransactionByID(ctx context.Context, userID in
 }
 
 func (s *TransactionService) FetchAllCategories(ctx context.Context, userID int64, includeDeleted bool) ([]models.Category, error) {
-
 	categories, err := s.repo.FindAllCategories(ctx, nil, userID, includeDeleted)
 	if err != nil {
 		return nil, err
@@ -215,7 +211,6 @@ func (s *TransactionService) FetchAllCategories(ctx context.Context, userID int6
 }
 
 func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Category, error) {
-
 	record, err := s.repo.FindCategoryByID(ctx, nil, id, userID, includeDeleted)
 	if err != nil {
 		return nil, err
@@ -247,7 +242,6 @@ func (s *TransactionService) autoAssignCategory(ctx context.Context, tx *gorm.DB
 }
 
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
-
 	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
 	if !direction.IsValid() {
 		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
@@ -478,7 +472,6 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 }
 
 func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (models.InsertResult, error) {
-
 	if req.IdempotencyKey != nil && *req.IdempotencyKey != "" {
 		if existing, err := s.repo.FindTransferByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); err == nil {
 			return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
@@ -669,7 +662,6 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 }
 
 func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error) {
-
 	if _, ok := models.FindDefaultCategoryDef(req.Classification); !ok {
 		return 0, apperr.New(apperr.Validation, "invalid classification")
 	}
@@ -736,7 +728,6 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 }
 
 func (s *TransactionService) SeedDefaultCategories(ctx context.Context, userID int64) (int, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -781,7 +772,6 @@ func (s *TransactionService) SeedDefaultCategoriesWithTx(ctx context.Context, tx
 }
 
 func (s *TransactionService) seedDefaultCategoriesTx(ctx context.Context, tx *gorm.DB, userID int64) (int, error) {
-
 	existing, err := s.repo.FindAllCategories(ctx, tx, userID, true)
 	if err != nil {
 		return 0, err
@@ -1120,7 +1110,6 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(txnID, 10))
 		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
-
 			Event:       "update",
 			Category:    "transaction",
 			Description: nil,
@@ -1135,7 +1124,6 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 }
 
 func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -1184,7 +1172,6 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(catID, 10))
 		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
-
 			Event:       "update",
 			Category:    "category",
 			Description: nil,
@@ -1200,7 +1187,6 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 }
 
 func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1314,7 +1300,6 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 
 	if !changes.IsEmpty() {
 		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
-
 			Event:       "delete",
 			Category:    "transaction",
 			Description: nil,
@@ -1846,7 +1831,6 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 }
 
 func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1984,7 +1968,6 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 
 	if !changes.IsEmpty() {
 		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
-
 			Event:       "delete",
 			Category:    "transfer",
 			Description: nil,
@@ -1999,7 +1982,6 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 }
 
 func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2074,7 +2056,6 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 
 	if !changes.IsEmpty() {
 		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
-
 			Event:       "delete",
 			Category:    "category",
 			Description: nil,
@@ -2089,7 +2070,6 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 }
 
 func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2212,7 +2192,6 @@ func (s *TransactionService) QueueCategoryMerge(ctx context.Context, userID, sou
 }
 
 func (s *TransactionService) MergeCategories(ctx context.Context, userID, sourceID, destinationID int64) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -2306,7 +2285,6 @@ func (s *TransactionService) resolveCategoryMerge(ctx context.Context, tx *gorm.
 }
 
 func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2363,7 +2341,6 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 }
 
 func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2413,7 +2390,6 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 }
 
 func (s *TransactionService) FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, templateType string) ([]models.TransactionTemplate, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountTransactionTemplates(ctx, nil, userID, false, templateType)
 	if err != nil {
 		return nil, nil, err
@@ -2448,7 +2424,6 @@ func (s *TransactionService) FetchTransactionTemplatesPaginated(ctx context.Cont
 }
 
 func (s *TransactionService) FetchTransactionTemplateByID(ctx context.Context, userID int64, id int64) (*models.TransactionTemplate, error) {
-
 	record, err := s.repo.FindTransactionTemplateByID(ctx, nil, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2489,7 +2464,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	templateType := strings.ToLower(req.TemplateType)
 	if templateType != "transaction" && templateType != "transfer" {
 		tx.Rollback()
-		return 0, apperr.New(apperr.Validation, fmt.Sprintf("invalid template type: %s", templateType))
+		return 0, apperr.New(apperr.Validation, "invalid template type: "+templateType)
 	}
 
 	var categoryID *int64
@@ -2656,7 +2631,6 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 }
 
 func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, userID, id int64, req *models.TransactionTemplateReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -2804,7 +2778,6 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 }
 
 func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -3051,7 +3024,7 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 				}
 			}
 			if t.EndDate != nil {
-				months := int(t.EndDate.Year()-now.Year())*12 + int(t.EndDate.Month()-now.Month())
+				months := (t.EndDate.Year()-now.Year())*12 + int(t.EndDate.Month()-now.Month())
 				if months < 0 {
 					months = 0
 				}
@@ -3067,11 +3040,12 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 		if !isOneOff && !isWindingDown {
 			if multiplier, ok := baseMultipliers[t.Frequency]; ok {
 				monthlyAmount := t.Amount.Mul(multiplier)
-				if isTransfer {
+				switch {
+				case isTransfer:
 					summary.MonthlyTransfer = summary.MonthlyTransfer.Add(monthlyAmount)
-				} else if isExpense {
+				case isExpense:
 					summary.MonthlyExpense = summary.MonthlyExpense.Add(monthlyAmount)
-				} else {
+				default:
 					summary.MonthlyIncome = summary.MonthlyIncome.Add(monthlyAmount)
 				}
 				continue
@@ -3080,11 +3054,12 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 
 		if isOneOff || isWindingDown || periodicFrequencies[t.Frequency] {
 			if !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd) {
-				if isTransfer {
+				switch {
+				case isTransfer:
 					summary.ThisMonthTransfer = summary.ThisMonthTransfer.Add(t.Amount)
-				} else if isExpense {
+				case isExpense:
 					summary.ThisMonthExpense = summary.ThisMonthExpense.Add(t.Amount)
-				} else {
+				default:
 					summary.ThisMonthIncome = summary.ThisMonthIncome.Add(t.Amount)
 				}
 			}
@@ -3133,7 +3108,6 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 }
 
 func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID int64, id int64) error {
-
 	template, err := s.repo.FindTransactionTemplateByID(ctx, nil, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -3169,7 +3143,6 @@ func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID in
 }
 
 func (s *TransactionService) runTemplate(ctx context.Context, template *models.TransactionTemplate, executeNow bool) (int, time.Time, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, time.Time{}, err
@@ -3448,7 +3421,6 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 }
 
 func (s *TransactionService) FetchAllCategoryGroups(ctx context.Context, userID int64) ([]models.CategoryGroup, error) {
-
 	categories, err := s.repo.FindAllCategoryGroups(ctx, nil, userID)
 	if err != nil {
 		return nil, err
@@ -3496,7 +3468,6 @@ func (s *TransactionService) FetchAllCategoriesWithGroups(ctx context.Context, u
 }
 
 func (s *TransactionService) FetchCategoryGroupByID(ctx context.Context, userID int64, id int64) (*models.CategoryGroup, error) {
-
 	record, err := s.repo.FindCategoryGroupByID(ctx, nil, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -3509,7 +3480,6 @@ func (s *TransactionService) FetchCategoryGroupByID(ctx context.Context, userID 
 }
 
 func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int64, req *models.CategoryGroupReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -3586,7 +3556,6 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 }
 
 func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int64, id int64, req *models.CategoryGroupReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -3681,7 +3650,6 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 }
 
 func (s *TransactionService) DeleteCategoryGroup(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err

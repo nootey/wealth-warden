@@ -18,7 +18,6 @@ type RouteInitializerHTTP struct {
 }
 
 func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.ServiceContainer) *RouteInitializerHTTP {
-
 	return &RouteInitializerHTTP{
 		Router:    r,
 		Container: container,
@@ -33,7 +32,6 @@ func (r *RouteInitializerHTTP) InitEndpoints(wm *middleware.WebClientMiddleware)
 }
 
 func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware.WebClientMiddleware) {
-
 	validator := validators.NewValidator()
 
 	// Register handlers
@@ -95,7 +93,6 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	notificationHandler.Routes(protected.Group("/notifications"))
 	transactionHandler.Routes(protected.Group("/transactions"))
 	userHandler.Routes(protected.Group("/users"))
-
 }
 
 func rootHandler(c *gin.Context) {

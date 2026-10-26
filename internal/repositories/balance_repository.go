@@ -85,7 +85,6 @@ func (r *BalanceRepository) ApplyDelta(ctx context.Context, tx *gorm.DB, account
 }
 
 func (r *BalanceRepository) GetBalance(ctx context.Context, tx *gorm.DB, accountID int64) (decimal.Decimal, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db

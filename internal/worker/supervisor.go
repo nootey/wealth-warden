@@ -37,7 +37,7 @@ func (s *Supervisor) Run(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	for _, svc := range s.services {
-		svc := svc
+
 		wg.Add(1)
 		s.running.Add(1)
 		go func() {

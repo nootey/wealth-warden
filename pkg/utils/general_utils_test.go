@@ -58,7 +58,7 @@ func TestSafeString(t *testing.T) {
 
 		result := utils.SafeString(s)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("returns trimmed string for non-nil pointer", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestSafeString(t *testing.T) {
 
 		result := utils.SafeString(&s)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("returns trimmed string for pointer to whitespace-only string", func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestSafeString(t *testing.T) {
 
 		result := utils.SafeString(&s)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("handles string with no whitespace", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestCleanString(t *testing.T) {
 
 		result := utils.CleanString(input)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("trims whitespace-only string", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestCleanString(t *testing.T) {
 
 		result := utils.CleanString(input)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("trims pointer to whitespace-only string", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestCleanString(t *testing.T) {
 		result := utils.CleanString(input)
 
 		resultPtr := result.(*string)
-		assert.Equal(t, "", *resultPtr)
+		assert.Empty(t, *resultPtr)
 	})
 
 	t.Run("preserves internal spaces", func(t *testing.T) {
@@ -333,7 +333,7 @@ func TestNormalizeName(t *testing.T) {
 
 		result := utils.NormalizeName(input)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("handles string with multiple consecutive spaces", func(t *testing.T) {

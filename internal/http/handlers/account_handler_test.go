@@ -12,7 +12,6 @@ import (
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
-
 	"wealth-warden/mocks"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +30,6 @@ type AccountHandlerTestSuite struct {
 }
 
 func (suite *AccountHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockAccountServiceInterface(suite.T())
@@ -65,7 +63,6 @@ func (suite *AccountHandlerTestSuite) TearDownTest() {
 
 // verifies the path when valid data is provided and the account is created successfully
 func (suite *AccountHandlerTestSuite) TestInsertAccount_Success() {
-
 	balance := decimal.NewFromFloat(1000.50)
 	payload := &models.AccountReq{
 		Name:           "Checking Account",
@@ -104,10 +101,10 @@ func (suite *AccountHandlerTestSuite) TestInsertAccount_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Record created", response["message"])
 	suite.Equal("Success", response["title"])
-	suite.Equal(float64(200), response["code"])
+	suite.EqualValues(200, response["code"])
 }
 
 // verifies that malformed JSON returns a 400 status code and doesn't call validator or service
@@ -129,7 +126,7 @@ func (suite *AccountHandlerTestSuite) TestInsertAccount_InvalidJSON() {
 	}
 
 	suite.NotEmpty(response["message"])
-	suite.Equal(float64(400), response["code"])
+	suite.EqualValues(400, response["code"])
 
 	// Verify that validator and service were never called
 	suite.mockValidator.AssertNotCalled(suite.T(), "ValidateStruct")
@@ -138,7 +135,6 @@ func (suite *AccountHandlerTestSuite) TestInsertAccount_InvalidJSON() {
 
 // verifies that validation errors return a 422 status code and the service is never called
 func (suite *AccountHandlerTestSuite) TestInsertAccount_ValidationFailed() {
-
 	balance := decimal.NewFromFloat(1000.50)
 	payload := &models.AccountReq{
 		Name:           "",
@@ -169,7 +165,6 @@ func (suite *AccountHandlerTestSuite) TestInsertAccount_ValidationFailed() {
 
 // verifies that service layer errors return a 500 status code
 func (suite *AccountHandlerTestSuite) TestInsertAccount_ServiceError() {
-
 	balance := decimal.NewFromFloat(1000.50)
 	payload := &models.AccountReq{
 		Name:           "Checking Account",
@@ -223,7 +218,7 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_Success() {
 
 	var response models.Account
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal(int64(1), response.ID)
 	suite.Equal("Savings Account", response.Name)
 	suite.Equal(int64(123), response.UserID)
@@ -244,7 +239,7 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Account not found", response["message"])
 }
 
@@ -263,7 +258,7 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_InternalDoesNotLeak() {
 	suite.Equal(http.StatusInternalServerError, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -277,7 +272,7 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_BadID() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("id must be a valid integer", response["message"])
 	suite.mockService.AssertNotCalled(suite.T(), "FetchAccountByID")
 }
@@ -297,7 +292,7 @@ func (suite *AccountHandlerTestSuite) TestSetDefaultAccount_AlreadyHasDefault() 
 	suite.Equal(http.StatusConflict, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("a default account already exists for this account type", response["message"])
 }
 
@@ -332,7 +327,7 @@ func (suite *AccountHandlerTestSuite) TestUpdateAccount_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Record updated", response["message"])
 }
 
@@ -352,7 +347,7 @@ func (suite *AccountHandlerTestSuite) TestCloseAccount_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Success", response["title"])
 }
 
@@ -386,7 +381,7 @@ func (suite *AccountHandlerTestSuite) TestCloseAccount_NotEmpty() {
 	suite.Equal(http.StatusConflict, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("account must have a zero balance before it can be closed", response["message"])
 }
 
@@ -422,7 +417,7 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_Success() {
 
 	suite.Equal(http.StatusOK, w.Code)
 	var resp map[string]interface{}
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
 	suite.Equal("Merge queued", resp["message"])
 }
 
@@ -486,6 +481,6 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_ServiceError() {
 	suite.Equal(http.StatusUnprocessableEntity, w.Code)
 
 	var resp map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &resp))
 	suite.Equal("liability accounts can only be merged into other liability accounts", resp["message"])
 }

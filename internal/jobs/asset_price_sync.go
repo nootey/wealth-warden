@@ -2,8 +2,8 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/riverqueue/river"
 	"sync"
 	"time"
 	"wealth-warden/internal/jobqueue"
@@ -11,6 +11,7 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/finance"
 
+	"github.com/riverqueue/river"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -73,7 +74,6 @@ func NewAssetPriceSyncJob(
 }
 
 func (j *AssetPriceSyncJob) Run(ctx context.Context) error {
-
 	assets, err := j.getAssetsToUpdate(ctx)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (j *AssetPriceSyncJob) Run(ctx context.Context) error {
 
 	if len(priceData) == 0 {
 		j.logger.Warn("No prices fetched successfully")
-		return fmt.Errorf("no prices fetched")
+		return errors.New("no prices fetched")
 	}
 
 	updatedCount, err := j.updateAssetsAndTrades(ctx, priceData)
@@ -175,7 +175,6 @@ func (j *AssetPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]models.Ass
 }
 
 func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []models.AssetPriceSyncRow) (map[string]*finance.PriceData, error) {
-
 	priceData := make(map[string]*finance.PriceData)
 	start := time.Now()
 

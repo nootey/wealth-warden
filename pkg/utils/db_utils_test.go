@@ -209,7 +209,7 @@ func TestApplyFilters(t *testing.T) {
 
 		// Count how many filters target the same field
 		sameFieldCount := 0
-		for i := 0; i < len(filters); i++ {
+		for i := range filters {
 			for j := i + 1; j < len(filters); j++ {
 				if filters[i].Field == filters[j].Field &&
 					filters[i].Source == filters[j].Source &&
@@ -219,7 +219,7 @@ func TestApplyFilters(t *testing.T) {
 			}
 		}
 
-		assert.Greater(t, sameFieldCount, 0, "should have multiple equals on same field")
+		assert.Positive(t, sameFieldCount, "should have multiple equals on same field")
 	})
 
 	t.Run("multiple filters", func(t *testing.T) {

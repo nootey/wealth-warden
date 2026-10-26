@@ -73,7 +73,6 @@ func (s *SettingsService) FetchUserSettings(ctx context.Context, userID int64) (
 }
 
 func (s *SettingsService) FetchAvailableTimezones(ctx context.Context) ([]models.TimezoneInfo, error) {
-
 	var timezones []models.TimezoneInfo
 
 	// Get all IANA timezone identifiers
@@ -84,7 +83,6 @@ func (s *SettingsService) FetchAvailableTimezones(ctx context.Context) ([]models
 	for _, tzName := range tzNames {
 		loc, err := time.LoadLocation(tzName)
 		if err != nil {
-			fmt.Printf("settings_service: Loading timezone %s failed: %v", tzName, err)
 			continue
 		}
 
@@ -134,7 +132,6 @@ func (s *SettingsService) FetchAvailableCurrencies(ctx context.Context) ([]model
 }
 
 func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -219,7 +216,6 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 }
 
 func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error {
-
 	var hashedPassword string
 	if req.Password != nil && *req.Password != "" {
 		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {

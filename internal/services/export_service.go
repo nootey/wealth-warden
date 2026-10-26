@@ -201,7 +201,6 @@ func buildRuleConditionExportTree(conditions []models.RuleCondition, parentID *i
 }
 
 func (s *ExportService) buildTxnAndTransfersExportJSON(txns []models.Transaction, transfers []models.Transfer) ([]byte, error) {
-
 	type bundle struct {
 		GeneratedAt  time.Time        `json:"generated_at"`
 		Transactions []models.JSONTxn `json:"transactions"`
@@ -268,7 +267,6 @@ func (s *ExportService) buildTxnAndTransfersExportJSON(txns []models.Transaction
 }
 
 func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models.Export, error) {
-
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
 		return nil, err
@@ -283,7 +281,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	localTime := now.In(loc)
 
 	export := &models.Export{
-		Name:       fmt.Sprintf("Export %s", localTime.Format("2006-01-02 15:04:05")),
+		Name:       "Export " + localTime.Format("2006-01-02 15:04:05"),
 		UserID:     userID,
 		ExportType: "custom",
 		Status:     "pending",
@@ -315,7 +313,6 @@ func (s *ExportService) failExport(ctx context.Context, exportID int64, cause er
 }
 
 func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) error {
-
 	export, err := s.FetchExportByID(ctx, nil, exportID, userID)
 	if err != nil {
 		return err
@@ -434,12 +431,12 @@ func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) e
 	changes := utils.InitChanges()
 	utils.CompareChanges("", export.Name, changes, "export_name")
 	utils.CompareChanges("", export.Currency, changes, "currency")
-	utils.CompareChanges("", fmt.Sprintf("%d", fileSize), changes, "file_size")
-	utils.CompareChanges("", fmt.Sprintf("%d", len(accs)), changes, "accounts_count")
-	utils.CompareChanges("", fmt.Sprintf("%d", len(categories)), changes, "categories_count")
-	utils.CompareChanges("", fmt.Sprintf("%d", len(txns)), changes, "transactions_count")
-	utils.CompareChanges("", fmt.Sprintf("%d", len(transfers)), changes, "transfers_count")
-	utils.CompareChanges("", fmt.Sprintf("%d", len(rules)), changes, "rules_count")
+	utils.CompareChanges("", strconv.FormatInt(fileSize, 10), changes, "file_size")
+	utils.CompareChanges("", strconv.Itoa(len(accs)), changes, "accounts_count")
+	utils.CompareChanges("", strconv.Itoa(len(categories)), changes, "categories_count")
+	utils.CompareChanges("", strconv.Itoa(len(txns)), changes, "transactions_count")
+	utils.CompareChanges("", strconv.Itoa(len(transfers)), changes, "transfers_count")
+	utils.CompareChanges("", strconv.Itoa(len(rules)), changes, "rules_count")
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
@@ -455,17 +452,16 @@ func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) e
 }
 
 func (s *ExportService) saveExportFile(userID int64, exportName string, data []byte) (string, error) {
-
-	dir := filepath.Join("storage", "exports", fmt.Sprintf("%d", userID))
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	dir := filepath.Join("storage", "exports", strconv.FormatInt(userID, 10))
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", err
 	}
 
 	exportName = utils.NormalizeName(exportName)
-	filename := fmt.Sprintf("%s.zip", exportName)
+	filename := exportName + ".zip"
 	filePath := filepath.Join(dir, filename)
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := os.WriteFile(filePath, data, 0o600); err != nil {
 		return "", err
 	}
 
@@ -490,7 +486,6 @@ func (s *ExportService) updateExportStatus(ctx context.Context, exportID int64, 
 }
 
 func (s *ExportService) DownloadExport(ctx context.Context, id, userID int64) ([]byte, error) {
-
 	export, err := s.FetchExportByID(ctx, nil, id, userID)
 	if err != nil {
 		return nil, err
@@ -514,7 +509,6 @@ func (s *ExportService) DownloadExport(ctx context.Context, id, userID int64) ([
 }
 
 func (s *ExportService) DeleteExport(ctx context.Context, userID, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -542,7 +536,7 @@ func (s *ExportService) DeleteExport(ctx context.Context, userID, id int64) erro
 	exportName := utils.NormalizeName(ex.Name)
 
 	// Delete import files
-	finalPath := filepath.Join("storage", "exports", fmt.Sprintf("%d", userID), exportName+".zip")
+	finalPath := filepath.Join("storage", "exports", strconv.FormatInt(userID, 10), exportName+".zip")
 	tmpPath := finalPath + ".tmp"
 	for _, p := range []string{tmpPath, finalPath} {
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {

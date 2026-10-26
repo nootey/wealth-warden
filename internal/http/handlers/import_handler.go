@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -53,7 +52,6 @@ func (h *ImportHandler) Routes(apiGroup *gin.RouterGroup) {
 }
 
 func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -69,7 +67,6 @@ func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 }
 
 func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -132,7 +129,6 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	step := strings.ToLower(strings.TrimSpace(c.Query("step")))
 
@@ -194,7 +190,7 @@ func (h *ImportHandler) parseBankForm(c *gin.Context) (bankName string, payload 
 	for _, fh := range headers {
 		f, err := fh.Open()
 		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, fmt.Sprintf("%s could not be opened", fh.Filename), err))
+			_ = c.Error(apperr.Wrap(apperr.Invalid, fh.Filename+" could not be opened", err))
 			return "", payload, false
 		}
 		defer func(f multipart.File) {
@@ -219,7 +215,6 @@ func (h *ImportHandler) parseBankForm(c *gin.Context) (bankName string, payload 
 }
 
 func (h *ImportHandler) ParseBankStatement(c *gin.Context) {
-
 	bankName, payload, ok := h.parseBankForm(c)
 	if !ok {
 		return
@@ -286,7 +281,6 @@ func (h *ImportHandler) CheckBankDuplicates(c *gin.Context) {
 }
 
 func (h *ImportHandler) ImportAccounts(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -349,7 +343,6 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 }
 
 func (h *ImportHandler) ImportCategories(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -400,7 +393,6 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 }
 
 func (h *ImportHandler) ImportRules(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -451,7 +443,6 @@ func (h *ImportHandler) ImportRules(c *gin.Context) {
 }
 
 func (h *ImportHandler) ImportTransactions(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -524,7 +515,6 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 }
 
 func (h *ImportHandler) ImportBankTransactions(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -575,7 +565,6 @@ func (h *ImportHandler) ImportBankTransactions(c *gin.Context) {
 }
 
 func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -602,7 +591,6 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -629,7 +617,6 @@ func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -656,7 +643,6 @@ func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) DeleteImport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -675,7 +661,6 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) TransferInvestmentTrades(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 

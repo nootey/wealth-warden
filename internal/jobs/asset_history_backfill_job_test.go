@@ -91,7 +91,7 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 		Where("ticker = ?", "BTC-USD").
 		Count(&countBefore).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), countBefore, "no price history should exist before backfill")
+	s.Equal(int64(0), countBefore, "no price history should exist before backfill")
 
 	// Run the backfill job
 	logger := zaptest.NewLogger(s.T())
@@ -115,7 +115,7 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 		Where("ticker = ?", "BTC-USD").
 		Count(&countAfter).Error
 	s.Require().NoError(err)
-	s.Assert().Greater(countAfter, int64(0), "price history should be populated after backfill")
+	s.Positive(countAfter, "price history should be populated after backfill")
 
 	// Verify all prices are valid
 	var priceHistory []models.TickerPriceHistory
@@ -126,12 +126,12 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 	s.Require().NoError(err)
 
 	for _, ph := range priceHistory {
-		s.Assert().True(ph.Price.GreaterThan(decimal.Zero),
+		s.True(ph.Price.GreaterThan(decimal.Zero),
 			"price on %s should be > 0, got %s", ph.AsOf.Format("2006-01-02"), ph.Price.String())
 		// Verify no weekend entries
-		s.Assert().NotEqual(time.Saturday, ph.AsOf.Weekday(),
+		s.NotEqual(time.Saturday, ph.AsOf.Weekday(),
 			"should not have price history for Saturday")
-		s.Assert().NotEqual(time.Sunday, ph.AsOf.Weekday(),
+		s.NotEqual(time.Sunday, ph.AsOf.Weekday(),
 			"should not have price history for Sunday")
 	}
 }
@@ -229,6 +229,6 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 		Count(&countAfterSecond).Error
 	s.Require().NoError(err)
 
-	s.Assert().Equal(countAfterFirst, countAfterSecond,
+	s.Equal(countAfterFirst, countAfterSecond,
 		"running backfill twice should not create duplicate records")
 }

@@ -55,7 +55,6 @@ func (h *InvestmentHandler) Routes(ap *gin.RouterGroup) {
 }
 
 func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -92,7 +91,6 @@ func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) GetAllInvestmentAssets(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -102,11 +100,9 @@ func (h *InvestmentHandler) GetAllInvestmentAssets(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *InvestmentHandler) GetInvestmentAssetByID(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -126,7 +122,6 @@ func (h *InvestmentHandler) GetInvestmentAssetByID(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) GetInvestmentTradesPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -163,7 +158,6 @@ func (h *InvestmentHandler) GetInvestmentTradesPaginated(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) GetInvestmentTradeByID(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -183,7 +177,6 @@ func (h *InvestmentHandler) GetInvestmentTradeByID(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) InsertInvestmentAsset(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -209,7 +202,6 @@ func (h *InvestmentHandler) InsertInvestmentAsset(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) InsertInvestmentTrade(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -235,7 +227,6 @@ func (h *InvestmentHandler) InsertInvestmentTrade(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) UpdateInvestmentAsset(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -267,7 +258,6 @@ func (h *InvestmentHandler) UpdateInvestmentAsset(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) UpdateInvestmentTrade(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -299,7 +289,6 @@ func (h *InvestmentHandler) UpdateInvestmentTrade(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) DeleteInvestmentAsset(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -318,7 +307,6 @@ func (h *InvestmentHandler) DeleteInvestmentAsset(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 

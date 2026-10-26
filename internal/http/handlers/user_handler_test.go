@@ -28,7 +28,6 @@ type UserHandlerTestSuite struct {
 }
 
 func (suite *UserHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockUserServiceInterface(suite.T())
@@ -68,7 +67,7 @@ func (suite *UserHandlerTestSuite) TestGetUserById_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("User not found", response["message"])
 }
 
@@ -86,7 +85,7 @@ func (suite *UserHandlerTestSuite) TestGetUserById_UnclassifiedErrorDoesNotLeak(
 	suite.NotContains(w.Body.String(), "relation")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -102,7 +101,7 @@ func (suite *UserHandlerTestSuite) TestGetUserByToken_Unauthorized() {
 	suite.Equal(http.StatusUnauthorized, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("This link is no longer valid", response["message"])
 }
 
@@ -126,7 +125,7 @@ func (suite *UserHandlerTestSuite) TestUpdateUser_UnknownRoleIsValidationError()
 	suite.Equal(http.StatusUnprocessableEntity, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("The selected role does not exist", response["message"])
 }
 

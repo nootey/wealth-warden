@@ -16,8 +16,8 @@ func daysAgo(n int) time.Time { return taxToday.AddDate(0, 0, -n) }
 
 func df(v float64) decimal.Decimal { return decimal.NewFromFloat(v) }
 
-func bracket(min int, taxPct float64) models.InvestmentTaxBracket {
-	return models.InvestmentTaxBracket{MinDaysHeld: min, TaxablePercent: df(taxPct)}
+func bracket(minDays int, taxPct float64) models.InvestmentTaxBracket {
+	return models.InvestmentTaxBracket{MinDaysHeld: minDays, TaxablePercent: df(taxPct)}
 }
 
 func buyTrade(id int64, daysHeld int, qty, valueAtBuy, fee, profitLoss float64) models.InvestmentTrade {

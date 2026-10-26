@@ -103,6 +103,6 @@ func (s *RiverClientIntegrationSuite) TestRebuildJobsLandOnTheRebuildQueue() {
 			Select("queue").
 			Where("kind = ?", args.Kind()).
 			Scan(&gotQueue).Error)
-		s.Assert().Equal(jobqueue.QueueRebuild, gotQueue, "%s landed on the wrong queue", args.Kind())
+		s.Equal(jobqueue.QueueRebuild, gotQueue, "%s landed on the wrong queue", args.Kind())
 	}
 }

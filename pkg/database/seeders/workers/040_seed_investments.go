@@ -22,7 +22,7 @@ func SeedInvestments(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Asset creation and trades need live prices and exchange rates
-	priceClient, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	priceClient, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL, zap.NewNop())
 	if err != nil {
 		return fmt.Errorf("investment seeder requires the finance API: %w", err)
 	}
@@ -105,7 +105,7 @@ func seedTradesForAsset(
 
 	soldOnce := false
 
-	for i := 0; i < numTrades; i++ {
+	for i := range numTrades {
 		daysAgo := daysSpan - i*step - rng.Intn(step)
 		date := today.AddDate(0, 0, -daysAgo)
 

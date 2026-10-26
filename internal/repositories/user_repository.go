@@ -54,7 +54,6 @@ func (r *UserRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 }
 
 func (r *UserRepository) GetAllActiveUserIDs(ctx context.Context, tx *gorm.DB) ([]int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -71,7 +70,6 @@ func (r *UserRepository) GetAllActiveUserIDs(ctx context.Context, tx *gorm.DB) (
 }
 
 func (r *UserRepository) FindUsers(ctx context.Context, tx *gorm.DB, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool) ([]models.User, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -110,7 +108,6 @@ func (r *UserRepository) FindUsers(ctx context.Context, tx *gorm.DB, offset, lim
 }
 
 func (r *UserRepository) CountUsers(ctx context.Context, tx *gorm.DB, filters []utils.Filter, includeDeleted bool) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -142,7 +139,6 @@ func (r *UserRepository) CountUsers(ctx context.Context, tx *gorm.DB, filters []
 }
 
 func (r *UserRepository) FindInvitations(ctx context.Context, tx *gorm.DB, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Invitation, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -175,7 +171,6 @@ func (r *UserRepository) FindInvitations(ctx context.Context, tx *gorm.DB, offse
 }
 
 func (r *UserRepository) CountInvitations(ctx context.Context, tx *gorm.DB, filters []utils.Filter) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -201,7 +196,6 @@ func (r *UserRepository) CountInvitations(ctx context.Context, tx *gorm.DB, filt
 }
 
 func (r *UserRepository) GetPasswordByEmail(ctx context.Context, tx *gorm.DB, email string) (string, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -217,7 +211,6 @@ func (r *UserRepository) GetPasswordByEmail(ctx context.Context, tx *gorm.DB, em
 }
 
 func (r *UserRepository) FindUserByID(ctx context.Context, tx *gorm.DB, id int64) (*models.User, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -236,7 +229,6 @@ func (r *UserRepository) FindUserByID(ctx context.Context, tx *gorm.DB, id int64
 }
 
 func (r *UserRepository) FindUserByEmail(ctx context.Context, tx *gorm.DB, email string) (*models.User, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -255,7 +247,6 @@ func (r *UserRepository) FindUserByEmail(ctx context.Context, tx *gorm.DB, email
 }
 
 func (r *UserRepository) FindInvitationByID(ctx context.Context, tx *gorm.DB, id int64) (*models.Invitation, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -271,7 +262,6 @@ func (r *UserRepository) FindInvitationByID(ctx context.Context, tx *gorm.DB, id
 }
 
 func (r *UserRepository) FindUserInvitationByHash(ctx context.Context, tx *gorm.DB, hash string) (*models.Invitation, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -287,7 +277,6 @@ func (r *UserRepository) FindUserInvitationByHash(ctx context.Context, tx *gorm.
 }
 
 func (r *UserRepository) FindTokenByValue(ctx context.Context, tx *gorm.DB, tokenType, tokenValue string) (*models.Token, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -304,7 +293,6 @@ func (r *UserRepository) FindTokenByValue(ctx context.Context, tx *gorm.DB, toke
 }
 
 func (r *UserRepository) FindTokenByData(ctx context.Context, tx *gorm.DB, tokenType string, dataIndex string, dataValue interface{}) (*models.Token, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -323,7 +311,6 @@ func (r *UserRepository) FindTokenByData(ctx context.Context, tx *gorm.DB, token
 }
 
 func (r *UserRepository) GetAllUsers(ctx context.Context, tx *gorm.DB) ([]models.User, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -340,7 +327,6 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, tx *gorm.DB) ([]models
 }
 
 func (r *UserRepository) InsertInvitation(ctx context.Context, tx *gorm.DB, record *models.Invitation) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -354,7 +340,6 @@ func (r *UserRepository) InsertInvitation(ctx context.Context, tx *gorm.DB, reco
 }
 
 func (r *UserRepository) InsertToken(ctx context.Context, tx *gorm.DB, tokenType string, dataIndex string, dataValue interface{}) (*models.Token, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -381,7 +366,6 @@ func (r *UserRepository) InsertToken(ctx context.Context, tx *gorm.DB, tokenType
 }
 
 func (r *UserRepository) InsertUser(ctx context.Context, tx *gorm.DB, record *models.User) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -405,11 +389,9 @@ func (r *UserRepository) InsertUserSettings(ctx context.Context, tx *gorm.DB, us
 		return 0, err
 	}
 	return userID, nil
-
 }
 
 func (r *UserRepository) UpdateUser(ctx context.Context, tx *gorm.DB, record models.User) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -437,7 +419,6 @@ func (r *UserRepository) UpdateUser(ctx context.Context, tx *gorm.DB, record mod
 }
 
 func (r *UserRepository) ValidateUser(ctx context.Context, tx *gorm.DB, userID int64) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -474,7 +455,6 @@ func (r *UserRepository) MarkSetupComplete(ctx context.Context, tx *gorm.DB, use
 }
 
 func (r *UserRepository) UpdateUserPassword(ctx context.Context, tx *gorm.DB, id int64, password string) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -493,7 +473,6 @@ func (r *UserRepository) UpdateUserPassword(ctx context.Context, tx *gorm.DB, id
 }
 
 func (r *UserRepository) DeleteUser(ctx context.Context, tx *gorm.DB, id int64, newEmail string) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -515,7 +494,6 @@ func (r *UserRepository) DeleteUser(ctx context.Context, tx *gorm.DB, id int64, 
 }
 
 func (r *UserRepository) DeleteInvitation(ctx context.Context, tx *gorm.DB, id int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -527,7 +505,6 @@ func (r *UserRepository) DeleteInvitation(ctx context.Context, tx *gorm.DB, id i
 }
 
 func (r *UserRepository) DeleteTokenByData(ctx context.Context, tx *gorm.DB, tokenType, dataIndex string, dataValue interface{}) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -540,7 +517,6 @@ func (r *UserRepository) DeleteTokenByData(ctx context.Context, tx *gorm.DB, tok
 }
 
 func (r *UserRepository) SearchUsersByEmail(ctx context.Context, tx *gorm.DB, q string, limit int) ([]models.UserLookup, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db

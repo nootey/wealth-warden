@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 	"wealth-warden/internal/jobqueue"
@@ -75,7 +76,7 @@ func (w *RecalculateAssetPnLWorker) resolveScope(ctx context.Context, args jobqu
 		return assetIDs, ws.AssetPnLPayload{AccountID: args.AccountID}, nil
 
 	default:
-		return nil, ws.AssetPnLPayload{}, fmt.Errorf("recalculate asset PnL: neither AssetID nor AccountID provided")
+		return nil, ws.AssetPnLPayload{}, errors.New("recalculate asset PnL: neither AssetID nor AccountID provided")
 	}
 }
 

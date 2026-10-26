@@ -4,7 +4,6 @@ package services_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 	"wealth-warden/internal/config"
@@ -28,7 +27,7 @@ func TestIntegrationSessionsServiceSuite(t *testing.T) {
 func (s *SessionsServiceTestSuite) loginSuperAdmin() *models.User {
 	cfg, err := config.LoadConfig(nil)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load configuration: %s", err.Error()))
+		panic("Failed to load configuration: " + err.Error())
 	}
 
 	user, err := s.TC.App.AuthService.ValidateLogin(
@@ -85,7 +84,7 @@ func (s *SessionsServiceTestSuite) TestDeleteUser_EndsAllSessions() {
 	s.Require().NoError(s.TC.App.UserService.DeleteUser(s.Ctx, admin.ID, user.ID))
 
 	_, err = store.Validate(s.Ctx, first)
-	s.ErrorIs(err, sessions.ErrNotFound)
+	s.Require().ErrorIs(err, sessions.ErrNotFound)
 	_, err = store.Validate(s.Ctx, second)
 	s.ErrorIs(err, sessions.ErrNotFound)
 }
@@ -113,7 +112,7 @@ func (s *SessionsServiceTestSuite) TestUpdateUser_PasswordChangeEndsAllSessions(
 
 	update(nil)
 	_, err = store.Validate(s.Ctx, session)
-	s.NoError(err, "an update without a password must keep the session")
+	s.Require().NoError(err, "an update without a password must keep the session")
 
 	newPassword := "SecurePassword123!"
 	update(&newPassword)
@@ -150,7 +149,7 @@ func (s *SessionsServiceTestSuite) TestRevokeSession_CannotRevokeCurrent() {
 	handle := list[0].ID
 
 	err = s.TC.App.SessionsService.RevokeSession(s.Ctx, user.ID, current, handle)
-	s.ErrorIs(err, services.ErrCannotRevokeCurrentSession)
+	s.Require().ErrorIs(err, services.ErrCannotRevokeCurrentSession)
 
 	_, err = store.Validate(s.Ctx, current)
 	s.NoError(err, "current session must survive the rejected revoke")
@@ -181,7 +180,7 @@ func (s *SessionsServiceTestSuite) TestRevokeSession_RemovesOtherSession() {
 	s.Require().NoError(err)
 
 	_, err = store.Validate(s.Ctx, other)
-	s.ErrorIs(err, sessions.ErrNotFound)
+	s.Require().ErrorIs(err, sessions.ErrNotFound)
 
 	_, err = store.Validate(s.Ctx, current)
 	s.NoError(err, "current session must be unaffected")
@@ -211,7 +210,7 @@ func (s *SessionsServiceTestSuite) TestRevokeAllSessions_RemovesEverySession() {
 	s.Require().NoError(err)
 
 	_, err = store.Validate(s.Ctx, current)
-	s.ErrorIs(err, sessions.ErrNotFound)
+	s.Require().ErrorIs(err, sessions.ErrNotFound)
 	_, err = store.Validate(s.Ctx, other)
 	s.ErrorIs(err, sessions.ErrNotFound)
 }

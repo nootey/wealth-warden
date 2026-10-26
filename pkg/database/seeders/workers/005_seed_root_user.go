@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 	"wealth-warden/internal/config"
@@ -11,7 +12,6 @@ import (
 )
 
 func SeedRootUser(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
-
 	email := cfg.Seed.SuperAdminEmail
 
 	// Hash the Super Admin password.
@@ -27,7 +27,7 @@ func SeedRootUser(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		return fmt.Errorf("failed to fetch global role super-admin: %w", err)
 	}
 	if globalRoleID == 0 {
-		return fmt.Errorf("global role 'super-admin' does not exist, please seed roles first")
+		return errors.New("global role 'super-admin' does not exist, please seed roles first")
 	}
 
 	// Check if the Super Admin user already exists.

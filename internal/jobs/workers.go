@@ -18,7 +18,7 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 	concurrentWorkers := c.Config.Scheduler.ConcurrentWorkers
 
 	priceLogger := logger.Named(jobqueue.TypeAssetPriceSync)
-	priceClient, err := finance.NewPriceFetchClient(c.Config.FinanceAPIBaseURL)
+	priceClient, err := finance.NewPriceFetchClient(c.Config.FinanceAPIBaseURL, priceLogger)
 	if err != nil {
 		priceLogger.Warn("Failed to create price fetch client", zap.Error(err))
 	}

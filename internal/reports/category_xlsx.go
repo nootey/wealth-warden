@@ -52,7 +52,7 @@ func BuildCategoryXLSX(rows []models.CategoryReportDataRow, params models.Catego
 	}
 
 	for _, year := range years {
-		name := fmt.Sprintf("%d", year)
+		name := strconv.Itoa(year)
 		if _, err := f.NewSheet(name); err != nil {
 			return nil, err
 		}
@@ -140,13 +140,13 @@ func writeSummarySheet(f *excelize.File, sheet string, styles xlsxStyles, rows [
 		}
 		calAvg := eff.Div(decimal.NewFromInt(int64(utils.CalendarMonths(year))))
 		cur = xlsxDataRow(f, sheet, cur, []string{
-			fmt.Sprintf("%d", year),
+			strconv.Itoa(year),
 			yt.primary.StringFixed(2),
 			yt.secondary.StringFixed(2),
 			eff.StringFixed(2),
 			activeAvg.StringFixed(2),
 			calAvg.StringFixed(2),
-			fmt.Sprintf("%d", activeMonths),
+			strconv.Itoa(activeMonths),
 		}, 1, styles)
 	}
 
@@ -415,10 +415,10 @@ func writeYearSheet(f *excelize.File, sheet string, styles xlsxStyles, year int,
 		{"Total Primary", totalPrimary.StringFixed(2)},
 		{"Total Secondary", totalSecondary.StringFixed(2)},
 		{"Total Effective", totalEff.StringFixed(2)},
-		{"Total Transactions", fmt.Sprintf("%d", totalTxnCount)},
+		{"Total Transactions", strconv.Itoa(totalTxnCount)},
 		{"Avg Transactions / Active Month", fmt.Sprintf("%.1f", avgTxnPerMonth)},
-		{"Active Months", fmt.Sprintf("%d", len(months))},
-		{"Calendar Months", fmt.Sprintf("%d", calM)},
+		{"Active Months", strconv.Itoa(len(months))},
+		{"Calendar Months", strconv.Itoa(calM)},
 	} {
 		cur = xlsxDataRow(f, sheet, cur, sr, 1, styles)
 	}
@@ -627,9 +627,9 @@ func writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows [
 		{"Median Year (Effective)", medianDecimal(effSlice).StringFixed(2)},
 		{"Avg Annual Effective", avgEff.StringFixed(2)},
 		{"Annual Trend", fmt.Sprintf("%s per year (%s)", utils.SignedFixed(slope), utils.TrendDirection(slope))},
-		{"Total Transactions", fmt.Sprintf("%d", totalTxnCount)},
+		{"Total Transactions", strconv.Itoa(totalTxnCount)},
 		{"Avg Transactions / Year", fmt.Sprintf("%.1f", avgTxnPerYear)},
-		{"Years Covered", fmt.Sprintf("%d", len(years))},
+		{"Years Covered", strconv.Itoa(len(years))},
 	} {
 		cur = xlsxDataRow(f, sheet, cur, sr, 1, styles)
 	}
@@ -711,7 +711,7 @@ func addYearCharts(
 		_ = f.AddChart(sheet, a3, makeChart("Secondary per Month", "Secondary", ref(secondarySumRow)))
 	} else {
 		a1, _ := excelize.CoordinatesToCellName(chartCol, statsStartRow)
-		title := fmt.Sprintf("%s per Month", primaryLabel)
+		title := primaryLabel + " per Month"
 		_ = f.AddChart(sheet, a1, makeChart(title, primaryLabel, ref(primarySumRow)))
 	}
 }
@@ -745,7 +745,7 @@ func addAllTimeChart(
 			ShowVal: true,
 		},
 
-		Title: excelize.ChartTitle{Paragraph: []excelize.RichTextRun{{Text: fmt.Sprintf("%s per Year", primaryLabel)}}},
+		Title: excelize.ChartTitle{Paragraph: []excelize.RichTextRun{{Text: primaryLabel + " per Year"}}},
 		Series: []excelize.ChartSeries{{
 			Name:       primaryLabel,
 			Categories: catRef,

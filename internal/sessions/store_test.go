@@ -93,7 +93,7 @@ func TestValidateMaxLifetimeExceeded(t *testing.T) {
 	require.NoError(t, client.HSet(ctx, "session:"+id, "created_at", tooOld).Err())
 
 	_, err = store.Validate(ctx, id)
-	assert.ErrorIs(t, err, sessions.ErrNotFound)
+	require.ErrorIs(t, err, sessions.ErrNotFound)
 
 	assert.False(t, mr.Exists("session:"+id))
 	assert.False(t, isMember(t, mr, "user_sessions:42", id))

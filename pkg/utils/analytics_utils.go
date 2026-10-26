@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"fmt"
 	"sort"
+	"strconv"
 	"time"
 	"wealth-warden/internal/models"
 
@@ -152,7 +152,7 @@ func SplitByNecessity(rows []models.YearlyCategoryRow) models.NecessitySplit {
 func YearStrings(years []int) []string {
 	out := make([]string, len(years))
 	for i, y := range years {
-		out[i] = fmt.Sprintf("%d", y)
+		out[i] = strconv.Itoa(y)
 	}
 	return out
 }

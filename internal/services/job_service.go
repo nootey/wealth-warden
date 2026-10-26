@@ -206,27 +206,27 @@ func (s *JobService) FetchJob(ctx context.Context, id int64) (*models.RiverJobDe
 }
 
 func (s *JobService) RetryJobs(ctx context.Context, ids []int64) error {
-	return s.applyToJobs(ctx, "retry", ids, func(id int64) error {
+	return s.applyToJobs("retry", ids, func(id int64) error {
 		_, err := s.jobs.JobRetry(ctx, id)
 		return err
 	})
 }
 
 func (s *JobService) CancelJobs(ctx context.Context, ids []int64) error {
-	return s.applyToJobs(ctx, "cancel", ids, func(id int64) error {
+	return s.applyToJobs("cancel", ids, func(id int64) error {
 		_, err := s.jobs.JobCancel(ctx, id)
 		return err
 	})
 }
 
 func (s *JobService) DeleteJobs(ctx context.Context, ids []int64) error {
-	return s.applyToJobs(ctx, "delete", ids, func(id int64) error {
+	return s.applyToJobs("delete", ids, func(id int64) error {
 		_, err := s.jobs.JobDelete(ctx, id)
 		return err
 	})
 }
 
-func (s *JobService) applyToJobs(ctx context.Context, action string, ids []int64, fn func(int64) error) error {
+func (s *JobService) applyToJobs(action string, ids []int64, fn func(int64) error) error {
 	if len(ids) == 0 {
 		return apperr.New(apperr.Invalid, "no job ids provided")
 	}

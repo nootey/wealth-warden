@@ -57,7 +57,6 @@ func (h *AnalyticsHandler) bindQuery(c *gin.Context, q any) bool {
 }
 
 func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -76,7 +75,6 @@ func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetYearlyCashFlowBreakdown(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -94,7 +92,6 @@ func (h *AnalyticsHandler) GetYearlyCashFlowBreakdown(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -141,7 +138,6 @@ func (h *AnalyticsHandler) GetYearlySankeyData(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetAccountBasicStatistics(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -160,7 +156,6 @@ func (h *AnalyticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetAvailableStatsYears(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -179,7 +174,6 @@ func (h *AnalyticsHandler) GetAvailableStatsYears(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetMonthlyStats(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -206,7 +200,6 @@ func (h *AnalyticsHandler) GetMonthlyStats(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetTodayStats(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -220,7 +213,6 @@ func (h *AnalyticsHandler) GetTodayStats(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -245,7 +237,6 @@ func (h *AnalyticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetYearlyBreakdownStats(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -345,7 +336,7 @@ func (h *AnalyticsHandler) DownloadReport(c *gin.Context) {
 		return
 	}
 
-	filename := fmt.Sprintf("%s.xlsx", name)
+	filename := name + ".xlsx"
 	mime := "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 	c.Header("Content-Type", mime)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))

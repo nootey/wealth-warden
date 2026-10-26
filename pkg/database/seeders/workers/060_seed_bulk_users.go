@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -193,7 +194,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		return fmt.Errorf("failed to fetch global role member: %w", err)
 	}
 	if roleID == 0 {
-		return fmt.Errorf("global role 'member' does not exist, please seed roles first")
+		return errors.New("global role 'member' does not exist, please seed roles first")
 	}
 
 	accountTypeIDs, err := bulkAccountTypeIDs(ctx, db)
@@ -762,7 +763,7 @@ func bulkSleep(ctx context.Context, d time.Duration) {
 // the USD/EUR rate, writes it to ticker_price_history / exchange_rate_history,
 // and returns it in memory for the per-user loop. Fetches run once per seed.
 func seedBulkAssetPricePool(ctx context.Context, db *gorm.DB, cfg *config.Config, today time.Time) (map[string]*bulkAssetPrices, *bulkFX, error) {
-	priceClient, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	priceClient, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL, zap.NewNop())
 	if err != nil {
 		return nil, nil, fmt.Errorf("bulk investment seeding requires the finance API: %w", err)
 	}
@@ -843,7 +844,7 @@ func buildBulkFX(ctx context.Context, priceClient finance.PriceFetcher, invRepo 
 		}
 	}
 	if firstKnown.IsZero() {
-		return nil, fmt.Errorf("no usable USD/EUR rate history returned")
+		return nil, errors.New("no usable USD/EUR rate history returned")
 	}
 
 	one := decimal.NewFromInt(1)
@@ -1033,7 +1034,7 @@ func bulkPickAssets(rng *rand.Rand, pool []bulkAssetSeed, n int) []bulkAssetSeed
 	}
 	perm := rng.Perm(len(pool))
 	out := make([]bulkAssetSeed, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		out[i] = pool[perm[i]]
 	}
 	return out

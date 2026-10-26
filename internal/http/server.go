@@ -28,7 +28,6 @@ type HttpServer struct {
 }
 
 func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger, healthHandler http.Handler) *HttpServer {
-
 	router := NewRouter(container, logger, healthHandler)
 
 	addr := net.JoinHostPort(container.Config.Host, container.Config.HttpServer.Port)
@@ -37,8 +36,9 @@ func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger, health
 		Router: router,
 		logger: logger,
 		server: &http.Server{
-			Addr:    addr,
-			Handler: router,
+			Addr:              addr,
+			Handler:           router,
+			ReadHeaderTimeout: 10 * time.Second,
 		},
 	}
 }
@@ -79,7 +79,6 @@ func (s *HttpServer) Shutdown() error {
 }
 
 func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, healthHandler http.Handler) *gin.Engine {
-
 	var r *gin.Engine
 	if container.Config.Release {
 		gin.SetMode(gin.ReleaseMode)

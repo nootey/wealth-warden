@@ -3,7 +3,6 @@ package jobs_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 	"wealth-warden/internal/jobqueue"
@@ -128,6 +127,6 @@ func TestBalanceBackfillBatchFinishesTheBatchAndReportsFailures(t *testing.T) {
 	err := worker.Run(context.Background(), []int64{1, 2, 3, 4, 5})
 
 	require.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "1 of 5"), "error was %q", err)
+	assert.Contains(t, err.Error(), "1 of 5", "error was %q", err)
 	assert.Equal(t, []int64{1, 2, 3, 4, 5}, accountSvc.seen)
 }

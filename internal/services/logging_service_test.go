@@ -76,7 +76,7 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_ScopedToCauser() {
 	trail, _, err := svc.FetchAuditTrail(s.Ctx, "42", []string{"account"}, []string{"update"}, owner, s.pageParams(1, 10))
 	s.Require().NoError(err)
 	s.Require().Len(trail, 1, "trail should contain only the caller's own log")
-	s.Assert().Equal(owner, *trail[0].CauserID)
+	s.Equal(owner, *trail[0].CauserID)
 }
 
 // A balance log stamps its account id, so an account trail spanning both
@@ -95,7 +95,7 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_SpansCategoriesOnSubjectID
 	s.Require().Len(trail, 2, "trail should span both categories for the subject account")
 
 	categories := []string{trail[0].Category, trail[1].Category}
-	s.Assert().ElementsMatch([]string{"account", "balance"}, categories)
+	s.ElementsMatch([]string{"account", "balance"}, categories)
 }
 
 // Re-runs the realignment migration's Up block against pre-fix rows. The statements are
@@ -109,9 +109,10 @@ func (s *LoggingServiceTestSuite) TestRealignMigration_BackfillsLegacyRows() {
 		"20260721120000_realign_activity_log_categories_and_events.sql"))
 	s.Require().NoError(err)
 
-	up := string(raw)
-	up = up[strings.Index(up, "-- +goose StatementBegin")+len("-- +goose StatementBegin"):]
-	up = up[:strings.Index(up, "-- +goose StatementEnd")]
+	_, up, found := strings.Cut(string(raw), "-- +goose StatementBegin")
+	s.Require().True(found)
+	up, _, found = strings.Cut(up, "-- +goose StatementEnd")
+	s.Require().True(found)
 
 	var rootEmail string
 	s.Require().NoError(s.TC.DB.Raw("SELECT email FROM users WHERE id = 1").Scan(&rootEmail).Error)
@@ -135,15 +136,15 @@ func (s *LoggingServiceTestSuite) TestRealignMigration_BackfillsLegacyRows() {
 	s.Require().NoError(s.TC.DB.Raw(
 		`SELECT event, category FROM activity_logs ORDER BY id`).Scan(&got).Error)
 
-	s.Assert().Equal(row{"create", "investment_asset"}, got[0], "asset category renamed")
-	s.Assert().Equal(row{"restore", "account"}, got[1], "is_active true => restore")
-	s.Assert().Equal(row{"deactivate", "account"}, got[2], "is_active false => deactivate")
-	s.Assert().Equal(row{"update", "account"}, got[3], "plain account update untouched")
+	s.Equal(row{"create", "investment_asset"}, got[0], "asset category renamed")
+	s.Equal(row{"restore", "account"}, got[1], "is_active true => restore")
+	s.Equal(row{"deactivate", "account"}, got[2], "is_active false => deactivate")
+	s.Equal(row{"update", "account"}, got[3], "plain account update untouched")
 
 	var userID string
 	s.Require().NoError(s.TC.DB.Raw(
 		`SELECT metadata->'new'->>'id' FROM activity_logs WHERE category = 'user'`).Scan(&userID).Error)
-	s.Assert().Equal("1", userID, "user delete backfilled with the subject id")
+	s.Equal("1", userID, "user delete backfilled with the subject id")
 }
 
 // The trail is windowed in SQL, so the paginator must count the whole trail
@@ -153,22 +154,22 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_Paginates() {
 	svc := s.TC.App.LoggingService
 
 	owner := int64(1)
-	for i := 0; i < 7; i++ {
+	for range 7 {
 		s.insertLog("update", "account", 21, owner)
 	}
 
 	first, paginator, err := svc.FetchAuditTrail(s.Ctx, "21", []string{"account"}, []string{"update"}, owner, s.pageParams(1, 3))
 	s.Require().NoError(err)
-	s.Assert().Len(first, 3)
-	s.Assert().Equal(7, paginator.TotalRecords)
-	s.Assert().Equal(1, paginator.From)
-	s.Assert().Equal(3, paginator.To)
+	s.Len(first, 3)
+	s.Equal(7, paginator.TotalRecords)
+	s.Equal(1, paginator.From)
+	s.Equal(3, paginator.To)
 
 	last, paginator, err := svc.FetchAuditTrail(s.Ctx, "21", []string{"account"}, []string{"update"}, owner, s.pageParams(3, 3))
 	s.Require().NoError(err)
-	s.Assert().Len(last, 1, "final page holds the remainder")
-	s.Assert().Equal(7, paginator.From)
-	s.Assert().Equal(7, paginator.To)
+	s.Len(last, 1, "final page holds the remainder")
+	s.Equal(7, paginator.From)
+	s.Equal(7, paginator.To)
 }
 
 // Walking to a record only another user has touched must reveal nothing
@@ -183,5 +184,5 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_ForeignRecordReturnsEmpty(
 
 	trail, _, err := svc.FetchAuditTrail(s.Ctx, "99", []string{"account"}, []string{"update"}, owner, s.pageParams(1, 10))
 	s.Require().NoError(err)
-	s.Assert().Empty(trail, "another user's record history must not be readable")
+	s.Empty(trail, "another user's record history must not be readable")
 }

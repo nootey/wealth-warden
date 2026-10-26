@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -57,7 +58,6 @@ func (r *AnalyticsRepository) sourceView(accountID *int64) string {
 }
 
 func (r *AnalyticsRepository) FetchNetWorthSeries(ctx context.Context, tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string, accountID *int64) ([]models.ChartPoint, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -159,7 +159,6 @@ func (r *AnalyticsRepository) FetchNetWorthSeries(ctx context.Context, tx *gorm.
 }
 
 func (r *AnalyticsRepository) FetchLatestNetWorth(ctx context.Context, tx *gorm.DB, userID int64, currency string, accountID *int64) (time.Time, string, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -188,7 +187,6 @@ func (r *AnalyticsRepository) FetchLatestNetWorth(ctx context.Context, tx *gorm.
 }
 
 func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -248,7 +246,6 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 }
 
 func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year, throughMonth int) ([]models.YearlyCategoryRow, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -437,7 +434,6 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context
 }
 
 func (r *AnalyticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -482,7 +478,6 @@ func (r *AnalyticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.D
 }
 
 func (r *AnalyticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -596,7 +591,7 @@ func (r *AnalyticsRepository) GetAvailableStatsYears(ctx context.Context, tx *go
 
 	for i, entry := range result {
 		var months []int
-		args := append(monthBaseArgs, entry.Year)
+		args := append(slices.Clone(monthBaseArgs), entry.Year)
 		if err := db.Raw(monthQuery, args...).Scan(&months).Error; err != nil {
 			return nil, fmt.Errorf("querying available months for year %d: %w", entry.Year, err)
 		}

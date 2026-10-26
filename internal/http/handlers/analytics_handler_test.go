@@ -26,7 +26,6 @@ type AnalyticsHandlerTestSuite struct {
 }
 
 func (suite *AnalyticsHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockAnalyticsServiceInterface(suite.T())
@@ -66,7 +65,7 @@ func (suite *AnalyticsHandlerTestSuite) TestDownloadReport_NotReady() {
 	suite.Equal(http.StatusConflict, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("report is not ready for download", response["message"])
 }
 
@@ -78,7 +77,7 @@ func (suite *AnalyticsHandlerTestSuite) TestDownloadReport_MissingFileHidesPath(
 	suite.NotContains(w.Body.String(), "/srv/wealth-warden")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -90,7 +89,7 @@ func (suite *AnalyticsHandlerTestSuite) TestNetWorthChart_BadAccountParam() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Invalid query parameters", response["message"])
 }
 

@@ -30,7 +30,7 @@ func newRequestIDRouter() *gin.Engine {
 
 func TestRequestIDUsesTraceID(t *testing.T) {
 	traceID, err := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID: traceID,

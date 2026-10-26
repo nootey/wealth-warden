@@ -1,7 +1,7 @@
 package finance
 
 import (
-	"fmt"
+	"errors"
 	"regexp"
 	"strings"
 	"wealth-warden/internal/models"
@@ -89,7 +89,7 @@ func BuildSymbol(parts SymbolParts, investmentType models.InvestmentType) string
 func NormalizeTicker(raw string, investmentType models.InvestmentType) (string, error) {
 	value := strings.ToUpper(strings.TrimSpace(raw))
 	if value == "" {
-		return "", fmt.Errorf("ticker cannot be empty")
+		return "", errors.New("ticker cannot be empty")
 	}
 
 	if investmentType == models.InvestmentCrypto {
@@ -97,7 +97,7 @@ func NormalizeTicker(raw string, investmentType models.InvestmentType) (string, 
 	}
 
 	if !stockSymbolRegex.MatchString(value) {
-		return "", fmt.Errorf("invalid stock/ETF ticker: must look like AAPL or IWDA.AS")
+		return "", errors.New("invalid stock/ETF ticker: must look like AAPL or IWDA.AS")
 	}
 	return value, nil
 }

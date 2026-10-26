@@ -9,6 +9,7 @@ import (
 	"wealth-warden/internal/apperr"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolve(t *testing.T) {
@@ -38,6 +39,6 @@ func TestResolve(t *testing.T) {
 func TestErrorKeepsCause(t *testing.T) {
 	err := apperr.Wrap(apperr.Invalid, "bad account", sql.ErrNoRows)
 
-	assert.True(t, errors.Is(err, sql.ErrNoRows))
+	require.ErrorIs(t, err, sql.ErrNoRows)
 	assert.Contains(t, err.Error(), sql.ErrNoRows.Error())
 }

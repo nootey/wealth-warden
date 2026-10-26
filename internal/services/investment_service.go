@@ -108,7 +108,6 @@ var (
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
 
 func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountInvestmentAssets(ctx, nil, userID, p.Filters, accountID)
 	if err != nil {
 		return nil, nil, err
@@ -147,7 +146,6 @@ func (s *InvestmentService) FetchAllInvestmentAssets(ctx context.Context, userID
 }
 
 func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID int64, id int64) (*models.InvestmentAsset, error) {
-
 	record, err := s.repo.FindInvestmentAssetByID(ctx, nil, id, userID)
 	if err != nil {
 		return nil, err
@@ -178,7 +176,6 @@ func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID
 }
 
 func (s *InvestmentService) FetchInvestmentTradesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, assetID *int64) ([]models.InvestmentTrade, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountInvestmentTrades(ctx, nil, userID, p.Filters, assetID)
 	if err != nil {
 		return nil, nil, err
@@ -213,7 +210,6 @@ func (s *InvestmentService) FetchInvestmentTradesPaginated(ctx context.Context, 
 }
 
 func (s *InvestmentService) FetchInvestmentTradeByID(ctx context.Context, userID int64, id int64) (*models.InvestmentTrade, error) {
-
 	record, err := s.repo.FindInvestmentTradeByID(ctx, nil, id, userID)
 	if err != nil {
 		return nil, err
@@ -584,7 +580,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 }
 
 func (s *InvestmentService) sellProceeds(ctx context.Context, asset models.InvestmentAsset, quantitySold, salePrice, fee decimal.Decimal, investmentType models.InvestmentType, txnDate time.Time, tradeCurrency string) (decimal.Decimal, error) {
-
 	var proceeds decimal.Decimal
 	if investmentType == models.InvestmentCrypto {
 		proceeds = quantitySold.Mul(salePrice)
@@ -934,7 +929,7 @@ func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, t
 	}
 
 	if s.priceFetchClient == nil {
-		return decimal.Zero, fmt.Errorf("price fetch client not initialized")
+		return decimal.Zero, errors.New("price fetch client not initialized")
 	}
 
 	// For historical rates, check the DB cache first
@@ -991,7 +986,6 @@ func (s *InvestmentService) calculateTradeValue(req *models.InvestmentTradeReq, 
 }
 
 func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID int64, id int64, req *models.InvestmentAssetReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -1052,7 +1046,6 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 }
 
 func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID int64, id int64, req *models.InvestmentTradeReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -1204,7 +1197,6 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 
 	// Rebuild balances and snapshots from the earliest trade date
 	if !earliestTxnDate.IsZero() {
-
 		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
 			tx.Rollback()
 			return err
@@ -2106,7 +2098,6 @@ func (s *InvestmentService) BackfillIncomeExchangeRates(ctx context.Context, use
 }
 
 func (s *InvestmentService) FetchPortfolioReturns(ctx context.Context, userID int64, currency string) (*models.PortfolioReturns, error) {
-
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if currency == "" {
 		settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
@@ -2244,7 +2235,7 @@ func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID
 			continue
 		}
 
-		var investmentTypeLabels = map[models.InvestmentType]string{
+		investmentTypeLabels := map[models.InvestmentType]string{
 			models.InvestmentStock:  "Stock",
 			models.InvestmentETF:    "ETF",
 			models.InvestmentCrypto: "Crypto",

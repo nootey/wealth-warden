@@ -160,7 +160,7 @@ func (s *JobServiceTestSuite) TestFetchJobsRejectsUnknownState() {
 
 func (s *JobServiceTestSuite) TestFetchJobsPaginates() {
 	s.clearJobs()
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		s.insertJob("notification", "default", "available")
 	}
 
@@ -225,7 +225,7 @@ func (s *JobServiceTestSuite) TestListUserJobsRejectsUnregisteredKind() {
 func (s *JobServiceTestSuite) TestListUserJobsPagesOwnJobsOnly() {
 	s.clearJobs()
 	var own []int64
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		own = append(own, s.insertUserJob(jobqueue.TypeMergeCategories, "completed", 1))
 	}
 	s.insertUserJob(jobqueue.TypeMergeCategories, "completed", 2)

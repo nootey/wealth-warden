@@ -106,7 +106,7 @@ func SanitizeStruct(s interface{}) error {
 
 	v = v.Elem()
 
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		field := v.Field(i)
 
 		if !field.CanSet() {
@@ -153,7 +153,7 @@ func GenerateHttpReleaseLink(cfg *config.Config) string {
 		base += ":" + port
 	}
 
-	return fmt.Sprintf("%s/api/", base)
+	return base + "/api/"
 }
 
 func GenerateWebClientReleaseLink(cfg *config.Config, subdomain string) string {
@@ -175,7 +175,6 @@ func GenerateWebClientReleaseLink(cfg *config.Config, subdomain string) string {
 }
 
 func ValidatePasswordStrength(password string) (string, error) {
-
 	const minLength = 8
 	var (
 		hasUpper   bool
@@ -241,7 +240,7 @@ func GenerateRandomToken(length int) (string, error) {
 
 func UnwrapToken(token *models.Token, key string) (interface{}, error) {
 	if token.Data == nil {
-		return nil, fmt.Errorf("token data is nil")
+		return nil, errors.New("token data is nil")
 	}
 	val, ok := token.Data[key]
 	if !ok {

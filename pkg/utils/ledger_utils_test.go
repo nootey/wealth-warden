@@ -9,6 +9,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateAccount(t *testing.T) {
@@ -26,7 +27,7 @@ func TestValidateAccount(t *testing.T) {
 
 		err := utils.ValidateAccount(acc, "source")
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "closed")
 	})
 
@@ -35,7 +36,7 @@ func TestValidateAccount(t *testing.T) {
 
 		err := utils.ValidateAccount(acc, "destination")
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "inactive")
 	})
 
@@ -62,7 +63,7 @@ func TestValidateAccount(t *testing.T) {
 
 		err := utils.ValidateAccount(acc, "source", utils.AllowInactive)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "closed")
 	})
 

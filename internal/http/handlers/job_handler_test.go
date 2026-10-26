@@ -26,7 +26,6 @@ type JobHandlerTestSuite struct {
 }
 
 func (suite *JobHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockJobServiceInterface(suite.T())
@@ -64,7 +63,7 @@ func (suite *JobHandlerTestSuite) TestGetJob_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("job not found", response["message"])
 }
 
@@ -75,7 +74,7 @@ func (suite *JobHandlerTestSuite) TestGetJob_UnclassifiedDoesNotLeak() {
 	suite.NotContains(w.Body.String(), "river_job")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -87,7 +86,7 @@ func (suite *JobHandlerTestSuite) TestGetJob_BadID() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("id must be a valid integer", response["message"])
 }
 
@@ -104,7 +103,7 @@ func (suite *JobHandlerTestSuite) TestDeleteJobs_Running() {
 	suite.Equal(http.StatusConflict, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("job is running and cannot be changed", response["message"])
 }
 
@@ -121,7 +120,7 @@ func (suite *JobHandlerTestSuite) TestDeleteJobs_EmptyIDsReachesService() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("no job ids provided", response["message"])
 }
 

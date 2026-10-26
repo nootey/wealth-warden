@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"wealth-warden/internal/apperr"
@@ -71,7 +71,6 @@ func NewAnalyticsService(
 var _ AnalyticsServiceInterface = (*AnalyticsService)(nil)
 
 func (s *AnalyticsService) GetNetWorthSeries(ctx context.Context, userID int64, currency, rangeKey, from, to string, accountID *int64) (*models.NetWorthResponse, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -251,7 +250,6 @@ func (s *AnalyticsService) GetNetWorthSeries(ctx context.Context, userID int64, 
 }
 
 func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -348,16 +346,16 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 
 		// Get transfers and calculate categories
 		if shouldSubtractTransfers {
-
 			for _, tr := range transfersByMonth[month] {
 
 				isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
 
-				if isSavings {
+				switch {
+				case isSavings:
 					savings = savings.Add(tr.Amount)
-				} else if isInvestment {
+				case isInvestment:
 					investments = investments.Add(tr.Amount)
-				} else if isDebt {
+				case isDebt:
 					debtRepayments = debtRepayments.Add(tr.Amount)
 				}
 
@@ -399,7 +397,6 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 }
 
 func (s *AnalyticsService) GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error) {
-
 	txs, err := s.txnRepo.GetTransactionsByYearAndClass(ctx, nil, userID, year, class, accID)
 	if err != nil {
 		return nil, err
@@ -455,7 +452,6 @@ func (s *AnalyticsService) GetCategoryUsageForYear(ctx context.Context, userID i
 }
 
 func (s *AnalyticsService) GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error) {
-
 	type yearResult struct {
 		year int
 		data *models.CategoryUsageResponse
@@ -484,7 +480,7 @@ func (s *AnalyticsService) GetCategoryUsageForYears(ctx context.Context, userID 
 
 		byYear[result.year] = *result.data
 
-		var yearTotal = decimal.NewFromInt(0)
+		yearTotal := decimal.NewFromInt(0)
 		monthsWithData := make(map[int]bool)
 
 		for _, entry := range result.data.Series {
@@ -494,7 +490,7 @@ func (s *AnalyticsService) GetCategoryUsageForYears(ctx context.Context, userID 
 			}
 		}
 
-		var monthlyAvg = decimal.NewFromInt(0)
+		monthlyAvg := decimal.NewFromInt(0)
 		if yearTotal.GreaterThan(decimal.Zero) {
 			divisor := 12
 			if result.year == time.Now().Year() {
@@ -516,7 +512,7 @@ func (s *AnalyticsService) GetCategoryUsageForYears(ctx context.Context, userID 
 		return nil, err
 	}
 
-	var allTimeAvg = decimal.NewFromInt(0)
+	allTimeAvg := decimal.NewFromInt(0)
 	if allTimeMonths > 0 {
 		allTimeAvg = allTimeTotal.Div(decimal.NewFromInt(int64(allTimeMonths)))
 	}
@@ -535,7 +531,6 @@ func (s *AnalyticsService) GetCategoryUsageForYears(ctx context.Context, userID 
 }
 
 func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64, accountID *int64, year int) (*models.YearlySankeyData, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -656,7 +651,6 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 }
 
 func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID *int64, userID int64, year int) (*models.BasicAccountStats, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -871,7 +865,6 @@ func (s *AnalyticsService) GetAvailableStatsYears(ctx context.Context, accID *in
 }
 
 func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, accountID *int64, year, month int) (*models.MonthlyStats, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -933,7 +926,6 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		}
 	}
 
-	takeHome := net
 	overflow := decimal.Zero
 
 	accountIDs := make([]int64, len(checkingAccounts))
@@ -979,7 +971,7 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 	// Calculate total categorized transfers
 	categorizedTransfersTotal := savingsTotal.Add(investmentsTotal).Add(debtRepaymentTotal)
 
-	takeHome = net.Sub(categorizedTransfersTotal)
+	takeHome := net.Sub(categorizedTransfersTotal)
 
 	if takeHome.LessThan(decimal.Zero) {
 		overflow = takeHome
@@ -1138,7 +1130,6 @@ func (s *AnalyticsService) GetYearlyAverageForCategory(ctx context.Context, user
 }
 
 func (s *AnalyticsService) GetYearlyBreakdownStats(ctx context.Context, accID *int64, userID int64, year int, comparisonYear *int) (*models.YearlyBreakdownStats, error) {
-
 	currentStats, err := s.getYearStatsWithAllocations(ctx, accID, userID, year)
 	if err != nil {
 		return nil, err
@@ -1185,7 +1176,6 @@ func (s *AnalyticsService) GetYearlyBreakdownStats(ctx context.Context, accID *i
 }
 
 func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accID *int64, userID int64, year int) (*models.YearStatsWithAllocations, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -1422,7 +1412,7 @@ func (s *AnalyticsService) GenerateCategoryReport(
 	} else {
 		yearStrs := make([]string, len(params.Years))
 		for i, y := range params.Years {
-			yearStrs[i] = fmt.Sprintf("%d", y)
+			yearStrs[i] = strconv.Itoa(y)
 		}
 		name = "Category Report - " + strings.Join(yearStrs, ", ")
 	}
@@ -1484,7 +1474,6 @@ func (s *AnalyticsService) FindReportAccountScope(ctx context.Context, userID, a
 }
 
 func (s *AnalyticsService) DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error) {
-
 	report, err := s.repo.FindReportByID(ctx, nil, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1506,7 +1495,6 @@ func (s *AnalyticsService) DownloadReport(ctx context.Context, id, userID int64)
 }
 
 func (s *AnalyticsService) DeleteReport(ctx context.Context, userID, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err

@@ -61,7 +61,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Greater(txn.ID, int64(0))
+	s.Positive(txn.ID)
 
 	// Verify transaction was inserted
 	var transaction models.Transaction
@@ -69,10 +69,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 		Where("id = ? AND user_id = ?", txn.ID, userID).
 		First(&transaction).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(accID, transaction.AccountID)
-	s.Assert().Equal(models.TxnDirectionExpense, transaction.Direction)
-	s.Assert().True(amount.Equal(transaction.Amount))
-	s.Assert().Equal(desc, *transaction.Description)
+	s.Equal(accID, transaction.AccountID)
+	s.Equal(models.TxnDirectionExpense, transaction.Direction)
+	s.True(amount.Equal(transaction.Amount))
+	s.Equal(desc, *transaction.Description)
 
 	// Verify balance record exists for today
 	todayMidnight := now.UTC().Truncate(24 * time.Hour)
@@ -83,9 +83,8 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshot).Error
 	s.Require().NoError(err, "snapshot should exist for today")
-	s.Assert().Equal(userID, snapshot.UserID)
-	s.Assert().Equal(accID, snapshot.AccountID)
-
+	s.Equal(userID, snapshot.UserID)
+	s.Equal(accID, snapshot.AccountID)
 }
 
 // Tests transaction creation on a past date
@@ -128,7 +127,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_PastDate() {
 
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Greater(txn.ID, int64(0))
+	s.Positive(txn.ID)
 
 	// Verify transaction and related records were inserted
 	var transaction models.Transaction
@@ -150,16 +149,16 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_PastDate() {
 	s.Require().NoError(err)
 
 	expectedSnapshotCount := txnDaysAgo + 1
-	s.Assert().Equal(expectedSnapshotCount, len(snapshots),
+	s.Len(snapshots, expectedSnapshotCount,
 		"should have snapshot for each day from transaction date to today (inclusive)")
 
 	// Verify snapshots are consecutive days
 	for i, snapshot := range snapshots {
 		expectedDate := txnMidnight.AddDate(0, 0, i)
-		s.Assert().Equal(expectedDate, snapshot.AsOf.UTC().Truncate(24*time.Hour),
+		s.Equal(expectedDate, snapshot.AsOf.UTC().Truncate(24*time.Hour),
 			"snapshot %d should be for date %s", i, expectedDate.Format("2006-01-02"))
-		s.Assert().Equal(userID, snapshot.UserID)
-		s.Assert().Equal(accID, snapshot.AccountID)
+		s.Equal(userID, snapshot.UserID)
+		s.Equal(accID, snapshot.AccountID)
 	}
 }
 
@@ -233,7 +232,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SameDayMultiple() {
 			accID, txnMidnight, txnMidnight.AddDate(0, 0, 1)).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(3), txnCount, "should have 3 transactions for that day")
+	s.Equal(int64(3), txnCount, "should have 3 transactions for that day")
 }
 
 // Tests that transactions before opening date are rejected
@@ -272,7 +271,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BeforeOpeningDate() 
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().Error(err, "should reject transaction before opening date")
-	s.Assert().Contains(err.Error(), "cannot be before account opening date",
+	s.Contains(err.Error(), "cannot be before account opening date",
 		"error should mention opening date restriction")
 
 	// Verify no transaction was created
@@ -282,7 +281,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BeforeOpeningDate() 
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "no transaction should have been inserted")
+	s.Equal(int64(0), txnCount, "no transaction should have been inserted")
 }
 
 // Tests that future transactions are rejected
@@ -319,7 +318,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_FutureDate() {
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().Error(err, "should reject future transaction")
-	s.Assert().Contains(err.Error(), "cannot be in the future",
+	s.Contains(err.Error(), "cannot be in the future",
 		"error should mention future date restriction")
 
 	// Verify no transaction was created
@@ -329,7 +328,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_FutureDate() {
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "no transaction should have been inserted")
+	s.Equal(int64(0), txnCount, "no transaction should have been inserted")
 }
 
 // Tests that snapshot end_balance values are correctly calculated
@@ -413,7 +412,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		Where("account_id = ? AND as_of = ?", accID, openMidnight).
 		First(&snapshot1).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshot1.EndBalance),
+	s.True(initialBalance.Equal(snapshot1.EndBalance),
 		"Opening day snapshot should be %s, got %s",
 		initialBalance.String(), snapshot1.EndBalance.String())
 
@@ -424,7 +423,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		First(&snapshot2).Error
 	s.Require().NoError(err)
 	expectedAfterTxn1 := initialBalance.Add(amt1)
-	s.Assert().True(expectedAfterTxn1.Equal(snapshot2.EndBalance),
+	s.True(expectedAfterTxn1.Equal(snapshot2.EndBalance),
 		"Day -8 snapshot should be %s, got %s",
 		expectedAfterTxn1.String(), snapshot2.EndBalance.String())
 
@@ -435,7 +434,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		Where("account_id = ? AND as_of = ?", accID, day7Midnight).
 		First(&snapshot3).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedAfterTxn1.Equal(snapshot3.EndBalance),
+	s.True(expectedAfterTxn1.Equal(snapshot3.EndBalance),
 		"Day -7 snapshot (no txn) should be forward-filled to %s, got %s",
 		expectedAfterTxn1.String(), snapshot3.EndBalance.String())
 
@@ -446,7 +445,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		First(&snapshot4).Error
 	s.Require().NoError(err)
 	expectedAfterTxn2 := expectedAfterTxn1.Sub(amt2)
-	s.Assert().True(expectedAfterTxn2.Equal(snapshot4.EndBalance),
+	s.True(expectedAfterTxn2.Equal(snapshot4.EndBalance),
 		"Day -5 snapshot should be %s, got %s",
 		expectedAfterTxn2.String(), snapshot4.EndBalance.String())
 
@@ -457,7 +456,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		First(&snapshot5).Error
 	s.Require().NoError(err)
 	expectedAfterTxn3 := expectedAfterTxn2.Add(amt3)
-	s.Assert().True(expectedAfterTxn3.Equal(snapshot5.EndBalance),
+	s.True(expectedAfterTxn3.Equal(snapshot5.EndBalance),
 		"Day -2 snapshot should be %s, got %s",
 		expectedAfterTxn3.String(), snapshot5.EndBalance.String())
 
@@ -467,7 +466,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshot6).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedAfterTxn3.Equal(snapshot6.EndBalance),
+	s.True(expectedAfterTxn3.Equal(snapshot6.EndBalance),
 		"Today's snapshot should be forward-filled to %s, got %s",
 		expectedAfterTxn3.String(), snapshot6.EndBalance.String())
 }
@@ -517,7 +516,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
 	expectedAfterTxn1 := initialBalance.Sub(amt1)
-	s.Assert().True(expectedAfterTxn1.Equal(snapshotBefore.EndBalance),
+	s.True(expectedAfterTxn1.Equal(snapshotBefore.EndBalance),
 		"Before backfill: day -3 should be %s, got %s",
 		expectedAfterTxn1.String(), snapshotBefore.EndBalance.String())
 
@@ -547,7 +546,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 		First(&snapshot2).Error
 	s.Require().NoError(err)
 	expectedAfterTxn2 := initialBalance.Add(amt2)
-	s.Assert().True(expectedAfterTxn2.Equal(snapshot2.EndBalance),
+	s.True(expectedAfterTxn2.Equal(snapshot2.EndBalance),
 		"After backfill: day -7 should be %s, got %s",
 		expectedAfterTxn2.String(), snapshot2.EndBalance.String())
 
@@ -558,7 +557,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
 	expectedAfterBackfill := expectedAfterTxn2.Sub(amt1)
-	s.Assert().True(expectedAfterBackfill.Equal(snapshotAfter.EndBalance),
+	s.True(expectedAfterBackfill.Equal(snapshotAfter.EndBalance),
 		"After backfill: day -3 should be updated to %s, got %s",
 		expectedAfterBackfill.String(), snapshotAfter.EndBalance.String())
 
@@ -569,7 +568,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 		Where("account_id = ? AND as_of = ?", accID, day5Midnight).
 		First(&snapshot5).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedAfterTxn2.Equal(snapshot5.EndBalance),
+	s.True(expectedAfterTxn2.Equal(snapshot5.EndBalance),
 		"Day -5 (between transactions) should be %s, got %s",
 		expectedAfterTxn2.String(), snapshot5.EndBalance.String())
 
@@ -580,7 +579,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedAfterBackfill.Equal(snapshotToday.EndBalance),
+	s.True(expectedAfterBackfill.Equal(snapshotToday.EndBalance),
 		"Today should reflect all transactions: %s, got %s",
 		expectedAfterBackfill.String(), snapshotToday.EndBalance.String())
 }
@@ -624,7 +623,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
 	expectedBefore := initialBalance.Sub(amount)
-	s.Assert().True(expectedBefore.Equal(snapshotBefore.EndBalance),
+	s.True(expectedBefore.Equal(snapshotBefore.EndBalance),
 		"Before delete: snapshot should be %s, got %s",
 		expectedBefore.String(), snapshotBefore.EndBalance.String())
 
@@ -639,7 +638,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 		Where("id = ?", txn.ID).
 		First(&deletedTxn).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(deletedTxn.DeletedAt, "transaction should be soft-deleted")
+	s.NotNil(deletedTxn.DeletedAt, "transaction should be soft-deleted")
 
 	// Verify snapshot is back to initial balance of 10,000
 	var snapshotAfter models.BalanceSnapshot
@@ -647,7 +646,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshotAfter.EndBalance),
+	s.True(initialBalance.Equal(snapshotAfter.EndBalance),
 		"After delete: snapshot should be back to %s, got %s",
 		initialBalance.String(), snapshotAfter.EndBalance.String())
 }
@@ -731,7 +730,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
 	expectedBeforeDelete := initialBalance.Add(amt1).Sub(amt2)
-	s.Assert().True(expectedBeforeDelete.Equal(snapshotBefore.EndBalance),
+	s.True(expectedBeforeDelete.Equal(snapshotBefore.EndBalance),
 		"Before delete: day -5 should be %s, got %s",
 		expectedBeforeDelete.String(), snapshotBefore.EndBalance.String())
 
@@ -742,7 +741,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		First(&snapshot3Before).Error
 	s.Require().NoError(err)
 	expectedDay2Before := expectedBeforeDelete.Add(amt3)
-	s.Assert().True(expectedDay2Before.Equal(snapshot3Before.EndBalance),
+	s.True(expectedDay2Before.Equal(snapshot3Before.EndBalance),
 		"Before delete: day -2 should be %s, got %s",
 		expectedDay2Before.String(), snapshot3Before.EndBalance.String())
 
@@ -757,7 +756,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		Where("id = ?", txn2.ID).
 		First(&deletedTxn).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(deletedTxn.DeletedAt)
+	s.NotNil(deletedTxn.DeletedAt)
 
 	// After delete: verify day -5 snapshot is now 15,000
 	var snapshotAfter models.BalanceSnapshot
@@ -766,7 +765,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
 	expectedAfterDelete := initialBalance.Add(amt1)
-	s.Assert().True(expectedAfterDelete.Equal(snapshotAfter.EndBalance),
+	s.True(expectedAfterDelete.Equal(snapshotAfter.EndBalance),
 		"After delete: day -5 should be %s, got %s",
 		expectedAfterDelete.String(), snapshotAfter.EndBalance.String())
 
@@ -777,7 +776,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		First(&snapshot3After).Error
 	s.Require().NoError(err)
 	expectedDay2After := expectedAfterDelete.Add(amt3)
-	s.Assert().True(expectedDay2After.Equal(snapshot3After.EndBalance),
+	s.True(expectedDay2After.Equal(snapshot3After.EndBalance),
 		"After delete: day -2 should be updated to %s, got %s",
 		expectedDay2After.String(), snapshot3After.EndBalance.String())
 
@@ -787,7 +786,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDay2After.Equal(snapshotToday.EndBalance),
+	s.True(expectedDay2After.Equal(snapshotToday.EndBalance),
 		"After delete: today should be %s, got %s",
 		expectedDay2After.String(), snapshotToday.EndBalance.String())
 
@@ -797,7 +796,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		Where("account_id = ? AND as_of = ?", accID, txn1Midnight).
 		First(&snapshot1After).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedAfterDelete.Equal(snapshot1After.EndBalance),
+	s.True(expectedAfterDelete.Equal(snapshot1After.EndBalance),
 		"After delete: day -8 should remain %s, got %s",
 		expectedAfterDelete.String(), snapshot1After.EndBalance.String())
 }
@@ -880,7 +879,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
 	expectedBefore := initialBalance.Add(amt1).Sub(amt2)
-	s.Assert().True(expectedBefore.Equal(snapshotBefore.EndBalance),
+	s.True(expectedBefore.Equal(snapshotBefore.EndBalance),
 		"Before update: day -5 should be %s, got %s",
 		expectedBefore.String(), snapshotBefore.EndBalance.String())
 
@@ -891,7 +890,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		First(&snapshot3Before).Error
 	s.Require().NoError(err)
 	expectedDay2Before := expectedBefore.Add(amt3)
-	s.Assert().True(expectedDay2Before.Equal(snapshot3Before.EndBalance),
+	s.True(expectedDay2Before.Equal(snapshot3Before.EndBalance),
 		"Before update: day -2 should be %s, got %s",
 		expectedDay2Before.String(), snapshot3Before.EndBalance.String())
 
@@ -914,9 +913,9 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		Where("id = ?", txn2.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
-	s.Assert().True(newAmt2.Equal(updatedTxn.Amount),
+	s.True(newAmt2.Equal(updatedTxn.Amount),
 		"Transaction amount should be updated to %s", newAmt2.String())
-	s.Assert().Equal(newDesc2, *updatedTxn.Description)
+	s.Equal(newDesc2, *updatedTxn.Description)
 
 	// After update: day -5 snapshot should be 11,000 (15,000 - 4,000)
 	var snapshotAfter models.BalanceSnapshot
@@ -925,7 +924,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
 	expectedAfter := initialBalance.Add(amt1).Sub(newAmt2)
-	s.Assert().True(expectedAfter.Equal(snapshotAfter.EndBalance),
+	s.True(expectedAfter.Equal(snapshotAfter.EndBalance),
 		"After update: day -5 should be %s, got %s",
 		expectedAfter.String(), snapshotAfter.EndBalance.String())
 
@@ -936,7 +935,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		First(&snapshot3After).Error
 	s.Require().NoError(err)
 	expectedDay2After := expectedAfter.Add(amt3)
-	s.Assert().True(expectedDay2After.Equal(snapshot3After.EndBalance),
+	s.True(expectedDay2After.Equal(snapshot3After.EndBalance),
 		"After update: day -2 should be updated to %s, got %s",
 		expectedDay2After.String(), snapshot3After.EndBalance.String())
 
@@ -946,7 +945,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDay2After.Equal(snapshotToday.EndBalance),
+	s.True(expectedDay2After.Equal(snapshotToday.EndBalance),
 		"After update: today should be %s, got %s",
 		expectedDay2After.String(), snapshotToday.EndBalance.String())
 }
@@ -1027,7 +1026,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		First(&snapshotDay5Before).Error
 	s.Require().NoError(err)
 	expectedDay5Before := initialBalance.Add(amt1).Sub(amt2)
-	s.Assert().True(expectedDay5Before.Equal(snapshotDay5Before.EndBalance),
+	s.True(expectedDay5Before.Equal(snapshotDay5Before.EndBalance),
 		"Before update: day -5 should be %s", expectedDay5Before.String())
 
 	var snapshotDay3Before models.BalanceSnapshot
@@ -1036,7 +1035,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		First(&snapshotDay3Before).Error
 	s.Require().NoError(err)
 	expectedDay3Before := expectedDay5Before.Add(amt3)
-	s.Assert().True(expectedDay3Before.Equal(snapshotDay3Before.EndBalance),
+	s.True(expectedDay3Before.Equal(snapshotDay3Before.EndBalance),
 		"Before update: day -3 should be %s", expectedDay3Before.String())
 
 	// Move transaction 2 from day -5 to day -2 (later)
@@ -1058,7 +1057,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
 	newTxn2Midnight := newTxn2Date.UTC().Truncate(24 * time.Hour)
-	s.Assert().Equal(newTxn2Midnight, updatedTxn.TxnDate.UTC().Truncate(24*time.Hour))
+	s.Equal(newTxn2Midnight, updatedTxn.TxnDate.UTC().Truncate(24*time.Hour))
 
 	// After update: verify snapshots
 	// New timeline: 10k -> 15k (day -8) -> 15k (day -5, no txn) -> 18k (day -3, +3k) -> 16k (day -2, -2k)
@@ -1070,7 +1069,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		First(&snapshotDay5After).Error
 	s.Require().NoError(err)
 	expectedDay5After := initialBalance.Add(amt1)
-	s.Assert().True(expectedDay5After.Equal(snapshotDay5After.EndBalance),
+	s.True(expectedDay5After.Equal(snapshotDay5After.EndBalance),
 		"After update: day -5 should revert to %s, got %s",
 		expectedDay5After.String(), snapshotDay5After.EndBalance.String())
 
@@ -1081,7 +1080,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		First(&snapshotDay3After).Error
 	s.Require().NoError(err)
 	expectedDay3After := expectedDay5After.Add(amt3)
-	s.Assert().True(expectedDay3After.Equal(snapshotDay3After.EndBalance),
+	s.True(expectedDay3After.Equal(snapshotDay3After.EndBalance),
 		"After update: day -3 should be %s, got %s",
 		expectedDay3After.String(), snapshotDay3After.EndBalance.String())
 
@@ -1092,7 +1091,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		First(&snapshotDay2After).Error
 	s.Require().NoError(err)
 	expectedDay2After := expectedDay3After.Sub(amt2)
-	s.Assert().True(expectedDay2After.Equal(snapshotDay2After.EndBalance),
+	s.True(expectedDay2After.Equal(snapshotDay2After.EndBalance),
 		"After update: day -2 (new date) should be %s, got %s",
 		expectedDay2After.String(), snapshotDay2After.EndBalance.String())
 
@@ -1103,7 +1102,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDay2After.Equal(snapshotToday.EndBalance),
+	s.True(expectedDay2After.Equal(snapshotToday.EndBalance),
 		"After update: today should be %s, got %s",
 		expectedDay2After.String(), snapshotToday.EndBalance.String())
 }
@@ -1182,7 +1181,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		First(&snapshotDay5Before).Error
 	s.Require().NoError(err)
 	expectedDay5Before := initialBalance.Add(amt1).Sub(amt2)
-	s.Assert().True(expectedDay5Before.Equal(snapshotDay5Before.EndBalance),
+	s.True(expectedDay5Before.Equal(snapshotDay5Before.EndBalance),
 		"Before update: day -5 should be %s", expectedDay5Before.String())
 
 	// Move transaction 2 from day -5 to day -7 (earlier, between day -8 and day -5)
@@ -1204,7 +1203,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
 	newTxn2Midnight := newTxn2Date.UTC().Truncate(24 * time.Hour)
-	s.Assert().Equal(newTxn2Midnight, updatedTxn.TxnDate.UTC().Truncate(24*time.Hour))
+	s.Equal(newTxn2Midnight, updatedTxn.TxnDate.UTC().Truncate(24*time.Hour))
 
 	// After update: verify snapshots
 	// New timeline: 10k -> 15k (day -8) -> 13k (day -7, -2k) -> 13k (day -5, no txn) -> 16k (day -3, +3k)
@@ -1219,7 +1218,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		First(&snapshotDay8After).Error
 	s.Require().NoError(err)
 	expectedDay8After := initialBalance.Add(amt1)
-	s.Assert().True(expectedDay8After.Equal(snapshotDay8After.EndBalance),
+	s.True(expectedDay8After.Equal(snapshotDay8After.EndBalance),
 		"After update: day -8 should remain %s, got %s",
 		expectedDay8After.String(), snapshotDay8After.EndBalance.String())
 
@@ -1230,7 +1229,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		First(&snapshotDay7After).Error
 	s.Require().NoError(err)
 	expectedDay7After := expectedDay8After.Sub(amt2)
-	s.Assert().True(expectedDay7After.Equal(snapshotDay7After.EndBalance),
+	s.True(expectedDay7After.Equal(snapshotDay7After.EndBalance),
 		"After update: day -7 (new date) should be %s, got %s",
 		expectedDay7After.String(), snapshotDay7After.EndBalance.String())
 
@@ -1240,7 +1239,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotDay5After).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDay7After.Equal(snapshotDay5After.EndBalance),
+	s.True(expectedDay7After.Equal(snapshotDay5After.EndBalance),
 		"After update: day -5 should be forward-filled to %s, got %s",
 		expectedDay7After.String(), snapshotDay5After.EndBalance.String())
 
@@ -1251,7 +1250,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		First(&snapshotDay3After).Error
 	s.Require().NoError(err)
 	expectedDay3After := expectedDay7After.Add(amt3)
-	s.Assert().True(expectedDay3After.Equal(snapshotDay3After.EndBalance),
+	s.True(expectedDay3After.Equal(snapshotDay3After.EndBalance),
 		"After update: day -3 should be %s, got %s",
 		expectedDay3After.String(), snapshotDay3After.EndBalance.String())
 
@@ -1262,7 +1261,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDay3After.Equal(snapshotToday.EndBalance),
+	s.True(expectedDay3After.Equal(snapshotToday.EndBalance),
 		"After update: today should be %s, got %s",
 		expectedDay3After.String(), snapshotToday.EndBalance.String())
 }
@@ -1315,7 +1314,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
 	expectedBefore := initialBalance.Sub(amount)
-	s.Assert().True(expectedBefore.Equal(snapshotBefore.EndBalance),
+	s.True(expectedBefore.Equal(snapshotBefore.EndBalance),
 		"Before update: snapshot should be %s, got %s",
 		expectedBefore.String(), snapshotBefore.EndBalance.String())
 
@@ -1336,7 +1335,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		Where("id = ?", txn.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(models.TxnDirectionIncome, updatedTxn.Direction)
+	s.Equal(models.TxnDirectionIncome, updatedTxn.Direction)
 
 	// After update: snapshot should be 13,000 (10,000 + 3,000)
 	var snapshotAfter models.BalanceSnapshot
@@ -1345,7 +1344,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
 	expectedAfter := initialBalance.Add(amount)
-	s.Assert().True(expectedAfter.Equal(snapshotAfter.EndBalance),
+	s.True(expectedAfter.Equal(snapshotAfter.EndBalance),
 		"After update: snapshot should be %s, got %s",
 		expectedAfter.String(), snapshotAfter.EndBalance.String())
 
@@ -1356,7 +1355,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedAfter.Equal(snapshotToday.EndBalance),
+	s.True(expectedAfter.Equal(snapshotToday.EndBalance),
 		"After update: today should be %s, got %s",
 		expectedAfter.String(), snapshotToday.EndBalance.String())
 }
@@ -1408,7 +1407,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 
 	tr, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(tr.ID, int64(0))
+	s.Positive(tr.ID)
 
 	// Verify transfer was created
 	var transfer models.Transfer
@@ -1416,9 +1415,9 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		Where("id = ?", tr.ID).
 		First(&transfer).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(userID, transfer.UserID)
-	s.Assert().True(transferAmount.Equal(transfer.Amount))
-	s.Assert().Equal("success", transfer.Status)
+	s.Equal(userID, transfer.UserID)
+	s.True(transferAmount.Equal(transfer.Amount))
+	s.Equal("success", transfer.Status)
 
 	// Verify two transactions were created (outflow and inflow)
 	var outflowTxn models.Transaction
@@ -1426,18 +1425,18 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		Where("id = ? AND transaction_type = ?", transfer.TransactionOutflowID, models.TxnTypeTransfer).
 		First(&outflowTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(sourceID, outflowTxn.AccountID)
-	s.Assert().Equal(models.TxnDirectionExpense, outflowTxn.Direction)
-	s.Assert().True(transferAmount.Equal(outflowTxn.Amount))
+	s.Equal(sourceID, outflowTxn.AccountID)
+	s.Equal(models.TxnDirectionExpense, outflowTxn.Direction)
+	s.True(transferAmount.Equal(outflowTxn.Amount))
 
 	var inflowTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("id = ? AND transaction_type = ?", transfer.TransactionInflowID, models.TxnTypeTransfer).
 		First(&inflowTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(destID, inflowTxn.AccountID)
-	s.Assert().Equal(models.TxnDirectionIncome, inflowTxn.Direction)
-	s.Assert().True(transferAmount.Equal(inflowTxn.Amount))
+	s.Equal(destID, inflowTxn.AccountID)
+	s.Equal(models.TxnDirectionIncome, inflowTxn.Direction)
+	s.True(transferAmount.Equal(inflowTxn.Amount))
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
@@ -1448,7 +1447,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		First(&sourceSnapshot).Error
 	s.Require().NoError(err)
 	expectedSourceBalance := srcBalance.Sub(transferAmount)
-	s.Assert().True(expectedSourceBalance.Equal(sourceSnapshot.EndBalance),
+	s.True(expectedSourceBalance.Equal(sourceSnapshot.EndBalance),
 		"Source snapshot should be %s, got %s",
 		expectedSourceBalance.String(), sourceSnapshot.EndBalance.String())
 
@@ -1459,7 +1458,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		First(&destSnapshot).Error
 	s.Require().NoError(err)
 	expectedDestBalance := destBalance.Add(transferAmount)
-	s.Assert().True(expectedDestBalance.Equal(destSnapshot.EndBalance),
+	s.True(expectedDestBalance.Equal(destSnapshot.EndBalance),
 		"Destination snapshot should be %s, got %s",
 		expectedDestBalance.String(), destSnapshot.EndBalance.String())
 }
@@ -1518,7 +1517,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 
 	tr, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(tr.ID, int64(0))
+	s.Positive(tr.ID)
 
 	// Verify transfer was created
 	var transfer models.Transfer
@@ -1540,7 +1539,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 	s.Require().NoError(err)
 
 	expectedSnapshotCount := transferDaysAgo + 1
-	s.Assert().Equal(expectedSnapshotCount, len(sourceSnapshots),
+	s.Len(sourceSnapshots, expectedSnapshotCount,
 		"source should have %d snapshots from transfer date to today", expectedSnapshotCount)
 
 	// Verify snapshots exist for destination account from transfer date to today
@@ -1552,7 +1551,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		Find(&destSnapshots).Error
 	s.Require().NoError(err)
 
-	s.Assert().Equal(expectedSnapshotCount, len(destSnapshots),
+	s.Len(destSnapshots, expectedSnapshotCount,
 		"dest should have %d snapshots from transfer date to today", expectedSnapshotCount)
 
 	// Verify snapshot values on transfer date
@@ -1562,7 +1561,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		First(&sourceSnapshot).Error
 	s.Require().NoError(err)
 	expectedSourceBalance := srcBalance.Sub(transferAmount)
-	s.Assert().True(expectedSourceBalance.Equal(sourceSnapshot.EndBalance),
+	s.True(expectedSourceBalance.Equal(sourceSnapshot.EndBalance),
 		"source snapshot on transfer date should be %s, got %s",
 		expectedSourceBalance.String(), sourceSnapshot.EndBalance.String())
 
@@ -1572,7 +1571,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		First(&destSnapshot).Error
 	s.Require().NoError(err)
 	expectedDestBalance := destBalance.Add(transferAmount)
-	s.Assert().True(expectedDestBalance.Equal(destSnapshot.EndBalance),
+	s.True(expectedDestBalance.Equal(destSnapshot.EndBalance),
 		"dest snapshot on transfer date should be %s, got %s",
 		expectedDestBalance.String(), destSnapshot.EndBalance.String())
 
@@ -1582,7 +1581,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceTodaySnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedSourceBalance.Equal(sourceTodaySnapshot.EndBalance),
+	s.True(expectedSourceBalance.Equal(sourceTodaySnapshot.EndBalance),
 		"source snapshot today should be forward-filled to %s, got %s",
 		expectedSourceBalance.String(), sourceTodaySnapshot.EndBalance.String())
 
@@ -1591,7 +1590,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destTodaySnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDestBalance.Equal(destTodaySnapshot.EndBalance),
+	s.True(expectedDestBalance.Equal(destTodaySnapshot.EndBalance),
 		"dest snapshot today should be forward-filled to %s, got %s",
 		expectedDestBalance.String(), destTodaySnapshot.EndBalance.String())
 }
@@ -1658,7 +1657,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		First(&sourceSnapshotBefore).Error
 	s.Require().NoError(err)
 	expectedSourceBefore := srcBalance.Sub(amt1)
-	s.Assert().True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
+	s.True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
 		"Before backfill: source on day -3 should be %s", expectedSourceBefore.String())
 
 	var destSnapshotBefore models.BalanceSnapshot
@@ -1667,7 +1666,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		First(&destSnapshotBefore).Error
 	s.Require().NoError(err)
 	expectedDestBefore := destBalance.Add(amt1)
-	s.Assert().True(expectedDestBefore.Equal(destSnapshotBefore.EndBalance),
+	s.True(expectedDestBefore.Equal(destSnapshotBefore.EndBalance),
 		"Before backfill: dest on day -3 should be %s", expectedDestBefore.String())
 
 	// Insert older transfer on day -6 (6 days ago) - transfer 3,000
@@ -1701,7 +1700,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		First(&sourceSnapshot6).Error
 	s.Require().NoError(err)
 	expectedSource6 := srcBalance.Sub(amt2)
-	s.Assert().True(expectedSource6.Equal(sourceSnapshot6.EndBalance),
+	s.True(expectedSource6.Equal(sourceSnapshot6.EndBalance),
 		"After backfill: source on day -6 should be %s, got %s",
 		expectedSource6.String(), sourceSnapshot6.EndBalance.String())
 
@@ -1711,7 +1710,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		First(&destSnapshot6).Error
 	s.Require().NoError(err)
 	expectedDest6 := destBalance.Add(amt2)
-	s.Assert().True(expectedDest6.Equal(destSnapshot6.EndBalance),
+	s.True(expectedDest6.Equal(destSnapshot6.EndBalance),
 		"After backfill: dest on day -6 should be %s, got %s",
 		expectedDest6.String(), destSnapshot6.EndBalance.String())
 
@@ -1722,7 +1721,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		First(&sourceSnapshotAfter).Error
 	s.Require().NoError(err)
 	expectedSource3 := expectedSource6.Sub(amt1)
-	s.Assert().True(expectedSource3.Equal(sourceSnapshotAfter.EndBalance),
+	s.True(expectedSource3.Equal(sourceSnapshotAfter.EndBalance),
 		"After backfill: source on day -3 should be updated to %s, got %s",
 		expectedSource3.String(), sourceSnapshotAfter.EndBalance.String())
 
@@ -1732,7 +1731,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		First(&destSnapshotAfter).Error
 	s.Require().NoError(err)
 	expectedDest3 := expectedDest6.Add(amt1) // 13,000 + 5,000 = 18,000
-	s.Assert().True(expectedDest3.Equal(destSnapshotAfter.EndBalance),
+	s.True(expectedDest3.Equal(destSnapshotAfter.EndBalance),
 		"After backfill: dest on day -3 should be updated to %s, got %s",
 		expectedDest3.String(), destSnapshotAfter.EndBalance.String())
 
@@ -1744,7 +1743,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceTodaySnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedSource3.Equal(sourceTodaySnapshot.EndBalance),
+	s.True(expectedSource3.Equal(sourceTodaySnapshot.EndBalance),
 		"Today: source should be %s, got %s",
 		expectedSource3.String(), sourceTodaySnapshot.EndBalance.String())
 
@@ -1753,7 +1752,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destTodaySnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDest3.Equal(destTodaySnapshot.EndBalance),
+	s.True(expectedDest3.Equal(destTodaySnapshot.EndBalance),
 		"Today: dest should be %s, got %s",
 		expectedDest3.String(), destTodaySnapshot.EndBalance.String())
 }
@@ -1866,7 +1865,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
 		First(&snapshotA).Error
 	s.Require().NoError(err)
 	expectedBalanceA := balanceA.Sub(amt1).Sub(amt2)
-	s.Assert().True(expectedBalanceA.Equal(snapshotA.EndBalance),
+	s.True(expectedBalanceA.Equal(snapshotA.EndBalance),
 		"Account A snapshot should be %s, got %s",
 		expectedBalanceA.String(), snapshotA.EndBalance.String())
 
@@ -1876,7 +1875,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
 		First(&snapshotB).Error
 	s.Require().NoError(err)
 	expectedBalanceB := balanceB.Add(amt1).Sub(amt3)
-	s.Assert().True(expectedBalanceB.Equal(snapshotB.EndBalance),
+	s.True(expectedBalanceB.Equal(snapshotB.EndBalance),
 		"Account B snapshot should be %s, got %s",
 		expectedBalanceB.String(), snapshotB.EndBalance.String())
 
@@ -1886,10 +1885,9 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
 		First(&snapshotC).Error
 	s.Require().NoError(err)
 	expectedBalanceC := balanceC.Add(amt2).Add(amt3)
-	s.Assert().True(expectedBalanceC.Equal(snapshotC.EndBalance),
+	s.True(expectedBalanceC.Equal(snapshotC.EndBalance),
 		"Account C snapshot should be %s, got %s",
 		expectedBalanceC.String(), snapshotC.EndBalance.String())
-
 }
 
 // Tests deleting a transfer on the current date
@@ -1949,7 +1947,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		First(&sourceSnapshotBefore).Error
 	s.Require().NoError(err)
 	expectedSourceBefore := srcBalance.Sub(transferAmount)
-	s.Assert().True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
+	s.True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
 		"Before delete: source snapshot should be %s", expectedSourceBefore.String())
 
 	var destSnapshotBefore models.BalanceSnapshot
@@ -1958,7 +1956,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		First(&destSnapshotBefore).Error
 	s.Require().NoError(err)
 	expectedDestBefore := destBalance.Add(transferAmount)
-	s.Assert().True(expectedDestBefore.Equal(destSnapshotBefore.EndBalance),
+	s.True(expectedDestBefore.Equal(destSnapshotBefore.EndBalance),
 		"Before delete: dest snapshot should be %s", expectedDestBefore.String())
 
 	// Delete the transfer
@@ -1972,7 +1970,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		Where("id = ?", tr.ID).
 		First(&deletedTransfer).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(deletedTransfer.DeletedAt, "transfer should be soft-deleted")
+	s.NotNil(deletedTransfer.DeletedAt, "transfer should be soft-deleted")
 
 	// Verify both transactions are soft-deleted
 	var deletedInflow models.Transaction
@@ -1981,7 +1979,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		Where("id = ?", deletedTransfer.TransactionInflowID).
 		First(&deletedInflow).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(deletedInflow.DeletedAt, "inflow transaction should be soft-deleted")
+	s.NotNil(deletedInflow.DeletedAt, "inflow transaction should be soft-deleted")
 
 	var deletedOutflow models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -1989,7 +1987,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		Where("id = ?", deletedTransfer.TransactionOutflowID).
 		First(&deletedOutflow).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(deletedOutflow.DeletedAt, "outflow transaction should be soft-deleted")
+	s.NotNil(deletedOutflow.DeletedAt, "outflow transaction should be soft-deleted")
 
 	// After delete: verify snapshots reverted to original balances
 	var sourceSnapshotAfter models.BalanceSnapshot
@@ -1997,7 +1995,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceSnapshotAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcBalance.Equal(sourceSnapshotAfter.EndBalance),
+	s.True(srcBalance.Equal(sourceSnapshotAfter.EndBalance),
 		"After delete: source snapshot should revert to %s, got %s",
 		srcBalance.String(), sourceSnapshotAfter.EndBalance.String())
 
@@ -2006,7 +2004,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destSnapshotAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(destBalance.Equal(destSnapshotAfter.EndBalance),
+	s.True(destBalance.Equal(destSnapshotAfter.EndBalance),
 		"After delete: dest snapshot should revert to %s, got %s",
 		destBalance.String(), destSnapshotAfter.EndBalance.String())
 }
@@ -2108,7 +2106,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&sourceSnapshot5Before).Error
 	s.Require().NoError(err)
 	expectedSource5Before := srcBalance.Sub(amt1).Sub(amt2) // 100k - 10k - 5k = 85k
-	s.Assert().True(expectedSource5Before.Equal(sourceSnapshot5Before.EndBalance),
+	s.True(expectedSource5Before.Equal(sourceSnapshot5Before.EndBalance),
 		"Before delete: source day -5 should be %s", expectedSource5Before.String())
 
 	var destSnapshot5Before models.BalanceSnapshot
@@ -2117,7 +2115,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&destSnapshot5Before).Error
 	s.Require().NoError(err)
 	expectedDest5Before := destBalance.Add(amt1).Add(amt2) // 20k + 10k + 5k = 35k
-	s.Assert().True(expectedDest5Before.Equal(destSnapshot5Before.EndBalance),
+	s.True(expectedDest5Before.Equal(destSnapshot5Before.EndBalance),
 		"Before delete: dest day -5 should be %s", expectedDest5Before.String())
 
 	// Before delete: verify day -2 snapshots
@@ -2127,7 +2125,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&sourceSnapshot2Before).Error
 	s.Require().NoError(err)
 	expectedSource2Before := expectedSource5Before.Sub(amt3) // 85k - 8k = 77k
-	s.Assert().True(expectedSource2Before.Equal(sourceSnapshot2Before.EndBalance),
+	s.True(expectedSource2Before.Equal(sourceSnapshot2Before.EndBalance),
 		"Before delete: source day -2 should be %s", expectedSource2Before.String())
 
 	var destSnapshot2Before models.BalanceSnapshot
@@ -2136,7 +2134,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&destSnapshot2Before).Error
 	s.Require().NoError(err)
 	expectedDest2Before := expectedDest5Before.Add(amt3) // 35k + 8k = 43k
-	s.Assert().True(expectedDest2Before.Equal(destSnapshot2Before.EndBalance),
+	s.True(expectedDest2Before.Equal(destSnapshot2Before.EndBalance),
 		"Before delete: dest day -2 should be %s", expectedDest2Before.String())
 
 	// Delete transfer 2 (middle transfer on day -5)
@@ -2156,7 +2154,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		Where("id = ?", tr2.ID).
 		First(&deletedTransfer).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(deletedTransfer.DeletedAt)
+	s.NotNil(deletedTransfer.DeletedAt)
 
 	// After delete: verify day -5 snapshots (should be 90k/30k, no longer 85k/35k)
 	var sourceSnapshot5After models.BalanceSnapshot
@@ -2165,7 +2163,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&sourceSnapshot5After).Error
 	s.Require().NoError(err)
 	expectedSource5After := srcBalance.Sub(amt1)
-	s.Assert().True(expectedSource5After.Equal(sourceSnapshot5After.EndBalance),
+	s.True(expectedSource5After.Equal(sourceSnapshot5After.EndBalance),
 		"After delete: source day -5 should be %s, got %s",
 		expectedSource5After.String(), sourceSnapshot5After.EndBalance.String())
 
@@ -2175,7 +2173,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&destSnapshot5After).Error
 	s.Require().NoError(err)
 	expectedDest5After := destBalance.Add(amt1)
-	s.Assert().True(expectedDest5After.Equal(destSnapshot5After.EndBalance),
+	s.True(expectedDest5After.Equal(destSnapshot5After.EndBalance),
 		"After delete: dest day -5 should be %s, got %s",
 		expectedDest5After.String(), destSnapshot5After.EndBalance.String())
 
@@ -2186,7 +2184,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&sourceSnapshot2After).Error
 	s.Require().NoError(err)
 	expectedSource2After := expectedSource5After.Sub(amt3)
-	s.Assert().True(expectedSource2After.Equal(sourceSnapshot2After.EndBalance),
+	s.True(expectedSource2After.Equal(sourceSnapshot2After.EndBalance),
 		"After delete: source day -2 should be updated to %s, got %s",
 		expectedSource2After.String(), sourceSnapshot2After.EndBalance.String())
 
@@ -2196,7 +2194,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		First(&destSnapshot2After).Error
 	s.Require().NoError(err)
 	expectedDest2After := expectedDest5After.Add(amt3)
-	s.Assert().True(expectedDest2After.Equal(destSnapshot2After.EndBalance),
+	s.True(expectedDest2After.Equal(destSnapshot2After.EndBalance),
 		"After delete: dest day -2 should be updated to %s, got %s",
 		expectedDest2After.String(), destSnapshot2After.EndBalance.String())
 
@@ -2208,7 +2206,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceTodaySnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedSource2After.Equal(sourceTodaySnapshot.EndBalance),
+	s.True(expectedSource2After.Equal(sourceTodaySnapshot.EndBalance),
 		"After delete: source today should be %s, got %s",
 		expectedSource2After.String(), sourceTodaySnapshot.EndBalance.String())
 
@@ -2217,7 +2215,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destTodaySnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedDest2After.Equal(destTodaySnapshot.EndBalance),
+	s.True(expectedDest2After.Equal(destTodaySnapshot.EndBalance),
 		"After delete: dest today should be %s, got %s",
 		expectedDest2After.String(), destTodaySnapshot.EndBalance.String())
 }
@@ -2304,7 +2302,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		Where("account_id = ? AND transaction_type NOT IN ?", accID, []models.TransactionType{models.TxnTypeTrade, models.TxnTypeInvestmentIncome, models.TxnTypeOpening}).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
+	s.Equal(int64(0), txnCount, "no transaction should be created")
 
 	var balanceAfter models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -2312,7 +2310,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		First(&balanceAfter).Error
 	s.Require().NoError(err)
 	expectedBalance := initialBalance.Sub(decimal.NewFromInt(60000)) // 40k after buy
-	s.Assert().True(expectedBalance.Equal(balanceAfter.Balance),
+	s.True(expectedBalance.Equal(balanceAfter.Balance),
 		"balance should remain at %s after failed transaction", expectedBalance.String())
 }
 
@@ -2391,7 +2389,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 		Where("id = ?", income.ID).
 		First(&txn).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(50000).Equal(txn.Amount),
+	s.True(decimal.NewFromInt(50000).Equal(txn.Amount),
 		"income transaction should still exist")
 }
 
@@ -2477,7 +2475,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() 
 		Where("user_id = ?", userID).
 		Count(&transferCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), transferCount, "no transfer should be created")
+	s.Equal(int64(0), transferCount, "no transfer should be created")
 }
 
 func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() {
@@ -2565,7 +2563,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 		Where("id = ?", tr.ID).
 		First(&transfer).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(50000).Equal(transfer.Amount),
+	s.True(decimal.NewFromInt(50000).Equal(transfer.Amount),
 		"transfer should still exist")
 }
 
@@ -2648,7 +2646,7 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 		Where("id = ?", expense.ID).
 		First(&txn).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(txn.DeletedAt, "transaction should still be deleted")
+	s.NotNil(txn.DeletedAt, "transaction should still be deleted")
 }
 
 func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByGoalAllocation() {
@@ -2699,7 +2697,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByGoalAllocat
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
+	s.Equal(int64(0), txnCount, "no transaction should be created")
 }
 
 func (s *TransactionServiceTestSuite) TestInsertTransaction_CreditLimitOverridesGoalAllocation() {
@@ -2855,7 +2853,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByGoalAllocat
 		Where("id = ?", income.ID).
 		First(&txn).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(150).Equal(txn.Amount), "income transaction should still exist")
+	s.True(decimal.NewFromInt(150).Equal(txn.Amount), "income transaction should still exist")
 }
 
 func (s *TransactionServiceTestSuite) TestInsertTransaction_IdempotencyKey_DeduplicatesOnRetry() {
@@ -2886,21 +2884,21 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_IdempotencyKey_Dedup
 
 	first, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Greater(first.ID, int64(0))
-	s.Assert().False(first.IsDuplicate)
+	s.Positive(first.ID)
+	s.False(first.IsDuplicate)
 
 	// Simulate a retry with the same key
 	second, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Equal(first.ID, second.ID, "retry with same idempotency key should return the original transaction ID")
-	s.Assert().True(second.IsDuplicate)
+	s.Equal(first.ID, second.ID, "retry with same idempotency key should return the original transaction ID")
+	s.True(second.IsDuplicate)
 
 	// Confirm only one record exists with this key
 	var count int64
 	s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("idempotency_key = ? AND user_id = ?", key, userID).
 		Count(&count)
-	s.Assert().Equal(int64(1), count, "only one transaction should exist for a given idempotency key")
+	s.Equal(int64(1), count, "only one transaction should exist for a given idempotency key")
 }
 
 func (s *TransactionServiceTestSuite) TestInsertTransfer_IdempotencyKey_DeduplicatesOnRetry() {
@@ -2943,21 +2941,21 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_IdempotencyKey_Deduplic
 
 	first, err := svc.InsertTransfer(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Greater(first.ID, int64(0))
-	s.Assert().False(first.IsDuplicate)
+	s.Positive(first.ID)
+	s.False(first.IsDuplicate)
 
 	// Simulate a retry with the same key
 	second, err := svc.InsertTransfer(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Equal(first.ID, second.ID, "retry with same idempotency key should return the original transfer ID")
-	s.Assert().True(second.IsDuplicate)
+	s.Equal(first.ID, second.ID, "retry with same idempotency key should return the original transfer ID")
+	s.True(second.IsDuplicate)
 
 	// Confirm only one transfer record exists with this key
 	var transferCount int64
 	s.TC.DB.WithContext(s.Ctx).Model(&models.Transfer{}).
 		Where("idempotency_key = ? AND user_id = ?", key, userID).
 		Count(&transferCount)
-	s.Assert().Equal(int64(1), transferCount, "only one transfer should exist for a given idempotency key")
+	s.Equal(int64(1), transferCount, "only one transfer should exist for a given idempotency key")
 
 	// Confirm only two child transactions were created (not four)
 	var transfer models.Transfer
@@ -2966,7 +2964,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_IdempotencyKey_Deduplic
 	s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("id IN ?", []int64{transfer.TransactionInflowID, transfer.TransactionOutflowID}).
 		Count(&txnCount)
-	s.Assert().Equal(int64(2), txnCount, "only two child transactions should exist for the transfer")
+	s.Equal(int64(2), txnCount, "only two child transactions should exist for the transfer")
 }
 
 func (s *TransactionServiceTestSuite) assertSnapshot(accountID int64, asOf time.Time, expected decimal.Decimal, label string) {
@@ -2975,7 +2973,7 @@ func (s *TransactionServiceTestSuite) assertSnapshot(accountID int64, asOf time.
 		Where("account_id = ? AND as_of = ?", accountID, asOf.UTC().Truncate(24*time.Hour)).
 		First(&snap).Error
 	s.Require().NoError(err, "%s snapshot not found", label)
-	s.Assert().True(expected.Equal(snap.EndBalance),
+	s.True(expected.Equal(snap.EndBalance),
 		"%s snapshot: expected %s, got %s", label, expected.String(), snap.EndBalance.String())
 }
 
@@ -2985,7 +2983,7 @@ func (s *TransactionServiceTestSuite) assertBalance(accountID int64, expected de
 		Where("account_id = ?", accountID).
 		First(&bal).Error
 	s.Require().NoError(err, "%s balance row not found", label)
-	s.Assert().True(expected.Equal(bal.Balance),
+	s.True(expected.Equal(bal.Balance),
 		"%s balance: expected %s, got %s", label, expected.String(), bal.Balance.String())
 }
 
@@ -3073,7 +3071,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_AmountChange() {
 	// Transfer record should reflect the new amount
 	var updatedTransfer models.Transfer
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", tr.ID).First(&updatedTransfer).Error)
-	s.Assert().True(updated.Equal(updatedTransfer.Amount), "transfer record amount should be updated")
+	s.True(updated.Equal(updatedTransfer.Amount), "transfer record amount should be updated")
 }
 
 // TestUpdateTransfer_DateChange verifies that moving a transfer to a different date
@@ -3159,12 +3157,12 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_NotesOnly() {
 	var updatedTransfer models.Transfer
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", tr.ID).First(&updatedTransfer).Error)
 	s.Require().NotNil(updatedTransfer.Notes)
-	s.Assert().Equal(newNotes, *updatedTransfer.Notes)
+	s.Equal(newNotes, *updatedTransfer.Notes)
 
 	var outflow models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", updatedTransfer.TransactionOutflowID).First(&outflow).Error)
 	s.Require().NotNil(outflow.Description)
-	s.Assert().Equal(newNotes, *outflow.Description)
+	s.Equal(newNotes, *outflow.Description)
 }
 
 // TestUpdateTransfer_InsufficientFunds verifies that increasing the transfer amount
@@ -3202,7 +3200,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_InsufficientFunds() {
 	// Transfer amount must be unchanged
 	var unchanged models.Transfer
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", tr.ID).First(&unchanged).Error)
-	s.Assert().True(original.Equal(unchanged.Amount), "transfer amount should be unchanged after rejected update")
+	s.True(original.Equal(unchanged.Amount), "transfer amount should be unchanged after rejected update")
 
 	// Source balance must be unchanged: 100 - 50 = 50
 	s.assertSnapshot(srcID, today, srcBal.Sub(original), "source")
@@ -3300,7 +3298,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_WithinCredit
 		TxnDate:   time.Now(),
 	})
 	s.Require().NoError(err)
-	s.Assert().Greater(txn.ID, int64(0))
+	s.Positive(txn.ID)
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 	var snapshot models.BalanceSnapshot
@@ -3309,7 +3307,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_WithinCredit
 		First(&snapshot).Error
 	s.Require().NoError(err)
 	expected := decimal.NewFromInt(-500)
-	s.Assert().True(expected.Equal(snapshot.EndBalance),
+	s.True(expected.Equal(snapshot.EndBalance),
 		"balance should be %s, got %s", expected.String(), snapshot.EndBalance.String())
 }
 
@@ -3338,13 +3336,13 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_ExceedsCredi
 		TxnDate:   time.Now(),
 	})
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "insufficient funds")
+	s.Contains(err.Error(), "insufficient funds")
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
+	s.Equal(int64(0), txnCount, "no transaction should be created")
 }
 
 // Tests that a transfer from an account within its credit limit succeeds
@@ -3380,7 +3378,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_WithinCreditLimi
 		CreatedAt:     time.Now(),
 	})
 	s.Require().NoError(err)
-	s.Assert().Greater(tr.ID, int64(0))
+	s.Positive(tr.ID)
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 	var srcSnap models.BalanceSnapshot
@@ -3389,7 +3387,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_WithinCreditLimi
 		First(&srcSnap).Error
 	s.Require().NoError(err)
 	expected := decimal.NewFromInt(-500)
-	s.Assert().True(expected.Equal(srcSnap.EndBalance),
+	s.True(expected.Equal(srcSnap.EndBalance),
 		"source balance should be %s, got %s", expected.String(), srcSnap.EndBalance.String())
 }
 
@@ -3426,13 +3424,13 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_ExceedsCreditLim
 		CreatedAt:     time.Now(),
 	})
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "insufficient funds")
+	s.Contains(err.Error(), "insufficient funds")
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("account_id = ? AND transaction_type = ?", srcID, models.TxnTypeTransfer).Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "no transfer transaction should be created on source account")
+	s.Equal(int64(0), txnCount, "no transfer transaction should be created on source account")
 }
 
 // Executing a template early should date the transaction today, but still advance next_run_at
@@ -3478,16 +3476,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_Success() {
 		First(&txn).Error
 	s.Require().NoError(err)
 	today := utils.LocalMidnightUTC(time.Now(), time.UTC)
-	s.Assert().True(txn.TxnDate.Equal(today), "transaction should be dated today, not the template's scheduled date")
-	s.Assert().True(amount.Equal(txn.Amount))
+	s.True(txn.TxnDate.Equal(today), "transaction should be dated today, not the template's scheduled date")
+	s.True(amount.Equal(txn.Amount))
 
 	var updated models.TransactionTemplate
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", template.ID).First(&updated).Error)
-	s.Assert().Equal(1, updated.RunCount)
-	s.Assert().True(updated.IsActive)
+	s.Equal(1, updated.RunCount)
+	s.True(updated.IsActive)
 
 	expectedNextRun := utils.CalculateNextRun(originalNextRun, "monthly", originalNextRun.Day(), time.UTC)
-	s.Assert().True(updated.NextRunAt.Equal(expectedNextRun), "next run should be calculated from the original schedule, not from today")
+	s.True(updated.NextRunAt.Equal(expectedNextRun), "next run should be calculated from the original schedule, not from today")
 }
 
 func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlreadyExecutedToday() {
@@ -3525,16 +3523,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlread
 
 	err = svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID)
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "already executed today")
+	s.Contains(err.Error(), "already executed today")
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
-	s.Assert().Equal(int64(1), txnCount, "second execution should not create another transaction")
+	s.Equal(int64(1), txnCount, "second execution should not create another transaction")
 
 	var updated models.TransactionTemplate
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", template.ID).First(&updated).Error)
-	s.Assert().Equal(1, updated.RunCount, "second execution should not advance run_count")
+	s.Equal(1, updated.RunCount, "second execution should not advance run_count")
 }
 
 func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInactive() {
@@ -3578,7 +3576,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
-	s.Assert().Equal(int64(0), txnCount, "no transaction should be created for a blocked execution")
+	s.Equal(int64(0), txnCount, "no transaction should be created for a blocked execution")
 }
 
 func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEarly() {
@@ -3618,7 +3616,7 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 
 	err = svc.ProcessTemplate(s.Ctx, &staleCopy)
 	s.Require().Error(err, "the scheduled run should refuse a cycle that already ran today")
-	s.True(errors.Is(err, services.ErrTemplateAlreadyRanToday), "got: %v", err)
+	s.Require().ErrorIs(err, services.ErrTemplateAlreadyRanToday, "got: %v", err)
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
@@ -3804,24 +3802,24 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyClientV
 	records, totals, paginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
 	s.Require().NoError(err)
 	s.Require().Len(records, 5, "list should hold the openings, the ledger and the adjustment")
-	s.Assert().Equal(5, paginator.TotalRecords)
-	s.Assert().Equal(int64(5), totals.Count)
-	s.Assert().Equal(models.TxnTypeOpening, records[0].TransactionType)
-	s.Assert().Equal(ledgerTxn.ID, records[2].ID)
-	s.Assert().Equal(models.TxnTypeLedger, records[2].TransactionType)
-	s.Assert().Equal(models.TxnTypeAdjustment, records[3].TransactionType)
+	s.Equal(5, paginator.TotalRecords)
+	s.Equal(int64(5), totals.Count)
+	s.Equal(models.TxnTypeOpening, records[0].TransactionType)
+	s.Equal(ledgerTxn.ID, records[2].ID)
+	s.Equal(models.TxnTypeLedger, records[2].TransactionType)
+	s.Equal(models.TxnTypeAdjustment, records[3].TransactionType)
 
 	// same rule per account
 	accRecords, _, accPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &cashID)
 	s.Require().NoError(err)
 	s.Require().Len(accRecords, 3)
-	s.Assert().Equal(3, accPaginator.TotalRecords)
+	s.Equal(3, accPaginator.TotalRecords)
 
 	invRecords, _, invPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &invID)
 	s.Require().NoError(err)
 	s.Require().Len(invRecords, 1, "the trade cash leg must stay hidden")
-	s.Assert().Equal(models.TxnTypeOpening, invRecords[0].TransactionType)
-	s.Assert().Equal(1, invPaginator.TotalRecords)
+	s.Equal(models.TxnTypeOpening, invRecords[0].TransactionType)
+	s.Equal(1, invPaginator.TotalRecords)
 }
 
 func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {
@@ -3863,7 +3861,7 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditab
 		Where("id = ?", expense.ID).
 		First(&txn).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(txn.DeletedAt, "transaction should still be deleted")
+	s.NotNil(txn.DeletedAt, "transaction should still be deleted")
 }
 
 // Regression test: the first early return in UpdateTransaction (rejecting a
@@ -3968,8 +3966,8 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_AdjustmentAllowsAmou
 	var updated models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", adj.ID).First(&updated).Error
 	s.Require().NoError(err)
-	s.Assert().True(newAmt.Equal(updated.Amount), "amount should be updated to %s", newAmt.String())
-	s.Assert().Equal(newDate.UTC().Truncate(24*time.Hour), updated.TxnDate.UTC().Truncate(24*time.Hour))
+	s.True(newAmt.Equal(updated.Amount), "amount should be updated to %s", newAmt.String())
+	s.Equal(newDate.UTC().Truncate(24*time.Hour), updated.TxnDate.UTC().Truncate(24*time.Hour))
 
 	var snapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -3977,7 +3975,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_AdjustmentAllowsAmou
 		First(&snapshot).Error
 	s.Require().NoError(err)
 	expected := initialBalance.Add(newAmt)
-	s.Assert().True(expected.Equal(snapshot.EndBalance),
+	s.True(expected.Equal(snapshot.EndBalance),
 		"balance at the new date should be %s, got %s", expected.String(), snapshot.EndBalance.String())
 }
 
@@ -4061,9 +4059,9 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_AdjustmentRejectsAcc
 	var unchanged models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", adj.ID).First(&unchanged).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(adj.AccountID, unchanged.AccountID)
-	s.Assert().Equal(*adj.CategoryID, *unchanged.CategoryID)
-	s.Assert().Equal(adj.Direction, unchanged.Direction)
+	s.Equal(adj.AccountID, unchanged.AccountID)
+	s.Equal(*adj.CategoryID, *unchanged.CategoryID)
+	s.Equal(adj.Direction, unchanged.Direction)
 }
 
 // An opening transaction may have its amount corrected, but its date, account,
@@ -4133,9 +4131,9 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_OpeningAllowsAmountO
 	var unchanged models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", opening.ID).First(&unchanged).Error
 	s.Require().NoError(err)
-	s.Assert().True(newAmt.Equal(unchanged.Amount))
-	s.Assert().Equal(opening.AccountID, unchanged.AccountID)
-	s.Assert().Equal(opening.TxnDate.UTC().Truncate(24*time.Hour), unchanged.TxnDate.UTC().Truncate(24*time.Hour))
+	s.True(newAmt.Equal(unchanged.Amount))
+	s.Equal(opening.AccountID, unchanged.AccountID)
+	s.Equal(opening.TxnDate.UTC().Truncate(24*time.Hour), unchanged.TxnDate.UTC().Truncate(24*time.Hour))
 }
 
 // Deleting an adjustment must be allowed and must reverse its effect on the
@@ -4177,14 +4175,14 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_AdjustmentAllowed() 
 	var deleted models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).Unscoped().Where("id = ?", adj.ID).First(&deleted).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(deleted.DeletedAt)
+	s.NotNil(deleted.DeletedAt)
 
 	var snapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&snapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshot.EndBalance),
+	s.True(initialBalance.Equal(snapshot.EndBalance),
 		"balance should revert to %s after deleting the adjustment, got %s",
 		initialBalance.String(), snapshot.EndBalance.String())
 }
@@ -4267,11 +4265,11 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_AmountFilte
 	s.Require().Len(txns, 2, "positive value should match both income and expense of that magnitude")
 	directions := map[models.TransactionDirection]bool{}
 	for _, t := range txns {
-		s.Assert().True(target.Equal(t.Amount), "matched rows must have the filtered magnitude")
+		s.True(target.Equal(t.Amount), "matched rows must have the filtered magnitude")
 		directions[t.Direction] = true
 	}
-	s.Assert().True(directions[models.TxnDirectionIncome], "income row should match")
-	s.Assert().True(directions[models.TxnDirectionExpense], "expense row should match")
+	s.True(directions[models.TxnDirectionIncome], "income row should match")
+	s.True(directions[models.TxnDirectionExpense], "expense row should match")
 }
 
 // setCategoryRule builds an active rule that matches when the description
@@ -4334,7 +4332,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_AutoAssignsCategoryF
 	var matchedTxn models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&matchedTxn, matched.ID).Error)
 	s.Require().NotNil(matchedTxn.CategoryID)
-	s.Assert().Equal(catID, *matchedTxn.CategoryID, "rule category should win over uncategorized")
+	s.Equal(catID, *matchedTxn.CategoryID, "rule category should win over uncategorized")
 
 	// No match -> uncategorized fallback.
 	noMatchDesc := "random shop"
@@ -4351,7 +4349,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_AutoAssignsCategoryF
 	var unmatchedTxn models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&unmatchedTxn, unmatched.ID).Error)
 	s.Require().NotNil(unmatchedTxn.CategoryID)
-	s.Assert().Equal(s.uncategorizedCategoryID(userID), *unmatchedTxn.CategoryID, "no rule match should stay uncategorized")
+	s.Equal(s.uncategorizedCategoryID(userID), *unmatchedTxn.CategoryID, "no rule match should stay uncategorized")
 }
 
 // Editing a transaction must not run rule matching, even when a rule now matches
@@ -4407,7 +4405,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_DoesNotApplyRules() 
 	var edited models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&edited, inserted.ID).Error)
 	s.Require().NotNil(edited.CategoryID)
-	s.Assert().Equal(uncategorizedID, *edited.CategoryID, "edit must not auto-assign a rule category")
+	s.Equal(uncategorizedID, *edited.CategoryID, "edit must not auto-assign a rule category")
 }
 
 func (s *TransactionServiceTestSuite) newBulkAccount(userID int64, balance decimal.Decimal) int64 {
@@ -4445,14 +4443,14 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategory() 
 		CategoryID: &catID,
 	})
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(2), res.Processed)
-	s.Assert().Equal(int64(0), res.Skipped)
+	s.Equal(int64(2), res.Processed)
+	s.Equal(int64(0), res.Skipped)
 
 	for _, id := range []int64{id1, id2} {
 		var tr models.Transaction
 		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
 		s.Require().NotNil(tr.CategoryID)
-		s.Assert().Equal(catID, *tr.CategoryID)
+		s.Equal(catID, *tr.CategoryID)
 	}
 }
 
@@ -4472,13 +4470,13 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetDescription
 		Description: &newDesc,
 	})
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(2), res.Processed)
+	s.Equal(int64(2), res.Processed)
 
 	for _, id := range []int64{id1, id2} {
 		var tr models.Transaction
 		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
 		s.Require().NotNil(tr.Description)
-		s.Assert().Equal(newDesc, *tr.Description)
+		s.Equal(newDesc, *tr.Description)
 	}
 }
 
@@ -4504,13 +4502,13 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SkipsIneligibl
 		CategoryID: &catID,
 	})
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(1), res.Processed)
-	s.Assert().Equal(int64(1), res.Skipped)
+	s.Equal(int64(1), res.Processed)
+	s.Equal(int64(1), res.Skipped)
 
 	var openingAfter models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&openingAfter, opening.ID).Error)
 	if openingAfter.CategoryID != nil {
-		s.Assert().NotEqual(catID, *openingAfter.CategoryID, "opening row must not be re-categorized")
+		s.NotEqual(catID, *openingAfter.CategoryID, "opening row must not be re-categorized")
 	}
 }
 
@@ -4528,12 +4526,12 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_Delete() {
 		Action: models.BulkActionDelete,
 	})
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(2), res.Processed)
+	s.Equal(int64(2), res.Processed)
 
 	for _, id := range []int64{id1, id2} {
 		var tr models.Transaction
 		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
-		s.Assert().NotNil(tr.DeletedAt, "row should be soft-deleted")
+		s.NotNil(tr.DeletedAt, "row should be soft-deleted")
 	}
 }
 
@@ -4552,12 +4550,12 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_DeleteGuardRol
 		Action: models.BulkActionDelete,
 	})
 	s.Require().Error(err)
-	s.Assert().Nil(res)
+	s.Nil(res)
 
 	for _, id := range []int64{incomeID, expenseID} {
 		var tr models.Transaction
 		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, id).Error)
-		s.Assert().Nil(tr.DeletedAt, "no row should be deleted when the batch rolls back")
+		s.Nil(tr.DeletedAt, "no row should be deleted when the batch rolls back")
 	}
 }
 
@@ -4573,7 +4571,7 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_DeleteCreditLi
 		Action: models.BulkActionDelete,
 	})
 	s.Require().NoError(err, "credit limit should take precedence over goal allocations")
-	s.Assert().Equal(int64(1), res.Processed)
+	s.Equal(int64(1), res.Processed)
 }
 
 // Assigning an expense category to an income row overwrites its direction and
@@ -4594,13 +4592,13 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategoryFli
 		CategoryID: &catID,
 	})
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(1), res.Processed)
+	s.Equal(int64(1), res.Processed)
 
 	var tr models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, incomeID).Error)
-	s.Assert().Equal(models.TxnDirectionExpense, tr.Direction)
+	s.Equal(models.TxnDirectionExpense, tr.Direction)
 	s.Require().NotNil(tr.CategoryID)
-	s.Assert().Equal(catID, *tr.CategoryID)
+	s.Equal(catID, *tr.CategoryID)
 
 	// opening 100000 + income 5000 = 105000; flipping to expense = 100000 - 5000.
 	s.assertBalance(accID, decimal.NewFromInt(95000), "balance after direction flip")
@@ -4624,11 +4622,11 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategoryGua
 		CategoryID: &catID,
 	})
 	s.Require().Error(err)
-	s.Assert().Nil(res)
+	s.Nil(res)
 
 	var tr models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, incomeID).Error)
-	s.Assert().Equal(models.TxnDirectionIncome, tr.Direction, "direction must be unchanged on rollback")
+	s.Equal(models.TxnDirectionIncome, tr.Direction, "direction must be unchanged on rollback")
 }
 
 func (s *TransactionServiceTestSuite) newNamedAccount(userID int64, name string, balance decimal.Decimal) int64 {
@@ -4653,7 +4651,7 @@ func (s *TransactionServiceTestSuite) assertAcceptedWithinLimit(errs []error, wa
 		s.Require().ErrorAs(err, &appErr, "only limit rejections may fail")
 		s.Require().Equal(apperr.Validation, appErr.Kind, "unexpected error: %v", err)
 	}
-	s.Assert().Equal(want, accepted, "accepted writes")
+	s.Equal(want, accepted, "accepted writes")
 }
 
 func (s *TransactionServiceTestSuite) TestInsertTransaction_ConcurrentExpensesStayWithinLimit() {
@@ -4791,8 +4789,8 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ConcurrentMoveReturn
 
 	var moved models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&moved, txnID).Error)
-	s.Assert().Equal(toID, moved.AccountID, "the rejected edit must not move the row back")
-	s.Assert().True(decimal.NewFromInt(10).Equal(moved.Amount), "the rejected edit must not change the amount")
+	s.Equal(toID, moved.AccountID, "the rejected edit must not move the row back")
+	s.True(decimal.NewFromInt(10).Equal(moved.Amount), "the rejected edit must not change the amount")
 }
 
 func (s *TransactionServiceTestSuite) TestInsertTransaction_CapitalizedExpenseChecksLimit() {

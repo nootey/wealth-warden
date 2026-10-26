@@ -27,7 +27,6 @@ type RolePermissionHandlerTestSuite struct {
 }
 
 func (suite *RolePermissionHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockRolePermissionServiceInterface(suite.T())
@@ -67,7 +66,7 @@ func (suite *RolePermissionHandlerTestSuite) TestGetRoleById_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Role not found", response["message"])
 }
 
@@ -85,7 +84,7 @@ func (suite *RolePermissionHandlerTestSuite) TestGetRoleById_UnclassifiedErrorDo
 	suite.NotContains(w.Body.String(), "relation")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -98,7 +97,7 @@ func (suite *RolePermissionHandlerTestSuite) TestGetRoleById_BadID() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("id must be a valid integer", response["message"])
 }
 
@@ -114,7 +113,7 @@ func (suite *RolePermissionHandlerTestSuite) TestDeleteRole_Conflict() {
 	suite.Equal(http.StatusConflict, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Default roles cannot be deleted", response["message"])
 }
 

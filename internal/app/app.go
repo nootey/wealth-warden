@@ -35,9 +35,8 @@ type App struct {
 }
 
 func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
-
 	// Database
-	dbClient, err := database.ConnectToPostgres(cfg, logger.Named("database"))
+	dbClient, err := database.ConnectToPostgres(context.Background(), cfg, logger.Named("database"))
 	if err != nil {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}

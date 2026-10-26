@@ -122,7 +122,7 @@ func resolveMeta(source, field string) (FieldMetadata, bool) {
 
 func isString(v any) bool { _, ok := v.(string); return ok }
 
-func asText(col string) string { return fmt.Sprintf("%s::text", col) }
+func asText(col string) string { return col + "::text" }
 
 func GetRequiredJoins(filters []Filter) []string {
 	needed := make(map[string]struct{})
@@ -213,17 +213,17 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 
 			switch f.Operator {
 			case "equals", "=":
-				query = query.Where(fmt.Sprintf("%s = ?", f.Value), f.Value)
+				query = query.Where(f.Value+" = ?", f.Value)
 			case "not equals", "<>", "!=":
-				query = query.Where(fmt.Sprintf("%s <> ?", f.Value), f.Value)
+				query = query.Where(f.Value+" <> ?", f.Value)
 			case "more than", ">":
-				query = query.Where(fmt.Sprintf("%s > ?", f.Value), f.Value)
+				query = query.Where(f.Value+" > ?", f.Value)
 			case "less than", "<":
-				query = query.Where(fmt.Sprintf("%s < ?", f.Value), f.Value)
+				query = query.Where(f.Value+" < ?", f.Value)
 			case ">=":
-				query = query.Where(fmt.Sprintf("%s >= ?", f.Value), f.Value)
+				query = query.Where(f.Value+" >= ?", f.Value)
 			case "<=":
-				query = query.Where(fmt.Sprintf("%s <= ?", f.Value), f.Value)
+				query = query.Where(f.Value+" <= ?", f.Value)
 			}
 			continue
 		}
@@ -240,7 +240,7 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			}
 
 			if s := f.Value; reDateOnly.MatchString(s) {
-				query = query.Where(fmt.Sprintf("%s::date = ?::date", col), s)
+				query = query.Where(col+"::date = ?::date", s)
 				break
 			}
 
@@ -250,7 +250,7 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 					f.Value,
 				)
 			} else {
-				query = query.Where(fmt.Sprintf("%s = ?", column), f.Value)
+				query = query.Where(column+" = ?", f.Value)
 			}
 
 		case "not equals", "<>", "!=":
@@ -260,7 +260,7 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 					f.Value,
 				)
 			} else {
-				query = query.Where(fmt.Sprintf("%s <> ?", column), f.Value)
+				query = query.Where(column+" <> ?", f.Value)
 			}
 
 		case "contains", "like":
@@ -272,32 +272,30 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			} else {
 				query = query.Where(
 					fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", asText(column)),
-					"%"+strings.ToLower(fmt.Sprint(f.Value))+"%",
+					"%"+strings.ToLower(f.Value)+"%",
 				)
 			}
 
 		case "more than", ">":
-			query = query.Where(fmt.Sprintf("%s > ?", column), f.Value)
+			query = query.Where(column+" > ?", f.Value)
 
 		case "less than", "<":
-			query = query.Where(fmt.Sprintf("%s < ?", column), f.Value)
+			query = query.Where(column+" < ?", f.Value)
 
 		case ">=":
 			if s := f.Value; reDateOnly.MatchString(s) {
-				query = query.Where(fmt.Sprintf("%s >= ?::date", column), s)
+				query = query.Where(column+" >= ?::date", s)
 				break
 			}
-			query = query.Where(fmt.Sprintf("%s >= ?", column), f.Value)
+			query = query.Where(column+" >= ?", f.Value)
 
 		case "<=":
 			if s := f.Value; reDateOnly.MatchString(s) {
-				query = query.Where(fmt.Sprintf("%s <= ?::date", column), s)
+				query = query.Where(column+" <= ?::date", s)
 				break
 			}
-			query = query.Where(fmt.Sprintf("%s <= ?", column), f.Value)
+			query = query.Where(column+" <= ?", f.Value)
 
-		default:
-			fmt.Println("Unknown operator")
 		}
 	}
 
@@ -310,7 +308,7 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 		} else if ok {
 			col = meta.Column
 		}
-		query = query.Where(fmt.Sprintf("%s IN ?", col), vals)
+		query = query.Where(col+" IN ?", vals)
 	}
 
 	return query

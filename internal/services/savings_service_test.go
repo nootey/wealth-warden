@@ -557,7 +557,7 @@ func (s *SavingsServiceTestSuite) TestInsertContribution_ConcurrentContributions
 
 	goal, err := svc.FetchGoalByID(s.Ctx, userID, goalID)
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(200).Equal(goal.CurrentAmount), "allocation is %s, want 200", goal.CurrentAmount)
+	s.True(decimal.NewFromInt(200).Equal(goal.CurrentAmount), "allocation is %s, want 200", goal.CurrentAmount)
 }
 
 func (s *SavingsServiceTestSuite) TestInsertContribution_RacingExpensesNeverOverAllocate() {
@@ -604,10 +604,10 @@ func (s *SavingsServiceTestSuite) TestInsertContribution_RacingExpensesNeverOver
 		s.Require().Equal(apperr.Validation, appErr.Kind, "unexpected error: %v", err)
 	}
 	// Each accepted call takes 200 of the 1000 free, whatever the order
-	s.Assert().Equal(5, accepted, "accepted calls")
+	s.Equal(5, accepted, "accepted calls")
 
 	var balance, allocated decimal.Decimal
 	s.Require().NoError(s.TC.DB.Raw(`SELECT balance FROM balances WHERE account_id = ?`, accID).Scan(&balance).Error)
 	s.Require().NoError(s.TC.DB.Raw(`SELECT COALESCE(SUM(current_amount), 0) FROM saving_goals WHERE account_id = ?`, accID).Scan(&allocated).Error)
-	s.Assert().True(allocated.LessThanOrEqual(balance), "allocated %s exceeds balance %s", allocated, balance)
+	s.True(allocated.LessThanOrEqual(balance), "allocated %s exceeds balance %s", allocated, balance)
 }

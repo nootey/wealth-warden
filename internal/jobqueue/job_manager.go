@@ -20,13 +20,17 @@ type JobManager interface {
 
 type NoopJobManager struct{}
 
-func (NoopJobManager) JobGet(context.Context, int64) (*rivertype.JobRow, error)    { return nil, nil }
-func (NoopJobManager) JobRetry(context.Context, int64) (*rivertype.JobRow, error)  { return nil, nil }
+func (NoopJobManager) JobGet(context.Context, int64) (*rivertype.JobRow, error) { return nil, nil }
+
+func (NoopJobManager) JobRetry(context.Context, int64) (*rivertype.JobRow, error) { return nil, nil }
+
 func (NoopJobManager) JobCancel(context.Context, int64) (*rivertype.JobRow, error) { return nil, nil }
+
 func (NoopJobManager) JobDelete(context.Context, int64) (*rivertype.JobRow, error) { return nil, nil }
-func (NoopJobManager) QueueList(context.Context) ([]*rivertype.Queue, error)       { return nil, nil }
-func (NoopJobManager) QueuePause(context.Context, string) error                    { return nil }
-func (NoopJobManager) QueueResume(context.Context, string) error                   { return nil }
+
+func (NoopJobManager) QueueList(context.Context) ([]*rivertype.Queue, error) { return nil, nil }
+func (NoopJobManager) QueuePause(context.Context, string) error              { return nil }
+func (NoopJobManager) QueueResume(context.Context, string) error             { return nil }
 
 type RiverJobManager struct {
 	client *river.Client[pgx.Tx]
