@@ -78,6 +78,8 @@ services:
   server:
     image: nootey/wealth-warden:latest
     restart: unless-stopped
+    # Docker's 10s default kills the server before River's 30s stop can let running jobs finish
+    stop_grace_period: 40s
     depends_on:
       db:
         condition: service_healthy

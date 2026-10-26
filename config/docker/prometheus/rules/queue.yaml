@@ -1,0 +1,29 @@
+groups:
+  - name: wealth-warden-queue
+    rules:
+      # One job can hold the single default worker for up to job_timeout_sec (15 min), so short waits are normal
+      - alert: QueueBacklog
+        expr: queue_oldest_pending_age_seconds{job="wealth-warden"} > 1800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Queued jobs are not picked up.
+          description: "The oldest pending job has waited {{ $value | humanizeDuration }}."
+      # A job type's first discard creates its series at 1, and increase() never counts a first sample
+      - alert: QueueJobDiscarded
+        expr: |
+          sum by (job, queue, job_type) (
+            increase(queue_job_runs_total{job="wealth-warden", status="discarded"}[1h]) > 0
+            or
+            (
+              queue_job_runs_total{job="wealth-warden", status="discarded"}
+              unless
+              queue_job_runs_total{job="wealth-warden", status="discarded"} offset 1h
+            )
+          ) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: A job failed on its last attempt.
+          description: "{{ $labels.job_type }} ({{ $labels.queue }} queue) failed on its last attempt in the last hour. River discarded it, so it will not run again."

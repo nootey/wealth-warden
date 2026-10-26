@@ -21,6 +21,8 @@ import (
 
 const (
 	riverStopTimeout = 30 * time.Second
+	// Lets running jobs finish on shutdown. Must stay under riverStopTimeout, so River can requeue the jobs it interrupts.
+	riverSoftStopTimeout = 20 * time.Second
 
 	defaultPollInterval = time.Second
 	defaultJobTimeout   = 15 * time.Minute
@@ -71,6 +73,7 @@ func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, s
 		MaxAttempts:       cfg.MaxAttempts,
 		FetchPollInterval: pollInterval,
 		JobTimeout:        jobTimeout,
+		SoftStopTimeout:   riverSoftStopTimeout,
 
 		CompletedJobRetentionPeriod: completedJobRetention,
 		CancelledJobRetentionPeriod: cancelledJobRetention,
@@ -137,8 +140,14 @@ func (m *metricsMiddleware) Work(ctx context.Context, job *rivertype.JobRow, doI
 	err := doInner(ctx)
 	duration := time.Since(start).Seconds()
 
-	status := "success"
-	if err != nil {
+	var status string
+	switch {
+	case err == nil:
+		status = "success"
+	// River's own rule: an error on the last attempt discards the job instead of retrying it.
+	case job.Attempt >= job.MaxAttempts:
+		status = "discarded"
+	default:
 		status = "failure"
 	}
 

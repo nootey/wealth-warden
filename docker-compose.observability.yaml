@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./config/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/docker/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
