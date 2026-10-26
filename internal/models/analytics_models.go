@@ -87,8 +87,7 @@ type MonthCategories struct {
 	Investments    decimal.Decimal `json:"investments"`
 	Savings        decimal.Decimal `json:"savings"`
 	DebtRepayments decimal.Decimal `json:"debt_repayments"`
-	TakeHome       decimal.Decimal `json:"take_home"`
-	Overflow       decimal.Decimal `json:"overflow"`
+	Net            decimal.Decimal `json:"net"`
 }
 
 type YearlySankeyData struct {
@@ -116,23 +115,20 @@ type CategoryFlow struct {
 }
 
 type BasicAccountStats struct {
-	UserID             int64           `json:"user_id"`
-	AccountID          *int64          `json:"account_id,omitempty"` // nil => all accounts
-	Currency           string          `json:"currency"`
-	Year               int             `json:"year"`
-	Inflow             decimal.Decimal `json:"inflow"`
-	Outflow            decimal.Decimal `json:"outflow"`
-	Net                decimal.Decimal `json:"net"`
-	AvgMonthlyInflow   decimal.Decimal `json:"avg_monthly_inflow"`
-	AvgMonthlyOutflow  decimal.Decimal `json:"avg_monthly_outflow"`
-	TakeHome           decimal.Decimal `json:"take_home"`
-	Overflow           decimal.Decimal `json:"overflow"`
-	AvgMonthlyTakeHome decimal.Decimal `json:"avg_monthly_take_home"`
-	AvgMonthlyOverflow decimal.Decimal `json:"avg_monthly_overflow"`
-	ActiveMonths       int             `json:"active_months"`
-	Necessity          NecessitySplit  `json:"necessity"`
-	Categories         []CategoryStat  `json:"categories,omitempty"`
-	GeneratedAt        time.Time       `json:"generated_at"`
+	UserID            int64           `json:"user_id"`
+	AccountID         *int64          `json:"account_id,omitempty"` // nil => all accounts
+	Currency          string          `json:"currency"`
+	Year              int             `json:"year"`
+	Inflow            decimal.Decimal `json:"inflow"`
+	Outflow           decimal.Decimal `json:"outflow"`
+	Net               decimal.Decimal `json:"net"`
+	AvgMonthlyInflow  decimal.Decimal `json:"avg_monthly_inflow"`
+	AvgMonthlyOutflow decimal.Decimal `json:"avg_monthly_outflow"`
+	AvgMonthlyNet     decimal.Decimal `json:"avg_monthly_net"`
+	ActiveMonths      int             `json:"active_months"`
+	Necessity         NecessitySplit  `json:"necessity"`
+	Categories        []CategoryStat  `json:"categories,omitempty"`
+	GeneratedAt       time.Time       `json:"generated_at"`
 }
 
 type CategoryStat struct {
@@ -193,8 +189,6 @@ type MonthlyStats struct {
 	Inflow            decimal.Decimal `json:"inflow"`
 	Outflow           decimal.Decimal `json:"outflow"`
 	Net               decimal.Decimal `json:"net"`
-	TakeHome          decimal.Decimal `json:"take_home"`
-	Overflow          decimal.Decimal `json:"overflow"`
 	Savings           decimal.Decimal `json:"savings"`
 	Investments       decimal.Decimal `json:"investments"`
 	DebtRepayments    decimal.Decimal `json:"debt_repayments"`
@@ -213,7 +207,6 @@ type TodayStats struct {
 	Year        int             `json:"year"`
 	Inflow      decimal.Decimal `json:"inflow"`
 	Outflow     decimal.Decimal `json:"outflow"`
-	Net         decimal.Decimal `json:"net"`
 	GeneratedAt time.Time       `json:"generated_at"`
 }
 
@@ -246,10 +239,8 @@ type YearStatsWithAllocations struct {
 	AvgMonthlyInflow  decimal.Decimal `json:"avg_monthly_inflow"`
 	AvgMonthlyOutflow decimal.Decimal `json:"avg_monthly_outflow"`
 
-	TakeHome           decimal.Decimal `json:"take_home"`
-	Overflow           decimal.Decimal `json:"overflow"`
-	AvgMonthlyTakeHome decimal.Decimal `json:"avg_monthly_take_home"`
-	AvgMonthlyOverflow decimal.Decimal `json:"avg_monthly_overflow"`
+	Net           decimal.Decimal `json:"net"`
+	AvgMonthlyNet decimal.Decimal `json:"avg_monthly_net"`
 
 	SavingsAllocated    decimal.Decimal `json:"savings_allocated"`
 	InvestmentAllocated decimal.Decimal `json:"investment_allocated"`

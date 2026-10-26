@@ -241,7 +241,7 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_RejectsClosedAcc
 	s.Contains(err.Error(), "closed")
 }
 
-func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_AveragesTakeHomeOverActiveMonths() {
+func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_AveragesNetOverActiveMonths() {
 	svc := s.TC.App.AnalyticsService
 	userID := int64(1)
 	accID := s.checkingWithIncome(userID, 1000,
@@ -252,11 +252,11 @@ func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_AveragesTakeHo
 	stats, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, 2024)
 
 	s.Require().NoError(err)
-	s.True(stats.AvgMonthlyTakeHome.Equal(decimal.NewFromInt(1000)), "got %s", stats.AvgMonthlyTakeHome)
-	s.True(stats.AvgMonthlyTakeHome.Equal(stats.AvgMonthlyInflow))
+	s.True(stats.AvgMonthlyNet.Equal(decimal.NewFromInt(1000)), "got %s", stats.AvgMonthlyNet)
+	s.True(stats.AvgMonthlyNet.Equal(stats.AvgMonthlyInflow))
 }
 
-func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_AveragesTakeHomeOverElapsedMonths() {
+func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_AveragesNetOverElapsedMonths() {
 	svc := s.TC.App.AnalyticsService
 	userID := int64(1)
 	today := time.Now().UTC().Truncate(24 * time.Hour)
@@ -266,7 +266,7 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_AveragesTakeHome
 
 	s.Require().NoError(err)
 	cur := res.CurrentYear
-	s.True(cur.AvgMonthlyTakeHome.Equal(cur.AvgMonthlyInflow), "take home %s, inflow %s", cur.AvgMonthlyTakeHome, cur.AvgMonthlyInflow)
+	s.True(cur.AvgMonthlyNet.Equal(cur.AvgMonthlyInflow), "net %s, inflow %s", cur.AvgMonthlyNet, cur.AvgMonthlyInflow)
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_CategoryChangesCapBothYearsAtCurrentMonth() {

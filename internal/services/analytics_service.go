@@ -325,7 +325,7 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 	// Group by month
 	transfersByMonth := make(map[int][]models.Transfer)
 	for _, tr := range allTransfers {
-		month := int(tr.CreatedAt.Month())
+		month := int(tr.TransactionOutflow.TxnDate.Month())
 		transfersByMonth[month] = append(transfersByMonth[month], tr)
 	}
 
@@ -363,14 +363,6 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 		}
 
 		categorizedTransfersTotal := savings.Add(investments).Add(debtRepayments)
-		takeHomeCalc := net.Sub(categorizedTransfersTotal)
-
-		var takeHome, overflow decimal.Decimal
-		if takeHomeCalc.LessThan(decimal.Zero) {
-			overflow = takeHomeCalc
-		} else {
-			takeHome = takeHomeCalc
-		}
 
 		months = append(months, models.MonthBreakdown{
 			Month: month,
@@ -380,8 +372,7 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 				Investments:    investments,
 				Savings:        savings,
 				DebtRepayments: debtRepayments,
-				TakeHome:       takeHome,
-				Overflow:       overflow,
+				Net:            net.Sub(categorizedTransfersTotal),
 			},
 		})
 	}
@@ -683,7 +674,6 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 
 	inflow, _ := decimal.NewFromString(tot.InflowText)
 	outflow, _ := decimal.NewFromString(tot.OutflowText)
-	net, _ := decimal.NewFromString(tot.NetText)
 
 	mrows, err := s.repo.FetchMonthlyTotals(ctx, tx, userID, accID, year)
 	if err != nil {
@@ -691,10 +681,7 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 		return nil, err
 	}
 
-	takeHomeYear := decimal.Zero
-	overflowYear := decimal.Zero
-	takeHomeMonthCount := 0
-	overflowMonthCount := 0
+	net := decimal.Zero
 
 	var shouldSubtractTransfers bool
 	var transferAccountIDs []int64
@@ -766,17 +753,8 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 			netm = netm.Sub(categorizedTransfersTotal)
 		}
 
-		if netm.GreaterThan(decimal.Zero) {
-			takeHomeYear = takeHomeYear.Add(netm)
-			takeHomeMonthCount++
-		} else if netm.LessThan(decimal.Zero) {
-			overflowYear = overflowYear.Add(netm)
-			overflowMonthCount++
-		}
+		net = net.Add(netm)
 	}
-
-	takeHome := takeHomeYear
-	overflow := overflowYear
 
 	activeMonths := tot.ActiveMonths
 	if activeMonths < 1 {
@@ -785,13 +763,11 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 
 	avgIn := decimal.Zero
 	avgOut := decimal.Zero
-	avgTakeHome := decimal.Zero
-	avgOverflow := decimal.Zero
+	avgNet := decimal.Zero
 	if activeMonths > 0 {
 		avgIn = inflow.Div(decimal.NewFromInt(int64(activeMonths)))
 		avgOut = outflow.Div(decimal.NewFromInt(int64(activeMonths)))
-		avgTakeHome = takeHome.Div(decimal.NewFromInt(int64(activeMonths)))
-		avgOverflow = overflow.Div(decimal.NewFromInt(int64(activeMonths)))
+		avgNet = net.Div(decimal.NewFromInt(int64(activeMonths)))
 	}
 
 	rows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year, 12)
@@ -840,23 +816,20 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 	}
 
 	return &models.BasicAccountStats{
-		UserID:             userID,
-		AccountID:          accID,
-		Currency:           settings.DefaultCurrency,
-		Year:               year,
-		Inflow:             inflow,
-		Outflow:            outflow,
-		Net:                net,
-		AvgMonthlyInflow:   avgIn,
-		AvgMonthlyOutflow:  avgOut,
-		TakeHome:           takeHome,
-		Overflow:           overflow,
-		AvgMonthlyTakeHome: avgTakeHome,
-		AvgMonthlyOverflow: avgOverflow,
-		ActiveMonths:       activeMonths,
-		Necessity:          utils.SplitByNecessity(rows),
-		Categories:         cats,
-		GeneratedAt:        time.Now().UTC(),
+		UserID:            userID,
+		AccountID:         accID,
+		Currency:          settings.DefaultCurrency,
+		Year:              year,
+		Inflow:            inflow,
+		Outflow:           outflow,
+		Net:               net,
+		AvgMonthlyInflow:  avgIn,
+		AvgMonthlyOutflow: avgOut,
+		AvgMonthlyNet:     avgNet,
+		ActiveMonths:      activeMonths,
+		Necessity:         utils.SplitByNecessity(rows),
+		Categories:        cats,
+		GeneratedAt:       time.Now().UTC(),
 	}, nil
 }
 
@@ -926,8 +899,6 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		}
 	}
 
-	overflow := decimal.Zero
-
 	accountIDs := make([]int64, len(checkingAccounts))
 	for i, a := range checkingAccounts {
 		accountIDs[i] = a.ID
@@ -971,12 +942,7 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 	// Calculate total categorized transfers
 	categorizedTransfersTotal := savingsTotal.Add(investmentsTotal).Add(debtRepaymentTotal)
 
-	takeHome := net.Sub(categorizedTransfersTotal)
-
-	if takeHome.LessThan(decimal.Zero) {
-		overflow = takeHome
-		takeHome = decimal.Zero
-	}
+	net = net.Sub(categorizedTransfersTotal)
 
 	// Get expense categories for current month
 	var categoryRows []models.YearlyCategoryRow
@@ -1023,8 +989,6 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		Inflow:            inflow,
 		Outflow:           outflow,
 		Net:               net,
-		TakeHome:          takeHome,
-		Overflow:          overflow,
 		Savings:           savingsTotal,
 		Investments:       investmentsTotal,
 		DebtRepayments:    debtRepaymentTotal,
@@ -1102,7 +1066,6 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 
 	inflow, _ := decimal.NewFromString(row.InflowText)
 	outflow, _ := decimal.NewFromString(row.OutflowText)
-	net, _ := decimal.NewFromString(row.NetText)
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
@@ -1114,7 +1077,6 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 		Currency:    settings.DefaultCurrency,
 		Inflow:      inflow,
 		Outflow:     outflow,
-		Net:         net,
 		GeneratedAt: time.Now().UTC(),
 	}, nil
 }
@@ -1215,8 +1177,7 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		return nil, err
 	}
 
-	takeHomeYear := decimal.Zero
-	overflowYear := decimal.Zero
+	net := decimal.Zero
 
 	savingsAllocated := decimal.Zero
 	investmentAllocated := decimal.Zero
@@ -1297,11 +1258,7 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 			netm = netm.Sub(categorizedTransfersTotal)
 		}
 
-		if netm.GreaterThan(decimal.Zero) {
-			takeHomeYear = takeHomeYear.Add(netm)
-		} else if netm.LessThan(decimal.Zero) {
-			overflowYear = overflowYear.Add(netm)
-		}
+		net = net.Add(netm)
 	}
 
 	totalAllocated := savingsAllocated.Add(investmentAllocated).Add(debtAllocated)
@@ -1318,8 +1275,7 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		divisor = int64(time.Now().Month())
 	}
 
-	avgTakeHome := takeHomeYear.Div(decimal.NewFromInt(divisor))
-	avgOverflow := overflowYear.Div(decimal.NewFromInt(divisor))
+	avgNet := net.Div(decimal.NewFromInt(divisor))
 
 	avgIn := decimal.Zero
 	avgOut := decimal.Zero
@@ -1346,10 +1302,8 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		Outflow:             outflow,
 		AvgMonthlyInflow:    avgIn,
 		AvgMonthlyOutflow:   avgOut,
-		TakeHome:            takeHomeYear,
-		Overflow:            overflowYear,
-		AvgMonthlyTakeHome:  avgTakeHome,
-		AvgMonthlyOverflow:  avgOverflow,
+		Net:                 net,
+		AvgMonthlyNet:       avgNet,
 		SavingsAllocated:    savingsAllocated,
 		InvestmentAllocated: investmentAllocated,
 		DebtAllocated:       debtAllocated,

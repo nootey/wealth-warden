@@ -44,21 +44,21 @@ const totals = computed(() => {
   let inflows = 0;
   let outflows = 0;
   let savedInvested = 0;
-  let takeHome = 0;
+  let net = 0;
   let activeMonths = 0;
-  let overflowMonths = 0;
+  let negativeMonths = 0;
 
   for (const { categories: c } of cashFlow.value.months) {
     const monthIn = Number(c.inflows);
     const monthOut = Math.abs(Number(c.outflows));
-    const overflow = Number(c.overflow ?? 0);
+    const monthNet = Number(c.net);
 
     inflows += monthIn;
     outflows += monthOut;
     savedInvested += Number(c.savings) + Number(c.investments);
-    takeHome += Number(c.take_home) + overflow;
+    net += monthNet;
     if (monthIn !== 0 || monthOut !== 0) activeMonths++;
-    if (overflow < 0) overflowMonths++;
+    if (monthNet < 0) negativeMonths++;
   }
 
   const avgIn = activeMonths ? inflows / activeMonths : 0;
@@ -68,10 +68,10 @@ const totals = computed(() => {
     inflows,
     outflows,
     savedInvested,
-    takeHome,
+    net,
     avgIn,
     avgOut,
-    overflowMonths,
+    negativeMonths,
   };
 });
 
@@ -103,12 +103,10 @@ const statTiles = computed(() => {
         : "No inflows",
     },
     {
-      label: "Take home",
-      value: t.takeHome,
+      label: "Net",
+      value: t.net,
       tone: "text-ink",
-      hint: t.overflowMonths
-        ? `${t.overflowMonths} ${t.overflowMonths === 1 ? "month" : "months"} in overflow`
-        : "No overflow months",
+      hint: `Negative months: ${t.negativeMonths}`,
     },
   ];
 });
