@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 
 	"github.com/shopspring/decimal"
@@ -46,6 +49,35 @@ func NormalizeName(s string) string {
 	s = strings.ReplaceAll(strings.ToLower(s), " ", "_")
 	s = strings.ReplaceAll(strings.ToLower(s), ":", "_")
 	return s
+}
+
+func ImportDir(userID int64) string {
+	return filepath.Join("storage", "imports", strconv.FormatInt(userID, 10))
+}
+
+func ValidateImportIdentifier(id string) error {
+	if strings.ContainsAny(id, `/\`) {
+		return apperr.New(apperr.Validation, `The identifier cannot contain "/" or "\"`)
+	}
+	return nil
+}
+
+func ReadFileInRoot(dir, name string) ([]byte, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	return root.ReadFile(name)
+}
+
+func RemoveFileInRoot(dir, name string) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	return root.Remove(name)
 }
 
 func ParseStates(raw []string) []string {

@@ -6,8 +6,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"wealth-warden/internal/apperr"
@@ -96,8 +94,7 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		return
 	}
 
-	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	b, err := os.ReadFile(filePath)
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		_ = c.Error(err)
 		return

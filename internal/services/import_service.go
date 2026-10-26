@@ -227,27 +227,29 @@ func (s *ImportService) markImportFailed(ctx context.Context, userID, importID i
 	log("import failed", append(fields, zap.Error(cause))...)
 }
 
-func (s *ImportService) importFilePath(userID int64, name string) string {
-	return filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), name+".json")
-}
-
 func (s *ImportService) writeImportPayload(userID int64, name string, payload any) error {
-	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
-	finalPath := filepath.Join(dir, name+".json")
-	tmpPath := finalPath + ".tmp"
+	dir := utils.ImportDir(userID)
+	finalName := name + ".json"
+	tmpName := finalName + ".tmp"
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(finalPath); err == nil {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+
+	if _, err := root.Stat(finalName); err == nil {
 		return ErrImportFileExists
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
 	// Exclusive temp file reserves the name against a concurrent write.
-	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	tmpFile, err := root.OpenFile(tmpName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return ErrImportFileExists
@@ -257,7 +259,7 @@ func (s *ImportService) writeImportPayload(userID int64, name string, payload an
 	cleanup := true
 	defer func() {
 		if cleanup {
-			_ = os.Remove(tmpPath)
+			_ = root.Remove(tmpName)
 		}
 	}()
 
@@ -278,7 +280,7 @@ func (s *ImportService) writeImportPayload(userID int64, name string, payload an
 		return err
 	}
 
-	if err := os.Rename(tmpPath, finalPath); err != nil {
+	if err := root.Rename(tmpName, finalName); err != nil {
 		return err
 	}
 	cleanup = false
@@ -290,7 +292,7 @@ func (s *ImportService) DiscardStagedImport(ctx context.Context, userID, importI
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(s.importFilePath(userID, imp.Name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := utils.RemoveFileInRoot(utils.ImportDir(userID), imp.Name+".json"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
@@ -621,6 +623,9 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	if source != models.ImportTypeCustom && source != models.ImportTypeBank {
 		return 0, apperr.New(apperr.Invalid, fmt.Sprintf("Unsupported import source %q", source))
 	}
+	if err := utils.ValidateImportIdentifier(payload.Identifier); err != nil {
+		return 0, err
+	}
 
 	sourceAcc, err := s.accRepo.FindAccountByID(ctx, nil, checkID, userID, false)
 	if err != nil {
@@ -678,7 +683,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		StartedAt: &started,
 	})
 	if err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		return 0, err
 	}
 
@@ -689,7 +694,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		Source:     source,
 		CheckAccID: checkID,
 	}); err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		s.markImportFailed(ctx, userID, importID, err)
 		return 0, err
 	}
@@ -707,7 +712,7 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 		return err
 	}
 
-	data, err := os.ReadFile(s.importFilePath(userID, imp.Name))
+	data, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		return err
@@ -1020,7 +1025,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 		StartedAt: &started,
 	})
 	if err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		return 0, err
 	}
 
@@ -1031,7 +1036,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 		Source:      "custom",
 		UseBalances: useBalances,
 	}); err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		s.markImportFailed(ctx, userID, importID, err)
 		return 0, err
 	}
@@ -1049,7 +1054,7 @@ func (s *ImportService) RunImportAccounts(ctx context.Context, userID, importID 
 		return err
 	}
 
-	data, err := os.ReadFile(s.importFilePath(userID, imp.Name))
+	data, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		return err
@@ -1232,7 +1237,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 		StartedAt: &started,
 	})
 	if err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		return 0, err
 	}
 
@@ -1242,7 +1247,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 		SubType:  "categories",
 		Source:   "custom",
 	}); err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		s.markImportFailed(ctx, userID, importID, err)
 		return 0, err
 	}
@@ -1260,7 +1265,7 @@ func (s *ImportService) RunImportCategories(ctx context.Context, userID, importI
 		return err
 	}
 
-	data, err := os.ReadFile(s.importFilePath(userID, imp.Name))
+	data, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		return err
@@ -1527,7 +1532,7 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 		StartedAt: &started,
 	})
 	if err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		return 0, err
 	}
 
@@ -1537,7 +1542,7 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 		SubType:  "rules",
 		Source:   "custom",
 	}); err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		s.markImportFailed(ctx, userID, importID, err)
 		return 0, err
 	}
@@ -1555,7 +1560,7 @@ func (s *ImportService) RunImportRules(ctx context.Context, userID, importID int
 		return err
 	}
 
-	data, err := os.ReadFile(s.importFilePath(userID, imp.Name))
+	data, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		return err
@@ -1722,8 +1727,7 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 		return ErrInvestmentsTransferred
 	}
 
-	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	b, err := os.ReadFile(filePath)
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -2028,8 +2032,7 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 		return ErrSavingsTransferred
 	}
 
-	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	b, err := os.ReadFile(filePath)
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -2347,8 +2350,7 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 		return ErrRepaymentsTransferred
 	}
 
-	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	b, err := os.ReadFile(filePath)
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -2603,6 +2605,9 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	if err := json.Unmarshal(txnBytes, &txnPayload); err != nil {
 		return err
 	}
+	if err := utils.ValidateImportIdentifier(txnPayload.Identifier); err != nil {
+		return err
+	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
 	importName := fmt.Sprintf("trades_%s_generated_%s", txnPayload.Identifier, todayStr)
@@ -2629,7 +2634,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		StartedAt: &started,
 	})
 	if err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		return err
 	}
 
@@ -2640,7 +2645,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		Source:   "custom",
 		Mappings: payload.TradeMappings,
 	}); err != nil {
-		_ = os.Remove(s.importFilePath(userID, importName))
+		_ = utils.RemoveFileInRoot(utils.ImportDir(userID), importName+".json")
 		s.markImportFailed(ctx, userID, importID, err)
 		return err
 	}
@@ -2660,7 +2665,7 @@ func (s *ImportService) RunTransferTrades(ctx context.Context, userID, importID 
 		return err
 	}
 
-	b, err := os.ReadFile(s.importFilePath(userID, imp.Name))
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
 	if err != nil {
 		s.markImportFailed(ctx, userID, importID, err)
 		return err
@@ -3286,12 +3291,11 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 	}
 
 	// Delete import files
-	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	tmpPath := finalPath + ".tmp"
-	for _, p := range []string{tmpPath, finalPath} {
-		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	finalName := imp.Name + ".json"
+	for _, name := range []string{finalName + ".tmp", finalName} {
+		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", p, err)
+			return fmt.Errorf("failed to remove file %s: %w", name, err)
 		}
 	}
 
@@ -3340,12 +3344,11 @@ func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *
 	}
 
 	// Delete import files
-	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	tmpPath := finalPath + ".tmp"
-	for _, p := range []string{tmpPath, finalPath} {
-		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	finalName := imp.Name + ".json"
+	for _, name := range []string{finalName + ".tmp", finalName} {
+		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", p, err)
+			return fmt.Errorf("failed to remove file %s: %w", name, err)
 		}
 	}
 
@@ -3382,12 +3385,11 @@ func (s *ImportService) deleteRulesImport(ctx context.Context, userID int64, imp
 	}
 
 	// Delete import files
-	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	tmpPath := finalPath + ".tmp"
-	for _, p := range []string{tmpPath, finalPath} {
-		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	finalName := imp.Name + ".json"
+	for _, name := range []string{finalName + ".tmp", finalName} {
+		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", p, err)
+			return fmt.Errorf("failed to remove file %s: %w", name, err)
 		}
 	}
 
@@ -3441,12 +3443,11 @@ func (s *ImportService) deleteCatImport(ctx context.Context, userID int64, imp *
 	}
 
 	// Delete import files
-	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	tmpPath := finalPath + ".tmp"
-	for _, p := range []string{tmpPath, finalPath} {
-		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	finalName := imp.Name + ".json"
+	for _, name := range []string{finalName + ".tmp", finalName} {
+		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", p, err)
+			return fmt.Errorf("failed to remove file %s: %w", name, err)
 		}
 	}
 
@@ -3522,12 +3523,11 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 		return err
 	}
 
-	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
-	tmpPath := finalPath + ".tmp"
-	for _, p := range []string{tmpPath, finalPath} {
-		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	finalName := imp.Name + ".json"
+	for _, name := range []string{finalName + ".tmp", finalName} {
+		if err := utils.RemoveFileInRoot(utils.ImportDir(userID), name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			tx.Rollback()
-			return fmt.Errorf("failed to remove file %s: %w", p, err)
+			return fmt.Errorf("failed to remove file %s: %w", name, err)
 		}
 	}
 
