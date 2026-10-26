@@ -32,6 +32,7 @@ type ImportServiceInterface interface {
 	ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error)
 	FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error)
 	FetchImportByID(ctx context.Context, id, userID int64, importType string) (*models.Import, error)
+	FetchCustomImportPayload(ctx context.Context, id, userID int64) (*models.TxnImportPayload, error)
 	ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int64, error)
 	ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) (int64, error)
 	ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) (int64, error)
@@ -615,6 +616,27 @@ func (s *ImportService) FetchImportsByImportType(ctx context.Context, userID int
 
 func (s *ImportService) FetchImportByID(ctx context.Context, id, userID int64, importType string) (*models.Import, error) {
 	return s.repo.FindImportByID(ctx, nil, id, userID, importType)
+}
+
+func (s *ImportService) FetchCustomImportPayload(ctx context.Context, id, userID int64) (*models.TxnImportPayload, error) {
+	imp, err := s.repo.FindImportByID(ctx, nil, id, userID, "custom")
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperr.New(apperr.NotFound, "Import not found")
+		}
+		return nil, err
+	}
+
+	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
+	if err != nil {
+		return nil, err
+	}
+
+	var payload models.TxnImportPayload
+	if err := json.Unmarshal(b, &payload); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, apperr.GenericMessage, err)
+	}
+	return &payload, nil
 }
 
 func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, source string, payload models.TxnImportPayload) (int64, error) {

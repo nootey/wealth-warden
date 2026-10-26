@@ -81,29 +81,13 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		step = "cash"
 	}
 
-	imp, err := h.Service.FetchImportByID(ctx, id, userID, "custom")
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
-	if imp == nil || imp.Type != "custom" {
-		_ = c.Error(apperr.New(apperr.NotFound, "Import not found"))
-		return
-	}
-
-	b, err := utils.ReadFileInRoot(utils.ImportDir(userID), imp.Name+".json")
+	payload, err := h.Service.FetchCustomImportPayload(ctx, id, userID)
 	if err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	var payload models.TxnImportPayload
-	if err := json.Unmarshal(b, &payload); err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Internal, apperr.GenericMessage, err))
-		return
-	}
-
-	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(ctx, &payload, step)
+	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(ctx, payload, step)
 	if apiErr != nil {
 		_ = c.Error(apiErr)
 		return
