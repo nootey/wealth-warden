@@ -1,3 +1,5 @@
+//go:build integration
+
 package jobs_test
 
 import (
@@ -18,7 +20,7 @@ type AssetPriceHistoryBackfillJobTestSuite struct {
 	tests.ServiceIntegrationSuite
 }
 
-func TestAssetPriceHistoryBackfillJobSuite(t *testing.T) {
+func TestIntegrationAssetPriceHistoryBackfillJobSuite(t *testing.T) {
 	suite.Run(t, new(AssetPriceHistoryBackfillJobTestSuite))
 }
 

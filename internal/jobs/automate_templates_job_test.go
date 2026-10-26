@@ -6,25 +6,15 @@ import (
 	"testing"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/tests"
 	"wealth-warden/mocks"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 )
-
-type AutomateTemplateJobTestSuite struct {
-	tests.ServiceIntegrationSuite
-}
-
-func TestAutomateTemplateJobSuite(t *testing.T) {
-	suite.Run(t, new(AutomateTemplateJobTestSuite))
-}
 
 type recordedNotification struct {
 	userID    int64

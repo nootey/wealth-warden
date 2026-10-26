@@ -1,3 +1,5 @@
+//go:build integration
+
 package services_test
 
 import (
@@ -17,7 +19,7 @@ type SettingsServiceTestSuite struct {
 	tests.ServiceIntegrationSuite
 }
 
-func TestSettingsServiceSuite(t *testing.T) {
+func TestIntegrationSettingsServiceSuite(t *testing.T) {
 	suite.Run(t, new(SettingsServiceTestSuite))
 }
 

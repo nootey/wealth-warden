@@ -1,4 +1,4 @@
-.PHONY: default run migrate seed loadtest mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-seed docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push observe observe-local
+.PHONY: default run migrate seed loadtest mock build test test-unit test-integration test-coverage check-test-names lint lint-fix docker-up docker-down docker-migrate docker-seed docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push observe observe-local
 
 COMPOSE_OBS       := -f ./docker-compose.observability.yaml
 COMPOSE_OBS_LOCAL := -f ./docker-compose.observability.local.yaml
@@ -39,10 +39,21 @@ bench:
 	go test -bench=. -run=Benchmark -timeout=5s ./...
 
 test:
-	go test -race -count=1 ./...
+	go test -race -count=1 -tags integration ./...
+
+# cover=<file> writes a coverage profile
+test-unit:
+	go test -race -count=1 $(if $(cover),-coverpkg=./... -coverprofile=$(cover)) ./...
+
+test-integration:
+	go test -race -count=1 -tags integration -run '^TestIntegration' $(if $(cover),-coverpkg=./... -coverprofile=$(cover)) ./...
+
+check-test-names:
+	@bad=$$(git grep -l '^//go:build integration' -- '*_test.go' | xargs -r grep -HnE '^func Test' | grep -vE ':func Test(Integration|Main\()'); \
+	if [ -n "$$bad" ]; then echo "$$bad"; echo "tests in integration-tagged files must start with TestIntegration"; exit 1; fi
 
 test-coverage:
-	go test -race -coverprofile=coverage.out ./...
+	go test -race -tags integration -coverpkg=./... -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
@@ -94,7 +105,7 @@ pre-push:
 	@echo "--- App ---"
 	@go build ./... && echo "build successful" || (echo "build failed" && exit 1)
 	@golangci-lint run && echo "lint successful" || (echo "lint failed" && exit 1)
-	@go test -race -count=1 ./... && echo "tests successful" || (echo "tests failed" && exit 1)
+	@go test -race -count=1 -tags integration ./... && echo "tests successful" || (echo "tests failed" && exit 1)
 	@echo ""
 	@echo "--- Client ---"
 	@cd client && pnpm run build && echo "build successful" || (echo "build failed" && exit 1)

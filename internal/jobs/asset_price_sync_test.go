@@ -1,3 +1,5 @@
+//go:build integration
+
 package jobs_test
 
 import (
@@ -20,7 +22,7 @@ type AssetPriceSyncJobTestSuite struct {
 	tests.ServiceIntegrationSuite
 }
 
-func TestAssetPriceSyncJobSuite(t *testing.T) {
+func TestIntegrationAssetPriceSyncJobSuite(t *testing.T) {
 	suite.Run(t, new(AssetPriceSyncJobTestSuite))
 }
 
