@@ -32,10 +32,7 @@ export interface BasicAccountStats {
   net: string;
   avg_monthly_inflow: string;
   avg_monthly_outflow: string;
-  take_home: string;
-  overflow: string;
-  avg_monthly_take_home: string;
-  avg_monthly_overflow: string;
+  avg_monthly_net: string;
   active_months: number;
   necessity: NecessitySplit;
   categories?: CategoryStat[];
@@ -50,8 +47,6 @@ export interface MonthlyStats {
   inflow: string;
   outflow: string;
   net: string;
-  take_home: string;
-  overflow: string;
   savings: string;
   investments: string;
   debt_repayments: string;
@@ -70,7 +65,6 @@ export interface DailyStats {
   year: number;
   inflow: string;
   outflow: string;
-  net: string;
   generated_at: Date;
 }
 
@@ -80,10 +74,8 @@ export interface YearStatsWithAllocations {
   outflow: string;
   avg_monthly_inflow: string;
   avg_monthly_outflow: string;
-  take_home: string;
-  overflow: string;
-  avg_monthly_take_home: string;
-  avg_monthly_overflow: string;
+  net: string;
+  avg_monthly_net: string;
   savings_allocated: string;
   investment_allocated: string;
   debt_allocated: string;
@@ -156,8 +148,7 @@ export type MonthData = {
     investments: string | number;
     savings: string | number;
     debt_repayments: string | number;
-    take_home: string | number;
-    overflow?: string | number;
+    net: string | number;
   };
 };
 

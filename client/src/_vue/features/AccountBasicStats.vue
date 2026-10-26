@@ -172,16 +172,10 @@ const statTiles = computed(() => {
       value: s.avg_monthly_outflow,
       tone: "text-loss",
     },
-    { label: "Take home", value: s.take_home, tone: "text-ink" },
-    { label: "Overflow", value: s.overflow, tone: "text-ink" },
+    { label: "Net", value: s.net, tone: "text-ink" },
     {
-      label: "Avg. monthly take home",
-      value: s.avg_monthly_take_home,
-      tone: "text-ink",
-    },
-    {
-      label: "Avg. monthly overflow",
-      value: s.avg_monthly_overflow,
+      label: "Avg. monthly net",
+      value: s.avg_monthly_net,
       tone: "text-ink",
     },
     {

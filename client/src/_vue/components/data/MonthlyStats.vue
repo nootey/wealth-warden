@@ -259,33 +259,13 @@ const pieOptions = computed(() => ({
     />
 
     <template v-else-if="monthlyStats">
-      <div
-        class="flex items-center justify-between gap-3 rounded-xl bg-sunken px-4 py-3"
-      >
-        <div class="flex flex-col gap-0.5">
-          <span class="text-xs text-muted">Take home</span>
-          <span
-            class="text-xl leading-tight font-medium tracking-tight text-ink"
-          >
-            {{
-              vueHelper.displayAsCurrency(
-                monthlyStats.take_home,
-                monthlyStats.currency,
-              )
-            }}
-          </span>
-        </div>
-        <div class="flex flex-col items-end gap-0.5">
-          <span class="text-xs text-muted">Overflow</span>
-          <span class="text-sm font-medium text-ink">
-            {{
-              vueHelper.displayAsCurrency(
-                monthlyStats.overflow,
-                monthlyStats.currency,
-              )
-            }}
-          </span>
-        </div>
+      <div class="flex flex-col gap-0.5 rounded-xl bg-sunken px-4 py-3">
+        <span class="text-xs text-muted">Net</span>
+        <span class="text-xl leading-tight font-medium tracking-tight text-ink">
+          {{
+            vueHelper.displayAsCurrency(monthlyStats.net, monthlyStats.currency)
+          }}
+        </span>
       </div>
 
       <div class="grid grid-cols-2 gap-2">

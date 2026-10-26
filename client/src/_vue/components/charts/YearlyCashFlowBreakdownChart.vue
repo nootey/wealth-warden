@@ -66,12 +66,8 @@ const debtArr = computed(() =>
   props.data.months.map((m) => toNumber(m.categories.debt_repayments as any)),
 );
 
-const takeHomeArr = computed(() =>
-  props.data.months.map((m) => toNumber(m.categories.take_home as any)),
-);
-
-const overflowArr = computed(() =>
-  props.data.months.map((m) => toNumber(m.categories.overflow ?? (0 as any))),
+const netArr = computed(() =>
+  props.data.months.map((m) => toNumber(m.categories.net as any)),
 );
 
 const hasAnyData = computed(() => {
@@ -164,31 +160,15 @@ const chartOptions = computed(() => ({
           `${ctx.dataset.label}: ${vueHelper.displayAsCurrency(Math.abs(ctx.parsed?.y))}`,
         footer: (items: any[]) => {
           if (!items?.length || props.selectedSeries) return "";
-          const i = items[0].dataIndex;
-          const takeHome = takeHomeArr.value[i] ?? 0;
-          const overflow = overflowArr.value[i] ?? 0;
-
-          const lines = [];
-
-          if (takeHome > 0) {
-            lines.push(`Take Home: ${vueHelper.displayAsCurrency(takeHome)}`);
-          }
-
-          if (overflow < 0) {
-            lines.push(
-              `Overflow: ${vueHelper.displayAsCurrency(Math.abs(overflow))}`,
-            );
-          }
-
-          return lines.join("\n");
+          const net = netArr.value[items[0].dataIndex] ?? 0;
+          return net ? `Net: ${vueHelper.displayAsCurrency(net)}` : "";
         },
       },
       footerColor: (_ctx: any) => {
         const it = _ctx?.tooltip?.dataPoints?.[0];
         if (!it) return colors.value.axisText;
-        const i = it.dataIndex;
-        const takeHome = takeHomeArr.value[i] ?? 0;
-        return takeHome > 0 ? colors.value.pos : colors.value.neg;
+        const net = netArr.value[it.dataIndex] ?? 0;
+        return net > 0 ? colors.value.pos : colors.value.neg;
       },
     },
   },
