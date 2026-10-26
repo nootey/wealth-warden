@@ -35,7 +35,8 @@ func newErrorRouter() *gin.Engine {
 
 func decode(t interface {
 	NoError(error, ...interface{}) bool
-}, w *httptest.ResponseRecorder) map[string]any {
+}, w *httptest.ResponseRecorder,
+) map[string]any {
 	var response map[string]any
 	t.NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	return response

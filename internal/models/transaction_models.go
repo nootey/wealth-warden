@@ -7,14 +7,14 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var (
-	ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment, TxnTypeOpening}
-)
+var ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment, TxnTypeOpening}
 
-type TransactionType string
-type TransactionDirection string
-type BulkTransactionAction string
-type CategoryNecessity string
+type (
+	TransactionType       string
+	TransactionDirection  string
+	BulkTransactionAction string
+	CategoryNecessity     string
+)
 
 const (
 	TxnTypeLedger           TransactionType = "ledger"            // Standard type
@@ -254,8 +254,10 @@ var DefaultCategories = []DefaultCategoryDef{
 	{
 		Name:           "Expense",
 		Classification: "expense",
-		Children: []string{"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
-			"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other"},
+		Children: []string{
+			"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
+			"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other",
+		},
 		Needs: []string{"Health", "Hygiene", "Food", "Rent", "Utilities"},
 	},
 }

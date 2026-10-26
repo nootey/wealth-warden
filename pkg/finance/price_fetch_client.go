@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
+
+	"go.uber.org/zap"
 )
 
 // ExchangeMap maps common exchange names/aliases to their Yahoo Finance suffix codes.
@@ -41,12 +44,12 @@ type PriceFetcher interface {
 type PriceFetchClient struct {
 	httpClient *http.Client
 	baseURL    string
+	logger     *zap.Logger
 }
 
-func NewPriceFetchClient(baseURL string) (PriceFetcher, error) {
-
+func NewPriceFetchClient(baseURL string, logger *zap.Logger) (PriceFetcher, error) {
 	if baseURL == "" {
-		return nil, fmt.Errorf("base URL cannot be empty")
+		return nil, errors.New("base URL cannot be empty")
 	}
 
 	client := &http.Client{
@@ -54,17 +57,17 @@ func NewPriceFetchClient(baseURL string) (PriceFetcher, error) {
 	}
 
 	if client.Timeout <= 0 {
-		return nil, fmt.Errorf("invalid timeout configuration")
+		return nil, errors.New("invalid timeout configuration")
 	}
 
 	return &PriceFetchClient{
 		httpClient: client,
 		baseURL:    baseURL,
+		logger:     logger,
 	}, nil
 }
 
 func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error) {
-
 	ticker = strings.ToUpper(strings.TrimSpace(ticker))
 
 	query := "interval=1d&range=1d"
@@ -88,7 +91,7 @@ func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, inv
 	defer func(Body io.ReadCloser) {
 		closeErr := Body.Close()
 		if closeErr != nil {
-			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+			c.logger.Warn("failed to close asset price response body", zap.String("ticker", ticker), zap.Error(closeErr))
 		}
 	}(resp.Body)
 
@@ -182,7 +185,7 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 	defer func(Body io.ReadCloser) {
 		closeErr := Body.Close()
 		if closeErr != nil {
-			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+			c.logger.Warn("failed to close dated asset price response body", zap.String("ticker", ticker), zap.Time("date", date), zap.Error(closeErr))
 		}
 	}(resp.Body)
 
@@ -266,7 +269,7 @@ func (c *PriceFetchClient) GetAssetPriceRange(ctx context.Context, ticker string
 	defer func(Body io.ReadCloser) {
 		closeErr := Body.Close()
 		if closeErr != nil {
-			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+			c.logger.Warn("failed to close asset price range response body", zap.String("ticker", ticker), zap.Error(closeErr))
 		}
 	}(resp.Body)
 
@@ -314,7 +317,7 @@ func (c *PriceFetchClient) GetAssetPriceRange(ctx context.Context, ticker string
 
 func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error) {
 	if len(assets) == 0 {
-		return nil, fmt.Errorf("no assets provided")
+		return nil, errors.New("no assets provided")
 	}
 
 	symbols := make([]string, 0, len(assets))
@@ -343,7 +346,7 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	}
 
 	if len(symbols) == 0 {
-		return nil, fmt.Errorf("no valid assets to fetch")
+		return nil, errors.New("no valid assets to fetch")
 	}
 
 	url := fmt.Sprintf("%s/v8/finance/spark?symbols=%s&range=7d&interval=1d",
@@ -363,7 +366,7 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	defer func(Body io.ReadCloser) {
 		closeErr := Body.Close()
 		if closeErr != nil {
-			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+			c.logger.Warn("failed to close multi-asset price response body", zap.Int("asset_count", len(assets)), zap.Error(closeErr))
 		}
 	}(resp.Body)
 
@@ -380,13 +383,13 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	for _, symbol := range symbols {
 		entry, ok := data[symbol]
 		if !ok {
-			result[symbol] = &PriceData{Symbol: symbol, Error: fmt.Errorf("no data returned")}
+			result[symbol] = &PriceData{Symbol: symbol, Error: errors.New("no data returned")}
 			continue
 		}
 
 		price, ts := latestSparkClose(entry)
 		if price <= 0 {
-			result[symbol] = &PriceData{Symbol: symbol, Error: fmt.Errorf("no valid close price")}
+			result[symbol] = &PriceData{Symbol: symbol, Error: errors.New("no valid close price")}
 			continue
 		}
 
@@ -424,7 +427,7 @@ func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, fromCurrency, to
 
 	// If converting TO USD, we need the inverse
 	if toCurrency == "USD" {
-		symbol := fmt.Sprintf("%s=X", fromCurrency)
+		symbol := fromCurrency + "=X"
 		rate, err := c.fetchYahooRate(ctx, symbol)
 		if err != nil {
 			return 0, err
@@ -434,7 +437,7 @@ func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, fromCurrency, to
 
 	// If converting from USD, we need the rate directly
 	if fromCurrency == "USD" {
-		symbol := fmt.Sprintf("%s=X", toCurrency)
+		symbol := toCurrency + "=X"
 		rate, err := c.fetchYahooRate(ctx, symbol)
 		if err != nil {
 			return 0, err
@@ -502,11 +505,12 @@ func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurren
 	}
 
 	var symbol string
-	if toCurrency == "USD" {
-		symbol = fmt.Sprintf("%s=X", fromCurrency)
-	} else if fromCurrency == "USD" {
-		symbol = fmt.Sprintf("%s=X", toCurrency)
-	} else {
+	switch {
+	case toCurrency == "USD":
+		symbol = fromCurrency + "=X"
+	case fromCurrency == "USD":
+		symbol = toCurrency + "=X"
+	default:
 		// Convert through USD
 		fromToUsd, err := c.GetExchangeRateOnDate(ctx, fromCurrency, "USD", date)
 		if err != nil {
@@ -521,7 +525,7 @@ func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurren
 
 	// Try up to 7 days back to find a valid rate
 	maxAttempts := 7
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	for attempt := range maxAttempts {
 		tryDate := date.AddDate(0, 0, -attempt)
 
 		startOfDay := tryDate.UTC().Truncate(24 * time.Hour)

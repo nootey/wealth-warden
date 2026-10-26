@@ -673,7 +673,7 @@ func (s *SavingsService) FundGoalNow(ctx context.Context, userID, goalID int64) 
 			return apperr.New(apperr.Conflict, "insufficient uncategorized balance to fund this goal")
 		default:
 			// the goal stopped being fundable between the check above and the locked read
-			return fmt.Errorf("goal was not funded")
+			return errors.New("goal was not funded")
 		}
 	}
 

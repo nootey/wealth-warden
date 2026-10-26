@@ -19,7 +19,6 @@ type MailConfig struct {
 }
 
 func NewMailer(cfg *config.Config, mCfg *MailConfig) *Mailer {
-
 	if cfg.Mailer.Host == "" {
 		return nil
 	}

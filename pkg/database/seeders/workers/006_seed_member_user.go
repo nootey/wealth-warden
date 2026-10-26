@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 	"wealth-warden/internal/config"
@@ -11,7 +12,6 @@ import (
 )
 
 func SeedMemberUser(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
-
 	email := cfg.Seed.MemberUserEmail
 	if email == "" {
 		fmt.Println("No member email provided in config, skipping ...")
@@ -29,7 +29,7 @@ func SeedMemberUser(ctx context.Context, db *gorm.DB, cfg *config.Config) error 
 		return fmt.Errorf("failed to fetch global role member: %w", err)
 	}
 	if globalRoleID == 0 {
-		return fmt.Errorf("global role 'member' does not exist, please seed roles first")
+		return errors.New("global role 'member' does not exist, please seed roles first")
 	}
 
 	// Check if the member user already exists.

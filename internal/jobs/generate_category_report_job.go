@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobqueue"
@@ -158,18 +159,18 @@ func (j *categoryReportRun) reportName(generatedAt time.Time) string {
 
 func pluralize(count int, singular, plural string) string {
 	if count == 1 {
-		return fmt.Sprintf("1 %s", singular)
+		return "1 " + singular
 	}
 	return fmt.Sprintf("%d %s", count, plural)
 }
 
 func (j *categoryReportRun) saveFile(data []byte) (string, error) {
-	dir := filepath.Join("storage", "reports", fmt.Sprintf("%d", j.UserID))
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	dir := filepath.Join("storage", "reports", strconv.FormatInt(j.UserID, 10))
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", err
 	}
 	filePath := filepath.Join(dir, fmt.Sprintf("%d.xlsx", j.ReportID))
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := os.WriteFile(filePath, data, 0o600); err != nil {
 		return "", err
 	}
 	return filePath, nil

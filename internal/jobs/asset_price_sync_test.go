@@ -83,7 +83,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop
 	err = job.Run(s.Ctx)
 	s.Require().NoError(err)
 
-	s.Assert().True(inflatedPrice.Equal(s.latestTickerPrice("BTC-USD")),
+	s.True(inflatedPrice.Equal(s.latestTickerPrice("BTC-USD")),
 		"ticker price should not have been updated on extreme drop: expected %s, got %s",
 		inflatedPrice.String(), s.latestTickerPrice("BTC-USD").String())
 }
@@ -163,8 +163,8 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 	assetAfter, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
-	s.Assert().NotNil(assetAfter.LastPriceUpdate, "last update should be set")
-	s.Assert().True(assetAfter.CurrentValue.GreaterThan(decimal.Zero), "current value should be updated")
+	s.NotNil(assetAfter.LastPriceUpdate, "last update should be set")
+	s.True(assetAfter.CurrentValue.GreaterThan(decimal.Zero), "current value should be updated")
 
 	// Verify ticker price history refreshed away from the stale old price
 	var priceHistory models.TickerPriceHistory
@@ -172,8 +172,8 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		Where("ticker = ? AND as_of = ?", "BTC-USD", today).
 		First(&priceHistory).Error
 	s.Require().NoError(err)
-	s.Assert().True(priceHistory.Price.GreaterThan(decimal.Zero), "price history should be recorded")
-	s.Assert().False(oldPrice.Equal(priceHistory.Price), "price sync should have replaced the stale price")
+	s.True(priceHistory.Price.GreaterThan(decimal.Zero), "price history should be recorded")
+	s.False(oldPrice.Equal(priceHistory.Price), "price sync should have replaced the stale price")
 
 	// Verify cash balance reduced by purchase cost
 	var balance models.Balance
@@ -181,7 +181,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(balance.Balance.LessThan(initialBalance), "buy should have reduced the cash balance")
+	s.True(balance.Balance.LessThan(initialBalance), "buy should have reduced the cash balance")
 }
 
 // countingPriceFetcher wraps the mock and records how the job reaches for prices.
@@ -243,9 +243,9 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FetchesPricesInOneBat
 	s.Equal(0, fetcher.singleCalls, "job must not fetch tickers one by one")
 	s.Equal(1, fetcher.batchCalls, "the two tickers must go out in a single batched request")
 
-	s.Assert().True(decimal.NewFromInt(50000).Equal(s.latestTickerPrice("BTC-USD")),
+	s.True(decimal.NewFromInt(50000).Equal(s.latestTickerPrice("BTC-USD")),
 		"BTC-USD price should come from the batch response")
-	s.Assert().True(decimal.NewFromInt(100).Equal(s.latestTickerPrice("IWDA.AS")),
+	s.True(decimal.NewFromInt(100).Equal(s.latestTickerPrice("IWDA.AS")),
 		"IWDA.AS price should come from the batch response")
 }
 
@@ -311,9 +311,9 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FailedTickerDoesNotRo
 	err = job.Run(s.Ctx)
 	s.Require().NoError(err, "one bad ticker must not fail the whole run")
 
-	s.Assert().True(decimal.NewFromInt(100).Equal(s.latestTickerPrice("IWDA.AS")),
+	s.True(decimal.NewFromInt(100).Equal(s.latestTickerPrice("IWDA.AS")),
 		"the healthy ticker must stay committed: expected 100, got %s", s.latestTickerPrice("IWDA.AS").String())
 
-	s.Assert().True(decimal.NewFromInt(45000).Equal(s.latestTickerPrice("BTC-USD")),
+	s.True(decimal.NewFromInt(45000).Equal(s.latestTickerPrice("BTC-USD")),
 		"the failed ticker must stay at its old price: expected 45000, got %s", s.latestTickerPrice("BTC-USD").String())
 }

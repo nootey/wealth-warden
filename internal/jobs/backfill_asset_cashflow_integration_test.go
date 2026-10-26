@@ -142,8 +142,8 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RepeatRunIsIdempotent()
 
 	s.Require().NoError(job.Run(s.Ctx))
 
-	s.Assert().Equal(balancesAfterFirst, s.balances(accID), "balances changed on the second run")
-	s.Assert().Equal(snapshotsAfterFirst, s.snapshots(userID), "snapshots changed on the second run")
+	s.Equal(balancesAfterFirst, s.balances(accID), "balances changed on the second run")
+	s.Equal(snapshotsAfterFirst, s.snapshots(userID), "snapshots changed on the second run")
 }
 
 // A closed account is never rebuilt, so the clear must not delete its history.
@@ -177,9 +177,9 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_KeepsClosedAccountSnaps
 		Table("balance_snapshots").
 		Where("account_id = ?", closedAccID).
 		Count(&countAfter).Error)
-	s.Assert().Equal(countBefore, countAfter, "the run deleted the closed account's snapshots")
+	s.Equal(countBefore, countAfter, "the run deleted the closed account's snapshots")
 
-	s.Assert().NotEmpty(s.balances(openAccID))
+	s.NotEmpty(s.balances(openAccID))
 }
 
 // An account with no balance rows must be skipped, not abort the whole rebuild.
@@ -201,7 +201,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_SkipsAccountWithoutBala
 
 	s.Require().NoError(s.newBackfillJob().Run(s.Ctx))
 
-	s.Assert().NotEmpty(s.balances(tradedAccID), "the traded account should still be rebuilt")
+	s.NotEmpty(s.balances(tradedAccID), "the traded account should still be rebuilt")
 
 	// Only the snapshot rebuild reaches back to the opening day; the cash flow
 	// step alone starts at the first trade.
@@ -213,7 +213,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_SkipsAccountWithoutBala
 		Scan(&earliest).Error)
 
 	opening := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -10)
-	s.Assert().Equal(opening, earliest.UTC(), "the rebuild stopped short for the traded account")
+	s.Equal(opening, earliest.UTC(), "the rebuild stopped short for the traded account")
 }
 
 // A step that fails after the clear must roll the whole sequence back.
@@ -239,8 +239,8 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_FailureMidSequenceRolls
 
 	s.Require().Error(job.Run(s.Ctx), "a failed user must fail the run so the queue retries it")
 
-	s.Assert().Equal(balancesBefore, s.balances(accID), "the failed run changed the balances")
-	s.Assert().Equal(snapshotsBefore, s.snapshots(userID), "the failed run changed the snapshots")
+	s.Equal(balancesBefore, s.balances(accID), "the failed run changed the balances")
+	s.Equal(snapshotsBefore, s.snapshots(userID), "the failed run changed the snapshots")
 }
 
 // Criterion 2: before trades became system transactions, a transactions-only rebuild
@@ -266,10 +266,10 @@ func (s *BackfillCashFlowsIntegrationSuite) TestRebuildFromTransactions_KeepsTra
 	}
 
 	rebuild()
-	s.Assert().Equal(before, s.balances(accID), "the rebuild erased trade cash")
+	s.Equal(before, s.balances(accID), "the rebuild erased trade cash")
 
 	rebuild()
-	s.Assert().Equal(before, s.balances(accID), "the second rebuild drifted")
+	s.Equal(before, s.balances(accID), "the second rebuild drifted")
 }
 
 // The migration path: legacy trades carry no transaction, and the backfill has to
@@ -285,14 +285,14 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_LinksLegacyTrades() {
 
 	s.Require().NoError(s.newBackfillJob().Run(s.Ctx))
 
-	s.Assert().Equal(before, s.balances(accID), "the backfill changed the balances")
+	s.Equal(before, s.balances(accID), "the backfill changed the balances")
 
 	var unlinked int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
 		Table("investment_trades").
 		Where("user_id = ? AND transaction_id IS NULL", userID).
 		Count(&unlinked).Error)
-	s.Assert().Zero(unlinked, "the backfill left trades without a transaction")
+	s.Zero(unlinked, "the backfill left trades without a transaction")
 }
 
 // Puts the user's trades back into their pre-phase-1 shape: cash written straight
@@ -320,13 +320,13 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_LinksLegacyTradesOnClos
 
 	s.Require().NoError(s.newBackfillJob().Run(s.Ctx), "the backfill failed on a closed account")
 
-	s.Assert().Equal(before, s.balances(accID), "the backfill changed the balances")
+	s.Equal(before, s.balances(accID), "the backfill changed the balances")
 
 	// The trigger has to be back on, or every later write to a closed account passes.
 	err := s.TC.DB.WithContext(s.Ctx).Exec(`
 		INSERT INTO transactions (user_id, account_id, direction, amount, currency, txn_date, transaction_type)
 		VALUES (?, ?, 'expense', 1, 'EUR', NOW(), 'ledger')`, userID, accID).Error
-	s.Assert().Error(err, "the closed-account trigger was left disabled")
+	s.Error(err, "the closed-account trigger was left disabled")
 }
 
 func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RelinksSoftDeletedTradeTransaction() {
@@ -349,7 +349,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RelinksSoftDeletedTrade
 
 	s.Require().NoError(s.newBackfillJob().Run(s.Ctx))
 
-	s.Assert().Equal(before, s.balances(accID), "the backfill left the buy without cash")
+	s.Equal(before, s.balances(accID), "the backfill left the buy without cash")
 
 	var unbacked int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Raw(`
@@ -357,5 +357,5 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RelinksSoftDeletedTrade
 		FROM   investment_trades it
 		LEFT   JOIN transactions t ON t.id = it.transaction_id AND t.deleted_at IS NULL
 		WHERE  it.user_id = ? AND t.id IS NULL`, userID).Scan(&unbacked).Error)
-	s.Assert().Zero(unbacked, "a trade is still without a live transaction")
+	s.Zero(unbacked, "a trade is still without a live transaction")
 }

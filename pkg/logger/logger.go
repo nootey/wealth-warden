@@ -10,7 +10,6 @@ import (
 )
 
 func InitLogger(release bool) *zap.Logger {
-
 	cfg := zap.NewProductionConfig()
 
 	if !release {
@@ -44,7 +43,7 @@ func InitLogger(release bool) *zap.Logger {
 func getLogFilePath() string {
 	const logDir = "logs"
 
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(logDir, 0o755); err != nil { //nolint:gosec // Alloy reads this folder from another container
 		panic(fmt.Sprintf("failed to create log directory: %v", err))
 	}
 

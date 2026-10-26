@@ -1,12 +1,17 @@
 package utils_test
 
 import (
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestContentFingerprint(t *testing.T) {
@@ -53,7 +58,7 @@ func TestSafeString(t *testing.T) {
 
 		result := utils.SafeString(s)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("returns trimmed string for non-nil pointer", func(t *testing.T) {
@@ -69,7 +74,7 @@ func TestSafeString(t *testing.T) {
 
 		result := utils.SafeString(&s)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("returns trimmed string for pointer to whitespace-only string", func(t *testing.T) {
@@ -77,7 +82,7 @@ func TestSafeString(t *testing.T) {
 
 		result := utils.SafeString(&s)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("handles string with no whitespace", func(t *testing.T) {
@@ -122,7 +127,7 @@ func TestCleanString(t *testing.T) {
 
 		result := utils.CleanString(input)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("trims whitespace-only string", func(t *testing.T) {
@@ -130,7 +135,7 @@ func TestCleanString(t *testing.T) {
 
 		result := utils.CleanString(input)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("trims pointer to whitespace-only string", func(t *testing.T) {
@@ -140,7 +145,7 @@ func TestCleanString(t *testing.T) {
 		result := utils.CleanString(input)
 
 		resultPtr := result.(*string)
-		assert.Equal(t, "", *resultPtr)
+		assert.Empty(t, *resultPtr)
 	})
 
 	t.Run("preserves internal spaces", func(t *testing.T) {
@@ -192,6 +197,96 @@ func TestCleanString(t *testing.T) {
 	})
 }
 
+func TestImportDir(t *testing.T) {
+	assert.Equal(t, filepath.Join("storage", "imports", "42"), utils.ImportDir(42))
+}
+
+func TestValidateImportIdentifier(t *testing.T) {
+	t.Run("accepts a single path segment", func(t *testing.T) {
+		for _, id := range []string{"nlb_2024-01_2024-03", "My Bank 2024", "v1.2", ".."} {
+			assert.NoError(t, utils.ValidateImportIdentifier(id), id)
+		}
+	})
+
+	t.Run("rejects path separators as a Validation apperr", func(t *testing.T) {
+		for _, id := range []string{"a/b", `a\b`, "/../../escape"} {
+			err := utils.ValidateImportIdentifier(id)
+
+			status, _ := apperr.Resolve(err)
+			assert.Equal(t, http.StatusUnprocessableEntity, status, id)
+		}
+	})
+}
+
+func rootFixture(t *testing.T) (parent, dir string) {
+	t.Helper()
+	parent = t.TempDir()
+	dir = filepath.Join(parent, "user")
+	require.NoError(t, os.Mkdir(dir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "inside.json"), []byte("in"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(parent, "outside.json"), []byte("out"), 0o600))
+	return parent, dir
+}
+
+func TestReadFileInRoot(t *testing.T) {
+	t.Run("reads a file inside the dir", func(t *testing.T) {
+		_, dir := rootFixture(t)
+
+		data, err := utils.ReadFileInRoot(dir, "inside.json")
+
+		require.NoError(t, err)
+		assert.Equal(t, "in", string(data))
+	})
+
+	t.Run("refuses a name that escapes the dir", func(t *testing.T) {
+		_, dir := rootFixture(t)
+
+		_, err := utils.ReadFileInRoot(dir, "../outside.json")
+
+		require.Error(t, err)
+	})
+
+	t.Run("refuses a symlink that points outside the dir", func(t *testing.T) {
+		parent, dir := rootFixture(t)
+		require.NoError(t, os.Symlink(filepath.Join(parent, "outside.json"), filepath.Join(dir, "link.json")))
+
+		_, err := utils.ReadFileInRoot(dir, "link.json")
+
+		require.Error(t, err)
+	})
+
+	t.Run("reports a missing dir as not exist", func(t *testing.T) {
+		_, err := utils.ReadFileInRoot(filepath.Join(t.TempDir(), "missing"), "inside.json")
+
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+}
+
+func TestRemoveFileInRoot(t *testing.T) {
+	t.Run("removes a file inside the dir", func(t *testing.T) {
+		_, dir := rootFixture(t)
+
+		require.NoError(t, utils.RemoveFileInRoot(dir, "inside.json"))
+
+		assert.NoFileExists(t, filepath.Join(dir, "inside.json"))
+	})
+
+	t.Run("refuses a name that escapes the dir", func(t *testing.T) {
+		parent, dir := rootFixture(t)
+
+		err := utils.RemoveFileInRoot(dir, "../outside.json")
+
+		require.Error(t, err)
+		assert.FileExists(t, filepath.Join(parent, "outside.json"))
+	})
+
+	t.Run("reports a missing file as not exist", func(t *testing.T) {
+		_, dir := rootFixture(t)
+
+		require.ErrorIs(t, utils.RemoveFileInRoot(dir, "gone.json"), os.ErrNotExist)
+	})
+}
+
 func TestNormalizeName(t *testing.T) {
 	t.Run("converts to lowercase", func(t *testing.T) {
 		input := "Hello World"
@@ -238,7 +333,7 @@ func TestNormalizeName(t *testing.T) {
 
 		result := utils.NormalizeName(input)
 
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("handles string with multiple consecutive spaces", func(t *testing.T) {

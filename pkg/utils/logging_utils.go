@@ -22,15 +22,16 @@ func InitChanges() *Changes {
 	}
 }
 
-func CompareChanges(old, new string, obj *Changes, index string) {
-	if old != new {
-		if len(new) == 0 {
-			obj.Old[index] = old
-		} else if len(old) == 0 {
-			obj.New[index] = new
-		} else {
-			obj.Old[index] = old
-			obj.New[index] = new
+func CompareChanges(oldV, newV string, obj *Changes, index string) {
+	if oldV != newV {
+		switch {
+		case len(newV) == 0:
+			obj.Old[index] = oldV
+		case len(oldV) == 0:
+			obj.New[index] = newV
+		default:
+			obj.Old[index] = oldV
+			obj.New[index] = newV
 		}
 	}
 }

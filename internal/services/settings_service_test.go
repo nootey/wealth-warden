@@ -4,7 +4,6 @@ package services_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
@@ -26,7 +25,7 @@ func TestIntegrationSettingsServiceSuite(t *testing.T) {
 func (s *SettingsServiceTestSuite) loginSuperAdmin() *models.User {
 	cfg, err := config.LoadConfig(nil)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load configuration: %s", err.Error()))
+		panic("Failed to load configuration: " + err.Error())
 	}
 
 	user, err := s.TC.App.AuthService.ValidateLogin(
@@ -61,7 +60,7 @@ func (s *SettingsServiceTestSuite) TestUpdateProfileSettings_PasswordChangeRevok
 	s.Require().NoError(err)
 
 	_, err = store.Validate(s.Ctx, otherDevice)
-	s.ErrorIs(err, sessions.ErrNotFound, "other session should have been revoked by the password change")
+	s.Require().ErrorIs(err, sessions.ErrNotFound, "other session should have been revoked by the password change")
 
 	// restore the seeded password so other tests/suites relying on it keep working;
 	// written directly because the seed password fails the strength check

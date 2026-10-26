@@ -83,7 +83,6 @@ func TestAuthHandlerTestSuite(t *testing.T) {
 }
 
 func (suite *AuthHandlerTestSuite) TestLoginUser_Success() {
-
 	form := models.LoginForm{
 		AuthForm: models.AuthForm{
 			Email:    "test@example.com",
@@ -121,7 +120,6 @@ func (suite *AuthHandlerTestSuite) TestLoginUser_Success() {
 }
 
 func (suite *AuthHandlerTestSuite) TestLoginUser_InvalidJSON() {
-
 	invalidJSON := []byte(`{"email": "test@example.com", "password":}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBuffer(invalidJSON))
@@ -169,7 +167,6 @@ func (suite *AuthHandlerTestSuite) TestLoginUser_SessionCreationFails() {
 }
 
 func (suite *AuthHandlerTestSuite) TestSignUp_Success() {
-
 	form := models.RegisterForm{
 		AuthForm: models.AuthForm{
 			Email:    "test@example.com",
@@ -197,7 +194,6 @@ func (suite *AuthHandlerTestSuite) TestSignUp_Success() {
 }
 
 func (suite *AuthHandlerTestSuite) TestGetAuthUser_Success() {
-
 	user := &models.User{
 		ID:    123,
 		Email: "test@example.com",
@@ -215,7 +211,6 @@ func (suite *AuthHandlerTestSuite) TestGetAuthUser_Success() {
 }
 
 func (suite *AuthHandlerTestSuite) TestGetAuthUser_ServiceError() {
-
 	suite.mockService.On("GetCurrentUser", mock.Anything, int64(123)).
 		Return(nil, errors.New("user not found"))
 
@@ -228,7 +223,6 @@ func (suite *AuthHandlerTestSuite) TestGetAuthUser_ServiceError() {
 }
 
 func (suite *AuthHandlerTestSuite) TestLogoutUser_Success() {
-
 	suite.mockMiddleware.On("DestroySession", mock.Anything, "session-id").Return(nil)
 	suite.mockMiddleware.On("CookieDomainForEnv").Return("localhost")
 	suite.mockMiddleware.On("CookieSecure").Return(false)
@@ -243,7 +237,6 @@ func (suite *AuthHandlerTestSuite) TestLogoutUser_Success() {
 }
 
 func (suite *AuthHandlerTestSuite) TestLogoutUser_RedisDownStillLogsOut() {
-
 	suite.mockMiddleware.On("DestroySession", mock.Anything, "session-id").
 		Return(errors.New("redis unavailable"))
 	suite.mockMiddleware.On("CookieDomainForEnv").Return("localhost")
@@ -281,7 +274,7 @@ func (suite *AuthHandlerTestSuite) TestLoginUser_BadCredentialsAreClassified() {
 	suite.Equal(http.StatusUnauthorized, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Invalid email or password", response["message"])
 }
 
@@ -292,7 +285,7 @@ func (suite *AuthHandlerTestSuite) TestLoginUser_UnclassifiedDoesNotLeak() {
 	suite.NotContains(w.Body.String(), "pq:")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -306,6 +299,6 @@ func (suite *AuthHandlerTestSuite) TestResetPassword_InvalidJSON() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Invalid JSON", response["message"])
 }

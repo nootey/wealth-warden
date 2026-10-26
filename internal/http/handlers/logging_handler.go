@@ -36,7 +36,6 @@ func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {
 }
 
 func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context) {
-
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 	ctx := c.Request.Context()
@@ -60,7 +59,6 @@ func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context) {
 }
 
 func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {
-
 	queryParams := c.Request.URL.Query()
 	activityIndex := queryParams.Get("index")
 
@@ -74,7 +72,6 @@ func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {
 }
 
 func (h *LoggingHandler) DeleteActivityLog(c *gin.Context) {
-
 	ctx := c.Request.Context()
 
 	id, err := utils.ParseID(c, "id")

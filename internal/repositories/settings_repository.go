@@ -56,7 +56,6 @@ func (r *SettingsRepository) FetchGeneralSettings(ctx context.Context, tx *gorm.
 
 	var settings models.SettingsGeneral
 	err := db.First(&settings).Error
-
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +75,6 @@ func (r *SettingsRepository) FetchUserSettings(ctx context.Context, tx *gorm.DB,
 		Where("user_id = ?", userID).
 		First(&settings).
 		Error
-
 	if err != nil {
 		return nil, err
 	}

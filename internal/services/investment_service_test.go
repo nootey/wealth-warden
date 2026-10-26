@@ -31,7 +31,7 @@ func (s *InvestmentServiceTestSuite) assertTickerPriced(ticker string) {
 		Order("as_of DESC").
 		First(&ph).Error
 	s.Require().NoError(err)
-	s.Assert().True(ph.Price.GreaterThan(decimal.Zero))
+	s.True(ph.Price.GreaterThan(decimal.Zero))
 }
 
 // Creates a stock asset with a valid ticker format (TICKER.EXCHANGE)
@@ -61,18 +61,18 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 
 	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(assetID, int64(0))
+	s.Positive(assetID)
 
 	asset, err := svc.FetchInvestmentAssetByID(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
-	s.Assert().Equal("iShares Core MSCI World", asset.Name)
-	s.Assert().Equal("IWDA.AS", asset.Ticker)
-	s.Assert().Equal(models.InvestmentStock, asset.InvestmentType)
-	s.Assert().True(qty.Equal(asset.Quantity))
-	s.Assert().True(asset.AverageBuyPrice.Equal(decimal.Zero))
-	s.Assert().Equal(accID, asset.AccountID)
-	s.Assert().NotNil(asset.LastPriceUpdate)
+	s.Equal("iShares Core MSCI World", asset.Name)
+	s.Equal("IWDA.AS", asset.Ticker)
+	s.Equal(models.InvestmentStock, asset.InvestmentType)
+	s.True(qty.Equal(asset.Quantity))
+	s.True(asset.AverageBuyPrice.Equal(decimal.Zero))
+	s.Equal(accID, asset.AccountID)
+	s.NotNil(asset.LastPriceUpdate)
 	s.assertTickerPriced(asset.Ticker)
 }
 
@@ -110,8 +110,8 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_SeedsPriceHistory() {
 		Where("ticker = ? AND as_of = ?", "BTC-USD", today).
 		First(&ph).Error
 	s.Require().NoError(err, "ticker_price_history should have a row for today after asset creation")
-	s.Assert().True(ph.Price.GreaterThan(decimal.Zero), "seeded price should be > 0")
-	s.Assert().NotEmpty(ph.Currency, "seeded price should have a currency")
+	s.True(ph.Price.GreaterThan(decimal.Zero), "seeded price should be > 0")
+	s.NotEmpty(ph.Currency, "seeded price should have a currency")
 }
 
 // Verifies that a stock with an invalid/non-existent exchange returns an error
@@ -142,7 +142,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_StockWithInvalidExchange() 
 	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
 
 	s.Require().Error(err)
-	s.Assert().Equal(int64(0), assetID)
+	s.Equal(int64(0), assetID)
 
 	var count int64
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -150,7 +150,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_StockWithInvalidExchange() 
 		Where("user_id = ? AND ticker = ?", userID, "AAPL.INVALID").
 		Count(&count).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), count)
+	s.Equal(int64(0), count)
 }
 
 // Tests that crypto assets automatically append -USD if no currency is specified
@@ -180,7 +180,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithoutCurrency() {
 
 	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(assetID, int64(0))
+	s.Positive(assetID)
 
 	var asset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -188,10 +188,10 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithoutCurrency() {
 		First(&asset).Error
 	s.Require().NoError(err)
 
-	s.Assert().Equal("Bitcoin", asset.Name)
-	s.Assert().Equal("BTC-USD", asset.Ticker) // Should auto-format to BTC-USD
-	s.Assert().Equal(models.InvestmentCrypto, asset.InvestmentType)
-	s.Assert().True(qty.Equal(asset.Quantity))
+	s.Equal("Bitcoin", asset.Name)
+	s.Equal("BTC-USD", asset.Ticker) // Should auto-format to BTC-USD
+	s.Equal(models.InvestmentCrypto, asset.InvestmentType)
+	s.True(qty.Equal(asset.Quantity))
 	s.assertTickerPriced(asset.Ticker)
 }
 
@@ -222,7 +222,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithValidCurrency() {
 
 	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(assetID, int64(0))
+	s.Positive(assetID)
 
 	var asset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -230,10 +230,10 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithValidCurrency() {
 		First(&asset).Error
 	s.Require().NoError(err)
 
-	s.Assert().Equal("Bitcoin brev", asset.Name)
-	s.Assert().Equal("BTC-EUR", asset.Ticker)
-	s.Assert().Equal(models.InvestmentCrypto, asset.InvestmentType)
-	s.Assert().True(qty.Equal(asset.Quantity))
+	s.Equal("Bitcoin brev", asset.Name)
+	s.Equal("BTC-EUR", asset.Ticker)
+	s.Equal(models.InvestmentCrypto, asset.InvestmentType)
+	s.True(qty.Equal(asset.Quantity))
 	s.assertTickerPriced(asset.Ticker)
 }
 
@@ -282,7 +282,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 
 	tradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, tradeReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(tradeID, int64(0))
+	s.Positive(tradeID)
 
 	// Verify asset updated
 	var asset models.InvestmentAsset
@@ -291,9 +291,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 		First(&asset).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(buyQty.Equal(asset.Quantity))
-	s.Assert().True(buyPrice.Equal(asset.AverageBuyPrice))
-	s.Assert().True(buyPrice.Equal(asset.ValueAtBuy))
+	s.True(buyQty.Equal(asset.Quantity))
+	s.True(buyPrice.Equal(asset.AverageBuyPrice))
+	s.True(buyPrice.Equal(asset.ValueAtBuy))
 
 	// Verify buy wrote cash_outflows
 	var balance models.Balance
@@ -304,7 +304,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 
 	// Verify end balance = initial - purchase cost
 	expectedEndBalance := initialBalance.Sub(buyPrice)
-	s.Assert().True(expectedEndBalance.Equal(balance.Balance),
+	s.True(expectedEndBalance.Equal(balance.Balance),
 		"end balance should be %s, got %s",
 		expectedEndBalance.String(), balance.Balance.String())
 
@@ -314,7 +314,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&snapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedEndBalance.Equal(snapshot.EndBalance),
+	s.True(expectedEndBalance.Equal(snapshot.EndBalance),
 		"snapshot should reflect cash balance of %s, got %s",
 		expectedEndBalance.String(), snapshot.EndBalance.String())
 }
@@ -386,13 +386,13 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(2).Equal(asset.Quantity),
+	s.True(decimal.NewFromInt(2).Equal(asset.Quantity),
 		"total quantity should be 2, got %s", asset.Quantity.String())
 
-	s.Assert().True(decimal.NewFromInt(53750).Equal(asset.AverageBuyPrice),
+	s.True(decimal.NewFromInt(53750).Equal(asset.AverageBuyPrice),
 		"average buy price should be 53750, got %s", asset.AverageBuyPrice.String())
 
-	s.Assert().True(decimal.NewFromInt(107500).Equal(asset.ValueAtBuy),
+	s.True(decimal.NewFromInt(107500).Equal(asset.ValueAtBuy),
 		"value at buy should be 107500, got %s", asset.ValueAtBuy.String())
 
 	// Verify cash outflows = total spent (50k + 30k + 27.5k = 107.5k)
@@ -406,7 +406,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 
 	// Verify end balance = 200k - 107.5k = 92.5k
 	expectedEndBalance := initialBalance.Sub(expectedOutflows)
-	s.Assert().True(expectedEndBalance.Equal(balance.Balance),
+	s.True(expectedEndBalance.Equal(balance.Balance),
 		"end balance should be %s, got %s",
 		expectedEndBalance.String(), balance.Balance.String())
 }
@@ -464,14 +464,14 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		Currency:     "EUR",
 	})
 	s.Require().NoError(err)
-	s.Assert().Greater(sellTradeID, int64(0))
+	s.Positive(sellTradeID)
 
 	// Verify asset quantity reduced
 	var asset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(1).Equal(asset.Quantity))
-	s.Assert().True(decimal.NewFromInt(50000).Equal(asset.AverageBuyPrice))
+	s.True(decimal.NewFromInt(1).Equal(asset.Quantity))
+	s.True(decimal.NewFromInt(50000).Equal(asset.AverageBuyPrice))
 
 	// Proceeds = 1 * 90k = 90k, cost basis = 50k, realized P&L = 40k tracked
 	// on the trade and not in the cash balance.
@@ -483,7 +483,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 
 	// End balance = 200k - 100k (buys) + 90k (full proceeds) = 190k
 	expectedEndBalance := decimal.NewFromInt(190000)
-	s.Assert().True(expectedEndBalance.Equal(balanceAfterSell.Balance),
+	s.True(expectedEndBalance.Equal(balanceAfterSell.Balance),
 		"end balance should be %s, got %s",
 		expectedEndBalance.String(), balanceAfterSell.Balance.String())
 }
@@ -529,16 +529,16 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 		Currency:     "EUR",
 	})
 	s.Require().NoError(err)
-	s.Assert().Greater(cryptoTradeID, int64(0))
+	s.Positive(cryptoTradeID)
 
 	// Verify crypto asset: quantity = 0.99, value = 0.99 * 50k = 49,500
 	var cryptoAsset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", cryptoAssetID).First(&cryptoAsset).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromFloat(0.99).Equal(cryptoAsset.Quantity),
+	s.True(decimal.NewFromFloat(0.99).Equal(cryptoAsset.Quantity),
 		"crypto quantity should be 0.99, got %s", cryptoAsset.Quantity.String())
-	s.Assert().True(decimal.NewFromFloat(49500).Equal(cryptoAsset.ValueAtBuy),
+	s.True(decimal.NewFromFloat(49500).Equal(cryptoAsset.ValueAtBuy),
 		"crypto value at buy should be 49500, got %s", cryptoAsset.ValueAtBuy.String())
 
 	// Verify cash outflows = 49500 (effective value, crypto fee is in tokens not cash)
@@ -567,18 +567,18 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 		Currency:     "EUR",
 	})
 	s.Require().NoError(err)
-	s.Assert().Greater(stockTradeID, int64(0))
+	s.Positive(stockTradeID)
 
 	// Verify stock asset: quantity = 5, value = 5 * 100 = 500 (pure trade value, fee separate)
 	var stockAsset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", stockAssetID).First(&stockAsset).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(5).Equal(stockAsset.Quantity),
+	s.True(decimal.NewFromInt(5).Equal(stockAsset.Quantity),
 		"stock quantity should be 5, got %s", stockAsset.Quantity.String())
-	s.Assert().True(decimal.NewFromInt(500).Equal(stockAsset.ValueAtBuy),
+	s.True(decimal.NewFromInt(500).Equal(stockAsset.ValueAtBuy),
 		"stock value at buy should be 500, got %s", stockAsset.ValueAtBuy.String())
-	s.Assert().True(decimal.NewFromFloat(100).Equal(stockAsset.AverageBuyPrice),
+	s.True(decimal.NewFromFloat(100).Equal(stockAsset.AverageBuyPrice),
 		"stock avg buy price should be 100, got %s", stockAsset.AverageBuyPrice.String())
 
 	// Total spent = 49500 (crypto) + 503 (stock qty*price+fee) = 50003
@@ -589,7 +589,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Require().NoError(err)
 
 	expectedEndBalance := initialBalance.Sub(decimal.NewFromFloat(50003))
-	s.Assert().True(expectedEndBalance.Equal(finalBalance.Balance),
+	s.True(expectedEndBalance.Equal(finalBalance.Balance),
 		"end balance should be %s, got %s",
 		expectedEndBalance.String(), finalBalance.Balance.String())
 }
@@ -657,7 +657,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", sellTradeID).First(&stockSellTrade).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(597).Equal(stockSellTrade.RealizedValue),
+	s.True(decimal.NewFromInt(597).Equal(stockSellTrade.RealizedValue),
 		"stock realized value should be 597 (proceeds after fee)")
 
 	// Verify balance: the buy took 1005 (qty*price+fee), the sell returned 597
@@ -668,7 +668,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Require().NoError(err)
 
 	expectedEndBalance := initialBalance.Sub(decimal.NewFromFloat(1005)).Add(decimal.NewFromFloat(597))
-	s.Assert().True(expectedEndBalance.Equal(balance.Balance),
+	s.True(expectedEndBalance.Equal(balance.Balance),
 		"end balance should be %s, got %s",
 		expectedEndBalance.String(), balance.Balance.String())
 
@@ -718,7 +718,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Require().NoError(err)
 
 	expectedCryptoRealizedValue := decimal.NewFromFloat(0.495).Mul(decimal.NewFromInt(90000))
-	s.Assert().True(expectedCryptoRealizedValue.Equal(cryptoSellTrade.RealizedValue),
+	s.True(expectedCryptoRealizedValue.Equal(cryptoSellTrade.RealizedValue),
 		"crypto realized value should account for token fee: expected %s, got %s",
 		expectedCryptoRealizedValue.String(), cryptoSellTrade.RealizedValue.String())
 
@@ -727,7 +727,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Require().NoError(err)
 
 	// Bought 0.99, sold the full 0.5 (fee does not stay in the position): 0.99 - 0.5 = 0.49
-	s.Assert().True(decimal.NewFromFloat(0.49).Equal(cryptoAssetAfterSell.Quantity),
+	s.True(decimal.NewFromFloat(0.49).Equal(cryptoAssetAfterSell.Quantity),
 		"remaining crypto quantity should be 0.49, got %s", cryptoAssetAfterSell.Quantity.String())
 }
 
@@ -787,14 +787,14 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFee_Remov
 	var asset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(asset.Quantity),
+	s.True(decimal.Zero.Equal(asset.Quantity),
 		"holdings should be fully cleared after selling the entire position; the fee must not be left behind, got %s", asset.Quantity.String())
 
 	// The sell trade records the full quantity sold (not quantity - fee)
 	var sellTrade models.InvestmentTrade
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", sellTradeID).First(&sellTrade).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(100).Equal(sellTrade.Quantity),
+	s.True(decimal.NewFromInt(100).Equal(sellTrade.Quantity),
 		"sell trade quantity should be the full 100, got %s", sellTrade.Quantity.String())
 
 	// Cash proceeds account for the fee: (100 - 2) * 1 = 98
@@ -860,9 +860,9 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfterDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(2).Equal(assetAfterDelete.Quantity),
+	s.True(decimal.NewFromInt(2).Equal(assetAfterDelete.Quantity),
 		"quantity should be restored to 2 BTC, got %s", assetAfterDelete.Quantity.String())
-	s.Assert().True(decimal.NewFromInt(50000).Equal(assetAfterDelete.AverageBuyPrice),
+	s.True(decimal.NewFromInt(50000).Equal(assetAfterDelete.AverageBuyPrice),
 		"average buy price should be 50k, got %s", assetAfterDelete.AverageBuyPrice.String())
 
 	// Verify realized P&L reversed — cash inflows back to 0
@@ -874,7 +874,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 		Where("id = ?", sellTradeID).
 		Count(&tradeCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), tradeCount, "sell trade should be deleted")
+	s.Equal(int64(0), tradeCount, "sell trade should be deleted")
 }
 
 // Tests that deleting a buy trade recalculates the asset quantity and average price correctly
@@ -932,8 +932,8 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 	var assetBeforeDelete models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetBeforeDelete).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(2).Equal(assetBeforeDelete.Quantity))
-	s.Assert().True(decimal.NewFromInt(55000).Equal(assetBeforeDelete.AverageBuyPrice))
+	s.True(decimal.NewFromInt(2).Equal(assetBeforeDelete.Quantity))
+	s.True(decimal.NewFromInt(55000).Equal(assetBeforeDelete.AverageBuyPrice))
 
 	// Delete second buy
 	err = svc.DeleteInvestmentTrade(s.Ctx, userID, secondBuyTradeID)
@@ -944,11 +944,11 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfterDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(1).Equal(assetAfterDelete.Quantity),
+	s.True(decimal.NewFromInt(1).Equal(assetAfterDelete.Quantity),
 		"quantity should be 1 BTC, got %s", assetAfterDelete.Quantity.String())
-	s.Assert().True(decimal.NewFromInt(50000).Equal(assetAfterDelete.AverageBuyPrice),
+	s.True(decimal.NewFromInt(50000).Equal(assetAfterDelete.AverageBuyPrice),
 		"average price should be 50k, got %s", assetAfterDelete.AverageBuyPrice.String())
-	s.Assert().True(decimal.NewFromInt(50000).Equal(assetAfterDelete.ValueAtBuy),
+	s.True(decimal.NewFromInt(50000).Equal(assetAfterDelete.ValueAtBuy),
 		"value at buy should be 50k, got %s", assetAfterDelete.ValueAtBuy.String())
 
 	// Verify cash outflows reversed: 110k - 60k = 50k
@@ -960,7 +960,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 		Where("id = ?", secondBuyTradeID).
 		Count(&tradeCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), tradeCount, "buy trade should be deleted")
+	s.Equal(int64(0), tradeCount, "buy trade should be deleted")
 
 	var remainingTradeCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -968,7 +968,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 		Where("asset_id = ?", assetID).
 		Count(&remainingTradeCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(1), remainingTradeCount, "should have 1 trade remaining")
+	s.Equal(int64(1), remainingTradeCount, "should have 1 trade remaining")
 }
 
 // Tests that deleting a buy trade is blocked if it would cause a sell trade to sell more than available quantity
@@ -1037,7 +1037,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_BlockedByInsuffic
 	var assetBeforeDelete models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetBeforeDelete).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromFloat(0.5).Equal(assetBeforeDelete.Quantity))
+	s.True(decimal.NewFromFloat(0.5).Equal(assetBeforeDelete.Quantity))
 
 	// Try to delete first buy — would leave only 1 BTC but 1.5 was sold
 	err = svc.DeleteInvestmentTrade(s.Ctx, userID, firstBuyTradeID)
@@ -1047,7 +1047,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_BlockedByInsuffic
 	var assetAfterFailedDelete models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfterFailedDelete).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromFloat(0.5).Equal(assetAfterFailedDelete.Quantity),
+	s.True(decimal.NewFromFloat(0.5).Equal(assetAfterFailedDelete.Quantity),
 		"quantity should remain 0.5 BTC")
 
 	var tradeCount int64
@@ -1056,7 +1056,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_BlockedByInsuffic
 		Where("id = ?", firstBuyTradeID).
 		Count(&tradeCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(1), tradeCount, "trade should still exist")
+	s.Equal(int64(1), tradeCount, "trade should still exist")
 }
 
 // Tests that deleting an asset deletes all associated trades and reverses all realized P&L
@@ -1117,7 +1117,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		First(&balanceBeforeDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(190000).Equal(balanceBeforeDelete.Balance),
+	s.True(decimal.NewFromInt(190000).Equal(balanceBeforeDelete.Balance),
 		"end balance should be 190k before delete")
 
 	var tradeCountBefore int64
@@ -1126,7 +1126,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		Where("asset_id = ?", assetID).
 		Count(&tradeCountBefore).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(2), tradeCountBefore, "should have 2 trades")
+	s.Equal(int64(2), tradeCountBefore, "should have 2 trades")
 
 	// Delete the asset
 	err = svc.DeleteInvestmentAsset(s.Ctx, userID, assetID)
@@ -1139,7 +1139,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		Where("id = ?", assetID).
 		Count(&assetCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), assetCount, "asset should be deleted")
+	s.Equal(int64(0), assetCount, "asset should be deleted")
 
 	// Verify all trades deleted
 	var tradeCountAfter int64
@@ -1148,7 +1148,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		Where("asset_id = ?", assetID).
 		Count(&tradeCountAfter).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), tradeCountAfter, "all trades should be deleted")
+	s.Equal(int64(0), tradeCountAfter, "all trades should be deleted")
 
 	// Verify balance fully reversed: outflows and inflows both 0, end balance = initial
 	var balanceAfterDelete models.Balance
@@ -1157,7 +1157,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		First(&balanceAfterDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(initialBalance.Equal(balanceAfterDelete.Balance),
+	s.True(initialBalance.Equal(balanceAfterDelete.Balance),
 		"end balance should be restored to initial %s, got %s",
 		initialBalance.String(), balanceAfterDelete.Balance.String())
 }
@@ -1195,7 +1195,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_NoTrades_LeavesCl
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
 		Where("id = ?", assetID).Count(&assetCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), assetCount, "asset should be deleted")
+	s.Equal(int64(0), assetCount, "asset should be deleted")
 
 	// Balance and snapshot should be unaffected
 	var balance models.Balance
@@ -1203,7 +1203,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_NoTrades_LeavesCl
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(balance.Balance),
+	s.True(initialBalance.Equal(balance.Balance),
 		"end balance should be unchanged: expected %s, got %s",
 		initialBalance.String(), balance.Balance.String())
 }
@@ -1253,7 +1253,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_R
 		First(&snapBefore).Error
 	s.Require().NoError(err)
 	expectedAfterBuy := initialBalance.Sub(buyPrice)
-	s.Assert().True(expectedAfterBuy.Equal(snapBefore.EndBalance),
+	s.True(expectedAfterBuy.Equal(snapBefore.EndBalance),
 		"snapshot at trade date should reflect outflow: expected %s, got %s",
 		expectedAfterBuy.String(), snapBefore.EndBalance.String())
 
@@ -1267,7 +1267,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_R
 		Where("account_id = ? AND as_of = ?", accID, tradDate).
 		First(&snapAtTrade).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapAtTrade.EndBalance),
+	s.True(initialBalance.Equal(snapAtTrade.EndBalance),
 		"snapshot at trade date should be restored: expected %s, got %s",
 		initialBalance.String(), snapAtTrade.EndBalance.String())
 
@@ -1277,7 +1277,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_R
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&snapToday).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapToday.EndBalance),
+	s.True(initialBalance.Equal(snapToday.EndBalance),
 		"snapshot at today should also be recalculated: expected %s, got %s",
 		initialBalance.String(), snapToday.EndBalance.String())
 }
@@ -1327,22 +1327,22 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_StakingIncreases
 		Currency:   "EUR",
 	})
 	s.Require().NoError(err)
-	s.Assert().Greater(incomeID, int64(0))
+	s.Positive(incomeID)
 
 	var asset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromFloat(1.5).Equal(asset.Quantity),
+	s.True(decimal.NewFromFloat(1.5).Equal(asset.Quantity),
 		"quantity should be buy qty 1 + staking 0.5 = 1.5, got %s", asset.Quantity.String())
-	s.Assert().True(decimal.NewFromInt(45000).Equal(asset.AverageBuyPrice),
+	s.True(decimal.NewFromInt(45000).Equal(asset.AverageBuyPrice),
 		"staking should not affect average buy price: expected 45000, got %s", asset.AverageBuyPrice.String())
 
 	// Income FMV: 0.5 BTC * 45000 EUR (mock price for BTC-EUR)
 	var income models.InvestmentIncome
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", incomeID).First(&income).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(22500).Equal(income.Amount),
+	s.True(decimal.NewFromInt(22500).Equal(income.Amount),
 		"staking income amount should be FMV 0.5*45000=22500, got %s", income.Amount.String())
 }
 
@@ -1382,7 +1382,7 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesL
 		Currency:    "EUR",
 	})
 	s.Require().NoError(err)
-	s.Assert().Greater(incomeID, int64(0))
+	s.Positive(incomeID)
 
 	var income models.InvestmentIncome
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", incomeID).First(&income).Error
@@ -1394,11 +1394,11 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesL
 	s.Require().NoError(err)
 
 	// net amount = 50 - 10 tax withheld = 40 EUR
-	s.Assert().True(decimal.NewFromInt(40).Equal(txn.Amount),
+	s.True(decimal.NewFromInt(40).Equal(txn.Amount),
 		"linked transaction amount should be 40 (50 gross - 10 tax withheld), got %s", txn.Amount.String())
-	s.Assert().Equal(models.TxnTypeInvestmentIncome, txn.TransactionType, "linked dividend transaction must be marked investment_income")
-	s.Assert().Equal(accID, txn.AccountID, "linked transaction should be in the asset's account")
-	s.Assert().Equal(models.TxnDirectionIncome, txn.Direction)
+	s.Equal(models.TxnTypeInvestmentIncome, txn.TransactionType, "linked dividend transaction must be marked investment_income")
+	s.Equal(accID, txn.AccountID, "linked transaction should be in the asset's account")
+	s.Equal(models.TxnDirectionIncome, txn.Direction)
 }
 
 // Tests that deleting a staking income record reverses the quantity increment on the asset.
@@ -1458,15 +1458,15 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_StakingReversesQ
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfter).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(1).Equal(assetAfter.Quantity),
+	s.True(decimal.NewFromInt(1).Equal(assetAfter.Quantity),
 		"quantity should revert to trade-only quantity of 1 after deleting staking, got %s", assetAfter.Quantity.String())
-	s.Assert().True(decimal.NewFromInt(45000).Equal(assetAfter.AverageBuyPrice),
+	s.True(decimal.NewFromInt(45000).Equal(assetAfter.AverageBuyPrice),
 		"average buy price should remain 45000, got %s", assetAfter.AverageBuyPrice.String())
 
 	var count int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("id = ?", incomeID).Count(&count).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), count, "staking income record should be deleted")
+	s.Equal(int64(0), count, "staking income record should be deleted")
 }
 
 // Tests that deleting a dividend income record cascades to the linked investment_income transaction.
@@ -1516,7 +1516,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_DividendDeletesL
 	var incomeCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("id = ?", incomeID).Count(&incomeCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), incomeCount, "dividend income record should be deleted")
+	s.Equal(int64(0), incomeCount, "dividend income record should be deleted")
 
 	// Transaction is soft-deleted (deleted_at set)
 	var txnCount int64
@@ -1524,7 +1524,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_DividendDeletesL
 		Where("id = ? AND deleted_at IS NULL", linkedTxnID).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "linked investment_income transaction should be soft-deleted")
+	s.Equal(int64(0), txnCount, "linked investment_income transaction should be soft-deleted")
 }
 
 // Tests that dividend transactions are excluded from analytics via the transaction_type='ledger' filter.
@@ -1596,7 +1596,7 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendExcluded
 	s.Require().NoError(err)
 	s.Require().NotNil(stats)
 
-	s.Assert().True(regularAmount.Equal(stats.Inflow),
+	s.True(regularAmount.Equal(stats.Inflow),
 		"only the ledger income (200) should appear in analytics; the dividend must be excluded, got inflow=%s",
 		stats.Inflow.String())
 }
@@ -1648,9 +1648,9 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendWithCurr
 	s.Require().NoError(err)
 
 	// 110 USD × (1/1.1) = 100 EUR
-	s.Assert().True(decimal.NewFromInt(100).Equal(txn.Amount),
+	s.True(decimal.NewFromInt(100).Equal(txn.Amount),
 		"110 USD dividend at mock rate 1/1.1 should convert to 100 EUR, got %s", txn.Amount.String())
-	s.Assert().Equal("EUR", txn.Currency, "linked transaction currency should be the account currency")
+	s.Equal("EUR", txn.Currency, "linked transaction currency should be the account currency")
 }
 
 // Tests that staking income creation fails when quantity is missing.
@@ -1686,12 +1686,12 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_Staking_MissingQ
 		Currency:   "USD",
 	})
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "quantity")
+	s.Contains(err.Error(), "quantity")
 
 	var count int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("asset_id = ?", assetID).Count(&count).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), count, "no income record should be created on validation failure")
+	s.Equal(int64(0), count, "no income record should be created on validation failure")
 }
 
 // Tests that dividend income creation fails when amount is missing.
@@ -1727,12 +1727,12 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_Dividend_Missing
 		Currency:   "EUR",
 	})
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "amount")
+	s.Contains(err.Error(), "amount")
 
 	var count int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("asset_id = ?", assetID).Count(&count).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), count, "no income record should be created on validation failure")
+	s.Equal(int64(0), count, "no income record should be created on validation failure")
 }
 
 // A sell on an asset holding staking rewards must remove the same cost basis whether
@@ -1813,7 +1813,7 @@ func (s *InvestmentServiceTestSuite) TestSellWithStakingRewards_BasisAgreesAcros
 	basisRemovedIncrementally := beforeSell.ValueAtBuy.Sub(afterSell.ValueAtBuy)
 	// The trade prices the sale off average_buy_price, stored at 4dp, so allow that quantisation
 	tolerance := decimal.NewFromInt(6).Mul(decimal.NewFromFloat(0.0001))
-	s.Assert().True(sellTrade.ValueAtBuy.Sub(basisRemovedIncrementally).Abs().LessThanOrEqual(tolerance),
+	s.True(sellTrade.ValueAtBuy.Sub(basisRemovedIncrementally).Abs().LessThanOrEqual(tolerance),
 		"sell trade recorded a cost basis of %s but %s left the asset",
 		sellTrade.ValueAtBuy.String(), basisRemovedIncrementally.String())
 
@@ -1826,11 +1826,11 @@ func (s *InvestmentServiceTestSuite) TestSellWithStakingRewards_BasisAgreesAcros
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&afterRecalc).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(afterSell.Quantity.Equal(afterRecalc.Quantity),
+	s.True(afterSell.Quantity.Equal(afterRecalc.Quantity),
 		"quantity drifted on recalc: %s -> %s", afterSell.Quantity.String(), afterRecalc.Quantity.String())
-	s.Assert().True(afterSell.ValueAtBuy.Equal(afterRecalc.ValueAtBuy),
+	s.True(afterSell.ValueAtBuy.Equal(afterRecalc.ValueAtBuy),
 		"cost basis drifted on recalc: %s -> %s", afterSell.ValueAtBuy.String(), afterRecalc.ValueAtBuy.String())
-	s.Assert().True(afterSell.AverageBuyPrice.Equal(afterRecalc.AverageBuyPrice),
+	s.True(afterSell.AverageBuyPrice.Equal(afterRecalc.AverageBuyPrice),
 		"average buy price drifted on recalc: %s -> %s", afterSell.AverageBuyPrice.String(), afterRecalc.AverageBuyPrice.String())
 }
 
@@ -1888,9 +1888,9 @@ func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHi
 		First(&history).Error
 	s.Require().NoError(err)
 
-	s.Assert().False(history.Price.Equal(decimal.NewFromInt(42)),
+	s.False(history.Price.Equal(decimal.NewFromInt(42)),
 		"recalc left today's history row at the stale forced price")
-	s.Assert().True(asset.CurrentValue.Equal(history.Price.Mul(asset.Quantity)),
+	s.True(asset.CurrentValue.Equal(history.Price.Mul(asset.Quantity)),
 		"asset current_value %s does not match today's history price %s * qty %s",
 		asset.CurrentValue.String(), history.Price.String(), asset.Quantity.String())
 }
@@ -1987,38 +1987,38 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ConvertsAndWei
 	alloc, err := s.TC.App.InvestmentService.FetchPortfolioAllocation(s.Ctx, userID, "EUR")
 	s.Require().NoError(err)
 
-	s.Assert().Equal("EUR", alloc.Currency)
-	s.Assert().Equal(0, alloc.UnpricedAssets)
-	s.Assert().True(decimal.NewFromInt(1900).Equal(alloc.TotalValue),
+	s.Equal("EUR", alloc.Currency)
+	s.Equal(0, alloc.UnpricedAssets)
+	s.True(decimal.NewFromInt(1900).Equal(alloc.TotalValue),
 		"total should be 1900 EUR, got %s", alloc.TotalValue.String())
 
 	byCurrency := alloc.Groups["currency"]
 	s.Require().Len(byCurrency, 2)
 	usd := s.allocationRow(byCurrency, "USD")
 	s.Require().NotNil(usd)
-	s.Assert().True(decimal.NewFromInt(900).Equal(usd.Value),
+	s.True(decimal.NewFromInt(900).Equal(usd.Value),
 		"USD holding should convert to 900 EUR, got %s", usd.Value.String())
 
 	byType := alloc.Groups["type"]
 	s.Require().Len(byType, 2)
 	// Largest slice first
-	s.Assert().Equal("stock", byType[0].Key)
-	s.Assert().Equal("Stock", byType[0].Label)
+	s.Equal("stock", byType[0].Key)
+	s.Equal("Stock", byType[0].Label)
 
 	s.Require().Len(alloc.Groups["ticker"], 2)
 
 	// One account holds everything, so its weight is the whole portfolio
 	byAccount := alloc.Groups["account"]
 	s.Require().Len(byAccount, 1)
-	s.Assert().True(decimal.NewFromInt(1).Equal(byAccount[0].Weight))
-	s.Assert().Equal("Investment Account", byAccount[0].Label)
+	s.True(decimal.NewFromInt(1).Equal(byAccount[0].Weight))
+	s.Equal("Investment Account", byAccount[0].Label)
 
 	for name, rows := range alloc.Groups {
 		sum := decimal.Zero
 		for _, row := range rows {
 			sum = sum.Add(row.Weight)
 		}
-		s.Assert().True(decimal.NewFromInt(1).Equal(sum),
+		s.True(decimal.NewFromInt(1).Equal(sum),
 			"weights in group %q should sum to 1, got %s", name, sum.String())
 	}
 }
@@ -2052,13 +2052,13 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ExcludesUnpric
 	alloc, err := s.TC.App.InvestmentService.FetchPortfolioAllocation(s.Ctx, userID, "EUR")
 	s.Require().NoError(err)
 
-	s.Assert().Equal(1, alloc.UnpricedAssets)
-	s.Assert().True(decimal.NewFromInt(1000).Equal(alloc.TotalValue),
+	s.Equal(1, alloc.UnpricedAssets)
+	s.True(decimal.NewFromInt(1000).Equal(alloc.TotalValue),
 		"only the priced, open holding counts, got %s", alloc.TotalValue.String())
 
 	tickers := alloc.Groups["ticker"]
 	s.Require().Len(tickers, 1)
-	s.Assert().Equal("IWDA.AS", tickers[0].Key)
+	s.Equal("IWDA.AS", tickers[0].Key)
 }
 
 // Two accounts hold the same ticker. A price sync must write exactly one
@@ -2083,14 +2083,14 @@ func (s *InvestmentServiceTestSuite) TestApplyTickerPrice_OneRowPerTickerManyHol
 	var rowCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
 		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).Count(&rowCount).Error)
-	s.Assert().Equal(int64(1), rowCount, "one ticker/day row for all holders")
+	s.Equal(int64(1), rowCount, "one ticker/day row for all holders")
 
 	a, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, idA)
 	s.Require().NoError(err)
 	b, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, idB)
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(1200).Equal(a.CurrentValue), "holder A value = 10 * 120, got %s", a.CurrentValue.String())
-	s.Assert().True(decimal.NewFromInt(480).Equal(b.CurrentValue), "holder B value = 4 * 120, got %s", b.CurrentValue.String())
+	s.True(decimal.NewFromInt(1200).Equal(a.CurrentValue), "holder A value = 10 * 120, got %s", a.CurrentValue.String())
+	s.True(decimal.NewFromInt(480).Equal(b.CurrentValue), "holder B value = 4 * 120, got %s", b.CurrentValue.String())
 }
 
 // setLatestTickerPrice overwrites today's ticker_price_history row for a ticker.
@@ -2117,15 +2117,15 @@ func (s *InvestmentServiceTestSuite) TestFetchInvestmentAssetsPaginated_DerivesV
 	s.Require().NoError(err)
 	s.Require().Len(rows, 2)
 
-	s.Assert().Equal(small, rows[0].ID, "ascending: smaller current_value first")
-	s.Assert().Equal(big, rows[1].ID)
-	s.Assert().True(decimal.NewFromInt(450).Equal(rows[0].CurrentValue), "got %s", rows[0].CurrentValue.String())
-	s.Assert().True(decimal.NewFromInt(1000).Equal(rows[1].CurrentValue), "got %s", rows[1].CurrentValue.String())
+	s.Equal(small, rows[0].ID, "ascending: smaller current_value first")
+	s.Equal(big, rows[1].ID)
+	s.True(decimal.NewFromInt(450).Equal(rows[0].CurrentValue), "got %s", rows[0].CurrentValue.String())
+	s.True(decimal.NewFromInt(1000).Equal(rows[1].CurrentValue), "got %s", rows[1].CurrentValue.String())
 
 	page.SortOrder = "desc"
 	rows, _, err = s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
 	s.Require().NoError(err)
-	s.Assert().Equal(big, rows[0].ID, "descending: larger current_value first")
+	s.Equal(big, rows[0].ID, "descending: larger current_value first")
 }
 
 // A buy trade's PnL follows the latest ticker price; a sell trade's PnL is the
@@ -2165,10 +2165,10 @@ func (s *InvestmentServiceTestSuite) TestFetchInvestmentTradesPaginated_BuyTrack
 	}
 
 	// buy: 10 * 150 - 1000 = 500
-	s.Assert().True(decimal.NewFromInt(500).Equal(buy.ProfitLoss), "buy PnL tracks price, got %s", buy.ProfitLoss.String())
-	s.Assert().True(decimal.NewFromInt(1500).Equal(buy.CurrentValue), "buy value tracks price, got %s", buy.CurrentValue.String())
+	s.True(decimal.NewFromInt(500).Equal(buy.ProfitLoss), "buy PnL tracks price, got %s", buy.ProfitLoss.String())
+	s.True(decimal.NewFromInt(1500).Equal(buy.CurrentValue), "buy value tracks price, got %s", buy.CurrentValue.String())
 	// sell: realized 480 - basis 400 = 80, independent of the 150 price
-	s.Assert().True(decimal.NewFromInt(80).Equal(sell.ProfitLoss), "sell PnL is the realized figure, got %s", sell.ProfitLoss.String())
+	s.True(decimal.NewFromInt(80).Equal(sell.ProfitLoss), "sell PnL is the realized figure, got %s", sell.ProfitLoss.String())
 }
 
 // Creates a priced asset with no opening trade, so the caller can date its own
@@ -2207,14 +2207,14 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_AnnualisesOverOne
 	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
 	s.Require().NoError(err)
 
-	s.Assert().Equal("EUR", returns.Currency)
+	s.Equal("EUR", returns.Currency)
 	s.Require().NotNil(returns.Portfolio.Rate, "no rate: %s", returns.Portfolio.Reason)
-	s.Assert().True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+	s.True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
 		"a double in one year should be about 100%%/year, got %s", returns.Portfolio.Rate.String())
 
 	s.Require().Len(returns.Assets, 1)
-	s.Assert().Equal("IWDA.AS", returns.Assets[0].Key)
-	s.Assert().True(decimal.NewFromInt(1000).Equal(returns.Assets[0].CurrentValue),
+	s.Equal("IWDA.AS", returns.Assets[0].Key)
+	s.True(decimal.NewFromInt(1000).Equal(returns.Assets[0].CurrentValue),
 		"closing value should be 1000 EUR, got %s", returns.Assets[0].CurrentValue.String())
 }
 
@@ -2253,9 +2253,9 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_ExcludesStakingRe
 	s.Require().NotNil(returns.Assets[0].Rate, "no rate: %s", returns.Assets[0].Reason)
 
 	// 1.1 BTC x 45000 = 49500 EUR closing against 30000 EUR paid, over one year
-	s.Assert().True(decimal.NewFromInt(49500).Equal(returns.Assets[0].CurrentValue),
+	s.True(decimal.NewFromInt(49500).Equal(returns.Assets[0].CurrentValue),
 		"closing value should be 49500 EUR, got %s", returns.Assets[0].CurrentValue.String())
-	s.Assert().True(returns.Assets[0].Rate.Sub(decimal.NewFromFloat(0.65)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+	s.True(returns.Assets[0].Rate.Sub(decimal.NewFromFloat(0.65)).Abs().LessThan(decimal.NewFromFloat(0.01)),
 		"rate should be about 65%%/year, got %s (counting the reward as cash gives about 80%%)",
 		returns.Assets[0].Rate.String())
 }
@@ -2294,15 +2294,15 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_ExcludesUnpricedH
 	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
 	s.Require().NoError(err)
 
-	s.Assert().Equal(1, returns.UnpricedAssets)
+	s.Equal(1, returns.UnpricedAssets)
 
 	s.Require().Len(returns.Assets, 1)
-	s.Assert().Equal("IWDA.AS", returns.Assets[0].Key)
+	s.Equal("IWDA.AS", returns.Assets[0].Key)
 
 	s.Require().NotNil(returns.Portfolio.Rate, "no rate: %s", returns.Portfolio.Reason)
-	s.Assert().True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+	s.True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
 		"the unpriced holding must not drag the portfolio rate down, got %s", returns.Portfolio.Rate.String())
-	s.Assert().True(decimal.NewFromInt(1000).Equal(returns.Portfolio.CurrentValue),
+	s.True(decimal.NewFromInt(1000).Equal(returns.Portfolio.CurrentValue),
 		"only the priced holding counts, got %s", returns.Portfolio.CurrentValue.String())
 }
 

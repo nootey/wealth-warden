@@ -23,7 +23,7 @@ func TestHashAndSaltPassword(t *testing.T) {
 
 	// Verify the hash is valid
 	err = bcrypt.CompareHashAndPassword([]byte(hashed), []byte(password))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify different password fails
 	err = bcrypt.CompareHashAndPassword([]byte(hashed), []byte("wrongPassword"))
@@ -222,7 +222,7 @@ func TestSanitizeStruct(t *testing.T) {
 
 		err := utils.SanitizeStruct(s)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expects a pointer to a struct")
 	})
 
@@ -231,10 +231,11 @@ func TestSanitizeStruct(t *testing.T) {
 
 		err := utils.SanitizeStruct(&s)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expects a pointer to a struct")
 	})
 }
+
 func TestGenerateSecureToken(t *testing.T) {
 	t.Run("generates token of correct length", func(t *testing.T) {
 		token, err := utils.GenerateSecureToken(16)
@@ -372,11 +373,11 @@ func TestValidatePasswordStrength(t *testing.T) {
 			result, err := utils.ValidatePasswordStrength(tt.password)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 				assert.Empty(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotEmpty(t, result)
 				assert.Equal(t, strings.TrimSpace(tt.password), result)
 			}
@@ -409,7 +410,7 @@ func TestGenerateRandomToken(t *testing.T) {
 	t.Run("errors on length exceeding 32", func(t *testing.T) {
 		token, err := utils.GenerateRandomToken(33)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max supported length is 32")
 		assert.Empty(t, token)
 	})
@@ -437,7 +438,7 @@ func TestUnwrapToken(t *testing.T) {
 
 		val, err := utils.UnwrapToken(token, "user_id")
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "token data is nil")
 		assert.Nil(t, val)
 	})
@@ -451,7 +452,7 @@ func TestUnwrapToken(t *testing.T) {
 
 		val, err := utils.UnwrapToken(token, "email")
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), `missing key "email"`)
 		assert.Nil(t, val)
 	})

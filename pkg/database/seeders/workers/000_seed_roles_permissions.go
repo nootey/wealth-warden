@@ -10,7 +10,6 @@ import (
 )
 
 func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
-
 	type roleDef struct {
 		Name string
 	}
@@ -35,7 +34,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Confi
 
 	// Define all permissions.
 	permissions := []PermissionDef{
-
 		//  Top level root permission
 		{"root_access", "Root level access", "root"},
 
@@ -74,7 +72,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Confi
 	}
 
 	// Define role-to-permission mapping.
-	var rolePermissionsList = []rolePermSet{
+	rolePermissionsList := []rolePermSet{
 		{
 			Role: "super-admin",
 			Permissions: []string{

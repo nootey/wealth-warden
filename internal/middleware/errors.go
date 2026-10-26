@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	RequestIDHeader = "X-Request-Id"
+	RequestIDHeader = "X-Request-ID"
 	RequestIDKey    = "request_id"
 )
 

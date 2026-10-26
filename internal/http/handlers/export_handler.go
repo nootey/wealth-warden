@@ -35,7 +35,6 @@ func (h *ExportHandler) Routes(apiGroup *gin.RouterGroup) {
 }
 
 func (h *ExportHandler) GetExports(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -49,7 +48,6 @@ func (h *ExportHandler) GetExports(c *gin.Context) {
 }
 
 func (h *ExportHandler) CreateExport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -63,7 +61,6 @@ func (h *ExportHandler) CreateExport(c *gin.Context) {
 }
 
 func (h *ExportHandler) DownloadExport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -87,7 +84,6 @@ func (h *ExportHandler) DownloadExport(c *gin.Context) {
 }
 
 func (h *ExportHandler) DeleteExport(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 

@@ -127,7 +127,6 @@ func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.A
 }
 
 func (s *AccountService) FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountAccounts(ctx, nil, userID, p.Filters, includeInactive, &classification)
 	if err != nil {
 		return nil, nil, err
@@ -161,7 +160,6 @@ func (s *AccountService) FetchAccountsPaginated(ctx context.Context, userID int6
 }
 
 func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.AccountBalance, error) {
-
 	record, err := s.balanceRepo.FindAccountBalance(ctx, nil, accID, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -174,7 +172,6 @@ func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID i
 }
 
 func (s *AccountService) FetchAvailableBalance(ctx context.Context, accID, userID int64) (*models.AvailableBalance, error) {
-
 	acc, err := s.repo.FindAccountByID(ctx, nil, accID, userID, true)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -201,7 +198,6 @@ func (s *AccountService) FetchAvailableBalance(ctx context.Context, accID, userI
 }
 
 func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id int64) (*models.Account, error) {
-
 	record, err := s.repo.FindAccountByID(ctx, nil, id, userID, true)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -217,7 +213,6 @@ func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id 
 }
 
 func (s *AccountService) FetchAccountWithOpening(ctx context.Context, userID int64, id int64) (*models.AccountWithOpening, error) {
-
 	record, opening, err := s.repo.FindAccountByIDWithOpening(ctx, nil, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -230,7 +225,6 @@ func (s *AccountService) FetchAccountWithOpening(ctx context.Context, userID int
 }
 
 func (s *AccountService) FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error) {
-
 	record, err := s.repo.FindAccountByName(ctx, nil, userID, name)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -263,7 +257,6 @@ func (s *AccountService) FetchAccountsByType(ctx context.Context, userID int64, 
 }
 
 func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) (int64, error) {
-
 	changes := utils.InitChanges()
 
 	// A zero credit limit is the same as none; store it as none.
@@ -407,7 +400,6 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 }
 
 func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) (int64, error) {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -691,7 +683,6 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 }
 
 func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -782,7 +773,6 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 }
 
 func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -875,7 +865,6 @@ func (s *AccountService) FetchAccountsForUser(ctx context.Context, userID int64)
 // A hard delete with no restore path. Closing an account is the normal route;
 // this is the override.
 func (s *AccountService) PurgeAccount(ctx context.Context, actorID, accountID int64) error {
-
 	acc, err := s.repo.FindAccountForPurge(ctx, nil, accountID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -940,7 +929,6 @@ func (s *AccountService) PurgeAccount(ctx context.Context, actorID, accountID in
 // user can be left short. Re-chain and re-materialize every one of them from its
 // opening day.
 func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, userID int64) error {
-
 	accounts, err := s.repo.FindAllAccountsForRebuild(ctx, tx, userID)
 	if err != nil {
 		return err
@@ -976,7 +964,6 @@ func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.
 }
 
 func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1095,7 +1082,6 @@ func (s *AccountService) UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm
 }
 
 func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1163,7 +1149,6 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 }
 
 func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err

@@ -10,6 +10,8 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/finance"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -23,7 +25,7 @@ var (
 func setupTestServer() {
 	testServer = httptest.NewServer(http.HandlerFunc(handleTestRequest))
 	var err error
-	fetcher, err = finance.NewPriceFetchClient(testServer.URL)
+	fetcher, err = finance.NewPriceFetchClient(testServer.URL, zap.NewNop())
 	if err != nil {
 		panic("Failed to create price fetcher: " + err.Error())
 	}
@@ -76,7 +78,8 @@ func setupChartResponse(symbol, currency string, price float64, timestamp int64)
 func setupSparkResponse(closes map[string]struct {
 	Price     float64
 	Timestamp int64
-}) {
+},
+) {
 	mockStatusCode = 0
 	response := make(finance.SparkResponse, len(closes))
 	for symbol, data := range closes {
@@ -110,7 +113,6 @@ func TestGetAssetPrice_ValidStockTicker(t *testing.T) {
 
 	ctx := context.Background()
 	priceData, err := fetcher.GetAssetPrice(ctx, "AAPL", models.InvestmentStock)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -139,7 +141,6 @@ func TestGetAssetPrice_ValidCryptoTicker(t *testing.T) {
 
 	ctx := context.Background()
 	priceData, err := fetcher.GetAssetPrice(ctx, "BTC-USD", models.InvestmentCrypto)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -213,7 +214,6 @@ func TestGetAssetPrice_WeekendHandling(t *testing.T) {
 
 	ctx := context.Background()
 	priceData, err := fetcher.GetAssetPrice(ctx, "AAPL", models.InvestmentStock)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -236,7 +236,6 @@ func TestGetAssetPriceOnDate_ValidHistoricalDate(t *testing.T) {
 
 	ctx := context.Background()
 	priceData, err := fetcher.GetAssetPriceOnDate(ctx, "AAPL", models.InvestmentStock, historicalDate)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -269,7 +268,6 @@ func TestGetAssetPriceOnDate_WeekendDateAdjusted(t *testing.T) {
 
 	ctx := context.Background()
 	priceData, err := fetcher.GetAssetPriceOnDate(ctx, "AAPL", models.InvestmentStock, saturdayDate)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -319,7 +317,6 @@ func TestGetAssetPriceOnDate_FutureDate(t *testing.T) {
 
 	ctx := context.Background()
 	priceData, err := fetcher.GetAssetPriceOnDate(ctx, "AAPL", models.InvestmentStock, futureDate)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -348,7 +345,6 @@ func TestGetPricesForMultipleAssets_ValidTickers(t *testing.T) {
 	}
 
 	results, err := fetcher.GetPricesForMultipleAssets(ctx, assets)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -384,7 +380,6 @@ func TestGetPricesForMultipleAssets_MixedValidInvalid(t *testing.T) {
 	}
 
 	results, err := fetcher.GetPricesForMultipleAssets(ctx, assets)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -438,7 +433,6 @@ func TestGetPricesForMultipleAssets_DifferentTypes(t *testing.T) {
 	}
 
 	results, err := fetcher.GetPricesForMultipleAssets(ctx, assets)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -495,7 +489,6 @@ func TestGetExchangeRate_USD(t *testing.T) {
 
 	ctx := context.Background()
 	rate, err := fetcher.GetExchangeRate(ctx, "USD", "USD")
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -514,7 +507,6 @@ func TestGetExchangeRate_ValidCurrency(t *testing.T) {
 
 	ctx := context.Background()
 	rate, err := fetcher.GetExchangeRate(ctx, "EUR", "USD")
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -576,7 +568,6 @@ func TestGetPricesForMultipleAssets_ExchangeNormalization(t *testing.T) {
 	}
 
 	results, err := fetcher.GetPricesForMultipleAssets(ctx, assets)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -597,7 +588,7 @@ func TestGetPricesForMultipleAssets_ExchangeNormalization(t *testing.T) {
 func TestNewPriceFetchClient_EmptyBaseURL(t *testing.T) {
 	resetMocks()
 
-	_, err := finance.NewPriceFetchClient("")
+	_, err := finance.NewPriceFetchClient("", zap.NewNop())
 
 	if err == nil {
 		t.Fatal("Expected error for empty base URL, got nil")

@@ -32,7 +32,6 @@ type TransactionHandlerTestSuite struct {
 }
 
 func (suite *TransactionHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockTransactionServiceInterface(suite.T())
@@ -97,7 +96,7 @@ func (suite *TransactionHandlerTestSuite) TestInsertTransaction_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Record created", response["message"])
 }
 
@@ -152,7 +151,7 @@ func (suite *TransactionHandlerTestSuite) TestInsertTransfer_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Record created", response["message"])
 }
 
@@ -210,7 +209,7 @@ func (suite *TransactionHandlerTestSuite) TestUpdateTransaction_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Record updated", response["message"])
 }
 
@@ -251,7 +250,7 @@ func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Record deleted", response["message"])
 }
 
@@ -270,7 +269,7 @@ func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_ServiceError() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal(apperr.GenericMessage, response["message"])
 	suite.NotContains(w.Body.String(), "database error")
 }
@@ -290,7 +289,7 @@ func (suite *TransactionHandlerTestSuite) TestDeleteTransaction_ClassifiedError(
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Transaction not found", response["message"])
 }
 
@@ -319,7 +318,7 @@ func (suite *TransactionHandlerTestSuite) TestDeleteTransfer_Success() {
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Equal("Record deleted", response["message"])
 }
 
@@ -368,9 +367,9 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_Success()
 
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
-	suite.NoError(err)
-	suite.Equal(float64(1), response["current_page"])
-	suite.Equal(float64(1), response["total_records"])
+	suite.Require().NoError(err)
+	suite.EqualValues(1, response["current_page"])
+	suite.EqualValues(1, response["total_records"])
 	suite.NotNil(response["data"])
 }
 

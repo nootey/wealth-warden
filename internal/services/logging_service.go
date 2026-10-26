@@ -33,7 +33,6 @@ func NewLoggingService(
 var _ LoggingServiceInterface = (*LoggingService)(nil)
 
 func (s *LoggingService) FetchPaginatedLogs(ctx context.Context, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountLogs(ctx, p.Filters)
 	if err != nil {
 		return nil, nil, err
@@ -72,7 +71,6 @@ func (s *LoggingService) FetchActivityLogFilterData(ctx context.Context, activit
 }
 
 func (s *LoggingService) FetchAuditTrail(ctx context.Context, recordID string, categories, events []string, causerID int64, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error) {
-
 	totalRecords, err := s.repo.CountAuditTrailByRecordID(ctx, recordID, categories, events, causerID)
 	if err != nil {
 		return nil, nil, err
@@ -107,7 +105,6 @@ func (s *LoggingService) FetchAuditTrail(ctx context.Context, recordID string, c
 }
 
 func (s *LoggingService) DeleteActivityLog(ctx context.Context, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err

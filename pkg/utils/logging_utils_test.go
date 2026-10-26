@@ -94,32 +94,32 @@ func TestCompareChanges(t *testing.T) {
 func TestCompareDecimalChange(t *testing.T) {
 	t.Run("no change", func(t *testing.T) {
 		c := utils.InitChanges()
-		old := decimal.NewFromFloat(10.50)
-		new := decimal.NewFromFloat(10.50)
-		utils.CompareDecimalChange(&old, &new, c, "amount", 2)
+		oldV := decimal.NewFromFloat(10.50)
+		newV := decimal.NewFromFloat(10.50)
+		utils.CompareDecimalChange(&oldV, &newV, c, "amount", 2)
 		assert.True(t, c.IsEmpty())
 	})
 
 	t.Run("value changed", func(t *testing.T) {
 		c := utils.InitChanges()
-		old := decimal.NewFromFloat(10.50)
-		new := decimal.NewFromFloat(20.75)
-		utils.CompareDecimalChange(&old, &new, c, "amount", 2)
+		oldV := decimal.NewFromFloat(10.50)
+		newV := decimal.NewFromFloat(20.75)
+		utils.CompareDecimalChange(&oldV, &newV, c, "amount", 2)
 		assert.Equal(t, "10.50", c.Old["amount"])
 		assert.Equal(t, "20.75", c.New["amount"])
 	})
 
 	t.Run("nil to value", func(t *testing.T) {
 		c := utils.InitChanges()
-		new := decimal.NewFromFloat(10.50)
-		utils.CompareDecimalChange(nil, &new, c, "amount", 2)
+		newV := decimal.NewFromFloat(10.50)
+		utils.CompareDecimalChange(nil, &newV, c, "amount", 2)
 		assert.Equal(t, "10.50", c.New["amount"])
 	})
 
 	t.Run("value to nil", func(t *testing.T) {
 		c := utils.InitChanges()
-		old := decimal.NewFromFloat(10.50)
-		utils.CompareDecimalChange(&old, nil, c, "amount", 2)
+		oldV := decimal.NewFromFloat(10.50)
+		utils.CompareDecimalChange(&oldV, nil, c, "amount", 2)
 		assert.Equal(t, "10.50", c.Old["amount"])
 	})
 }
@@ -134,24 +134,24 @@ func TestCompareDateChange(t *testing.T) {
 
 	t.Run("date changed", func(t *testing.T) {
 		c := utils.InitChanges()
-		old := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
-		new := time.Date(2024, 6, 20, 0, 0, 0, 0, time.UTC)
-		utils.CompareDateChange(&old, &new, c, "date")
+		oldV := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+		newV := time.Date(2024, 6, 20, 0, 0, 0, 0, time.UTC)
+		utils.CompareDateChange(&oldV, &newV, c, "date")
 		assert.Equal(t, "2024-06-15", c.Old["date"])
 		assert.Equal(t, "2024-06-20", c.New["date"])
 	})
 
 	t.Run("nil to date", func(t *testing.T) {
 		c := utils.InitChanges()
-		new := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
-		utils.CompareDateChange(nil, &new, c, "date")
+		newV := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+		utils.CompareDateChange(nil, &newV, c, "date")
 		assert.Equal(t, "2024-06-15", c.New["date"])
 	})
 
 	t.Run("date to nil", func(t *testing.T) {
 		c := utils.InitChanges()
-		old := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
-		utils.CompareDateChange(&old, nil, c, "date")
+		oldV := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+		utils.CompareDateChange(&oldV, nil, c, "date")
 		assert.Equal(t, "2024-06-15", c.Old["date"])
 	})
 }

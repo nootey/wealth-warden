@@ -28,7 +28,6 @@ type SessionsHandlerTestSuite struct {
 }
 
 func (suite *SessionsHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockSessionsServiceInterface(suite.T())
@@ -66,7 +65,7 @@ func (suite *SessionsHandlerTestSuite) TestRevokeSession_CurrentSession() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("log out to end the current session", response["message"])
 }
 
@@ -76,7 +75,7 @@ func (suite *SessionsHandlerTestSuite) TestRevokeSession_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("session not found", response["message"])
 }
 
@@ -94,7 +93,7 @@ func (suite *SessionsHandlerTestSuite) TestRevokeSession_UnclassifiedDoesNotLeak
 	suite.NotContains(w.Body.String(), "redis")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 

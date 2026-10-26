@@ -49,7 +49,7 @@ type ServiceContainer struct {
 func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher jobqueue.Dispatcher, jobManager jobqueue.JobManager, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
 	if priceFetcher == nil {
 		var err error
-		priceFetcher, err = finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+		priceFetcher, err = finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL, logger.Named("price_fetch"))
 		if err != nil {
 			logger.Warn("Failed to create price fetch client", zap.Error(err))
 		}

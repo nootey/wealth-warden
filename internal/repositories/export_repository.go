@@ -51,7 +51,6 @@ func (r *ExportRepository) FindExports(ctx context.Context, tx *gorm.DB, userID 
 }
 
 func (r *ExportRepository) FindExportByID(ctx context.Context, tx *gorm.DB, id, userID int64) (*models.Export, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -71,7 +70,6 @@ func (r *ExportRepository) FindExportByID(ctx context.Context, tx *gorm.DB, id, 
 }
 
 func (r *ExportRepository) InsertExport(ctx context.Context, tx *gorm.DB, record *models.Export) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -82,7 +80,6 @@ func (r *ExportRepository) InsertExport(ctx context.Context, tx *gorm.DB, record
 }
 
 func (r *ExportRepository) UpdateExport(ctx context.Context, tx *gorm.DB, id int64, fields map[string]interface{}) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -93,7 +90,6 @@ func (r *ExportRepository) UpdateExport(ctx context.Context, tx *gorm.DB, id int
 }
 
 func (r *ExportRepository) DeleteExport(ctx context.Context, tx *gorm.DB, id, userID int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db

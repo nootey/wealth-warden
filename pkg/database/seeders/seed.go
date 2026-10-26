@@ -2,6 +2,7 @@ package seeders
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -106,7 +107,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		}
 	case "individual":
 		if len(seederName) == 0 {
-			return fmt.Errorf("seeder name required for individual seeder type")
+			return errors.New("seeder name required for individual seeder type")
 		}
 		var found *SeederWorkers
 		for i := range allSeeders {
@@ -154,7 +155,6 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		}
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to run seeders: %w", err)
 	}

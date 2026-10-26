@@ -110,7 +110,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 				boostRight = decimal.NewFromFloat(1.0)
 			}
 
-			for i := 0; i < perAcc; i++ {
+			for range perAcc {
 				daysAgo := rng.Intn(maxBack)
 				date := today.AddDate(0, 0, -daysAgo)
 

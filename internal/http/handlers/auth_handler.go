@@ -54,7 +54,6 @@ func (h *AuthHandler) Routes(apiGroup *gin.RouterGroup) {
 }
 
 func (h *AuthHandler) LoginUser(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
@@ -91,7 +90,6 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetAuthUser(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -119,7 +117,6 @@ func (h *AuthHandler) LogoutUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) SignUp(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
@@ -150,7 +147,6 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 }
 
 func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	queryParams := c.Request.URL.Query()
 	hash := queryParams.Get("token")
@@ -165,7 +161,6 @@ func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
 }
 
 func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
@@ -214,7 +209,6 @@ func (h *AuthHandler) CompleteSetup(c *gin.Context) {
 }
 
 func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
@@ -231,7 +225,6 @@ func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
 }
 
 func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
@@ -257,7 +250,6 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 }
 
 func (h *AuthHandler) ValidatePasswordReset(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	queryParams := c.Request.URL.Query()
 	tokenValue := queryParams.Get("token")
@@ -273,7 +265,6 @@ func (h *AuthHandler) ValidatePasswordReset(c *gin.Context) {
 }
 
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")

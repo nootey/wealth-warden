@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
@@ -59,7 +59,6 @@ func (r *LoggingRepository) CountLogs(ctx context.Context, filters []utils.Filte
 }
 
 func (r *LoggingRepository) FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
-
 	var records []models.ActivityLog
 	query := r.db.WithContext(ctx).Table("activity_logs").Select("*")
 
@@ -94,7 +93,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(ctx context.Context, activ
 	case "access":
 		tableName = "access_logs"
 	default:
-		return nil, fmt.Errorf("invalid activity index")
+		return nil, errors.New("invalid activity index")
 	}
 
 	db := r.db.Table(tableName).WithContext(ctx)
@@ -220,7 +219,6 @@ func (r *LoggingRepository) InsertActivityLog(
 	payload *utils.Changes,
 	causerID *int64,
 ) error {
-
 	db := tx
 	if db == nil {
 		db = r.db

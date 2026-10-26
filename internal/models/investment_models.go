@@ -6,9 +6,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type InvestmentType string
-type TradeType string
-type IncomeType string
+type (
+	InvestmentType string
+	TradeType      string
+	IncomeType     string
+)
 
 const (
 	InvestmentStock  InvestmentType = "stock"

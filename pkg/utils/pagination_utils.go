@@ -30,7 +30,6 @@ type PaginationParams struct {
 }
 
 func GetPaginationParams(queryParams url.Values) PaginationParams {
-
 	// Default values
 	pageNumber := 1
 	rowsPerPage := 10

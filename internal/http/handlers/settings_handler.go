@@ -37,7 +37,6 @@ func (h *SettingsHandler) Routes(apiGroup *gin.RouterGroup) {
 }
 
 func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	record, err := h.Service.FetchGeneralSettings(ctx)
 	if err != nil {
@@ -49,7 +48,6 @@ func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {
 }
 
 func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -63,7 +61,6 @@ func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
 }
 
 func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	tzones, err := h.Service.FetchAvailableTimezones(ctx)
 	if err != nil {
@@ -75,7 +72,6 @@ func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
 }
 
 func (h *SettingsHandler) GetAvailableCurrencies(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	currencies, err := h.Service.FetchAvailableCurrencies(ctx)
 	if err != nil {
@@ -87,7 +83,6 @@ func (h *SettingsHandler) GetAvailableCurrencies(c *gin.Context) {
 }
 
 func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -108,11 +103,9 @@ func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
-
 }
 
 func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -133,5 +126,4 @@ func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
-
 }

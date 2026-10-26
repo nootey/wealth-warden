@@ -2,12 +2,12 @@ package jobs
 
 import (
 	"context"
-	"github.com/riverqueue/river"
 	"sync"
 	"time"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/services"
 
+	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )

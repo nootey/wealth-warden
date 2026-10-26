@@ -96,7 +96,6 @@ func (s *RolePermissionService) FetchRoleByID(ctx context.Context, ID int64, wit
 }
 
 func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, req models.RoleReq) (int64, error) {
-
 	permIDs, err := s.buildPermissionIDs(req.Permissions)
 	if err != nil {
 		return 0, err
@@ -196,7 +195,6 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 }
 
 func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) (int64, error) {
-
 	permIDs, err := s.buildPermissionIDs(req.Permissions)
 	if err != nil {
 		return 0, err
@@ -306,7 +304,6 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 }
 
 func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64) error {
-
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err

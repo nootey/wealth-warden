@@ -47,7 +47,6 @@ func (h *UserHandler) PublicRoutes(apiGroup *gin.RouterGroup) {
 }
 
 func (h *UserHandler) SearchUsers(c *gin.Context) {
-
 	users, err := h.service.SearchUsersByEmail(c.Request.Context(), c.Query("q"))
 	if err != nil {
 		_ = c.Error(err)
@@ -58,7 +57,6 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 }
 
 func (h *UserHandler) GetUsersPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
@@ -83,7 +81,6 @@ func (h *UserHandler) GetUsersPaginated(c *gin.Context) {
 }
 
 func (h *UserHandler) GetInvitationsPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
@@ -107,7 +104,6 @@ func (h *UserHandler) GetInvitationsPaginated(c *gin.Context) {
 }
 
 func (h *UserHandler) GetUserById(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	id, err := utils.ParseID(c, "id")
 	if err != nil {
@@ -124,7 +120,6 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 }
 
 func (h *UserHandler) GetUserByToken(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	tokenType := c.Query("type")
 	tokenValue := c.Query("value")
@@ -138,7 +133,6 @@ func (h *UserHandler) GetUserByToken(c *gin.Context) {
 }
 
 func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	hash := c.Param("hash")
 	if hash == "" {
@@ -155,7 +149,6 @@ func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
 }
 
 func (h *UserHandler) InsertInvitation(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -186,7 +179,6 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -218,7 +210,6 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 }
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -237,7 +228,6 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 }
 
 func (h *UserHandler) ResendInvitation(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -257,7 +247,6 @@ func (h *UserHandler) ResendInvitation(c *gin.Context) {
 }
 
 func (h *UserHandler) DeleteInvitation(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 

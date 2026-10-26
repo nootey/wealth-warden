@@ -28,7 +28,6 @@ type InvestmentHandlerTestSuite struct {
 }
 
 func (suite *InvestmentHandlerTestSuite) SetupTest() {
-
 	gin.SetMode(gin.TestMode)
 
 	suite.mockService = mocks.NewMockInvestmentServiceInterface(suite.T())
@@ -70,7 +69,7 @@ func (suite *InvestmentHandlerTestSuite) TestGetAssetByID_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Asset not found", response["message"])
 }
 
@@ -87,7 +86,7 @@ func (suite *InvestmentHandlerTestSuite) TestGetAssetByID_UnclassifiedDoesNotLea
 	suite.NotContains(w.Body.String(), "investment_assets")
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal(apperr.GenericMessage, response["message"])
 }
 
@@ -99,7 +98,7 @@ func (suite *InvestmentHandlerTestSuite) TestGetAssetByID_BadID() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("id must be a valid integer", response["message"])
 }
 
@@ -118,7 +117,7 @@ func (suite *InvestmentHandlerTestSuite) TestInsertTrade_InsufficientFunds() {
 	suite.Equal(http.StatusUnprocessableEntity, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("insufficient funds: need 500.00 EUR but only 120.00 EUR available", response["message"])
 }
 
@@ -134,7 +133,7 @@ func (suite *InvestmentHandlerTestSuite) TestDeleteTaxBracket_NotFound() {
 	suite.Equal(http.StatusNotFound, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("Tax bracket not found", response["message"])
 }
 
@@ -152,7 +151,7 @@ func (suite *InvestmentHandlerTestSuite) TestCopyTaxBrackets_Conflict() {
 	suite.Equal(http.StatusConflict, w.Code)
 
 	var response map[string]any
-	suite.NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
 	suite.Equal("crypto already has brackets configured", response["message"])
 }
 

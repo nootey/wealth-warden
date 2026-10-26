@@ -29,7 +29,7 @@ var migrateCmd = &cobra.Command{
 		}
 
 		mgLogger := logger.Named("migrate")
-		return runMigrations(migrationType, migrationDir, cfg, mgLogger)
+		return runMigrations(cmd.Context(), migrationType, migrationDir, cfg, mgLogger)
 	},
 }
 
@@ -37,15 +37,15 @@ func init() {
 	migrateCmd.Flags().StringP("dir", "d", "./storage/migrations", "Migration directory path")
 }
 
-func runMigrations(migrationType string, migrationsDir string, cfg *config.Config, logger *zap.Logger) error {
+func runMigrations(ctx context.Context, migrationType string, migrationsDir string, cfg *config.Config, logger *zap.Logger) error {
 	logger.Info("Starting database migrations", zap.String("migration_dir", migrationsDir))
 	dbLogger := logger.Named("database")
 	// Ensure the database exists before migrating
-	if err := database.EnsureDatabaseExists(cfg, dbLogger); err != nil {
+	if err := database.EnsureDatabaseExists(ctx, cfg, dbLogger); err != nil {
 		return fmt.Errorf("database check failed: %v", err)
 	}
 
-	gormDB, err := database.ConnectToPostgres(cfg, dbLogger)
+	gormDB, err := database.ConnectToPostgres(ctx, cfg, dbLogger)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
@@ -84,7 +84,7 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 		maintenanceCfg := *cfg
 		maintenanceCfg.Postgres.Database = "postgres"
 
-		mDB, err := database.ConnectToPostgres(&maintenanceCfg, dbLogger)
+		mDB, err := database.ConnectToPostgres(ctx, &maintenanceCfg, dbLogger)
 		if err != nil {
 			return fmt.Errorf("failed to connect to maintenance database: %v", err)
 		}
@@ -94,7 +94,7 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 		}
 
 		// Drop and recreate the target db
-		if err := database.DropAndRecreateDatabase(mSqlDB, cfg); err != nil {
+		if err := database.DropAndRecreateDatabase(ctx, mSqlDB, cfg); err != nil {
 			return fmt.Errorf("failed to recreate database: %v", err)
 		}
 
@@ -105,7 +105,7 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 		}
 
 		// Reconnect to the freshly created target db
-		gormDB, err = database.ConnectToPostgres(cfg, dbLogger)
+		gormDB, err = database.ConnectToPostgres(ctx, cfg, dbLogger)
 		if err != nil {
 			return fmt.Errorf("failed to reconnect to Postgres: %v", err)
 		}
@@ -125,7 +125,6 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 			if migrationType == "fresh-seed-basic" {
 				seedType = "basic"
 			}
-			ctx := context.Background()
 			if err := seeders.SeedDatabase(ctx, gormDB, logger, cfg, seedType); err != nil {
 				return fmt.Errorf("failed to seed database: %v", err)
 			}

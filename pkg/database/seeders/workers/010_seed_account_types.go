@@ -14,8 +14,7 @@ type AccountType struct {
 }
 
 func SeedAccountTypes(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
-
-	var accountTypeSeeds = []AccountType{
+	accountTypeSeeds := []AccountType{
 		// Cash
 		{Type: "cash", Subtype: "checking"},
 		{Type: "cash", Subtype: "savings"},

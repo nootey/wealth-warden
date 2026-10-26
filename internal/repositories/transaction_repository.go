@@ -162,7 +162,6 @@ func (r *TransactionRepository) baseTransferQuery(ctx context.Context, db *gorm.
 }
 
 func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error) {
-
 	var records []models.Transaction
 	db := tx
 	if db == nil {
@@ -201,7 +200,6 @@ func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.D
 }
 
 func (r *TransactionRepository) FindAllTransactionsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transaction, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -225,7 +223,6 @@ func (r *TransactionRepository) FindAllTransactionsForUser(ctx context.Context, 
 }
 
 func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, includeDeleted bool, accountID *int64) ([]models.Transfer, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -267,7 +264,6 @@ func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, 
 }
 
 func (r *TransactionRepository) FindAllTransfersForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transfer, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -360,7 +356,6 @@ func (r *TransactionRepository) CountTransactions(ctx context.Context, tx *gorm.
 }
 
 func (r *TransactionRepository) CountTransfers(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool, accountID *int64) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -377,7 +372,6 @@ func (r *TransactionRepository) CountTransfers(ctx context.Context, tx *gorm.DB,
 }
 
 func (r *TransactionRepository) scopeCategories(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -789,7 +783,6 @@ func (r *TransactionRepository) DeleteTransfer(ctx context.Context, tx *gorm.DB,
 }
 
 func (r *TransactionRepository) ArchiveCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -810,7 +803,6 @@ func (r *TransactionRepository) ArchiveCategory(ctx context.Context, tx *gorm.DB
 }
 
 func (r *TransactionRepository) DeleteCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -825,10 +817,10 @@ func (r *TransactionRepository) DeleteCategory(ctx context.Context, tx *gorm.DB,
 	}
 
 	if cat.IsDefault {
-		return fmt.Errorf("default categories cannot be hard-deleted")
+		return errors.New("default categories cannot be hard-deleted")
 	}
 	if cat.DeletedAt == nil {
-		return fmt.Errorf("category must be soft-deleted before hard deletion")
+		return errors.New("category must be soft-deleted before hard deletion")
 	}
 
 	if err := db.Where("id = ? AND user_id = ?", id, userID).
@@ -839,7 +831,6 @@ func (r *TransactionRepository) DeleteCategory(ctx context.Context, tx *gorm.DB,
 }
 
 func (r *TransactionRepository) RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -856,7 +847,6 @@ func (r *TransactionRepository) RestoreTransaction(ctx context.Context, tx *gorm
 }
 
 func (r *TransactionRepository) RetimeOpeningTransactions(ctx context.Context, tx *gorm.DB, accountID int64, when time.Time) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -872,7 +862,6 @@ func (r *TransactionRepository) RetimeOpeningTransactions(ctx context.Context, t
 }
 
 func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -892,7 +881,6 @@ func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB
 }
 
 func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID int64, name string) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -920,7 +908,6 @@ func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gor
 }
 
 func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -976,7 +963,6 @@ func (r *TransactionRepository) GetActiveTemplates(ctx context.Context, tx *gorm
 }
 
 func (r *TransactionRepository) CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool, templateType string) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1002,7 +988,6 @@ func (r *TransactionRepository) CountTransactionTemplates(ctx context.Context, t
 }
 
 func (r *TransactionRepository) FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1022,7 +1007,6 @@ func (r *TransactionRepository) FindTransactionTemplateByID(ctx context.Context,
 }
 
 func (r *TransactionRepository) FindTransactionTemplateByIDForUpdate(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1043,7 +1027,6 @@ func (r *TransactionRepository) FindTransactionTemplateByIDForUpdate(ctx context
 }
 
 func (r *TransactionRepository) InsertTransactionTemplate(ctx context.Context, tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1057,7 +1040,6 @@ func (r *TransactionRepository) InsertTransactionTemplate(ctx context.Context, t
 }
 
 func (r *TransactionRepository) UpdateTransactionTemplate(ctx context.Context, tx *gorm.DB, record models.TransactionTemplate, onlyActive bool) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1102,7 +1084,6 @@ func (r *TransactionRepository) RenameTransactionTemplate(ctx context.Context, t
 }
 
 func (r *TransactionRepository) DeleteTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1117,7 +1098,6 @@ func (r *TransactionRepository) DeleteTransactionTemplate(ctx context.Context, t
 }
 
 func (r *TransactionRepository) GetTransactionsByYearAndClass(ctx context.Context, tx *gorm.DB, userID int64, year int, class string, accountID *int64) ([]models.Transaction, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1136,7 +1116,6 @@ func (r *TransactionRepository) GetTransactionsByYearAndClass(ctx context.Contex
 }
 
 func (r *TransactionRepository) GetAllTimeStatsByClass(ctx context.Context, tx *gorm.DB, userID int64, class string, accountID, categoryID *int64) (total decimal.Decimal, monthsWithData int, err error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1169,7 +1148,6 @@ func (r *TransactionRepository) GetAllTimeStatsByClass(ctx context.Context, tx *
 }
 
 func (r *TransactionRepository) PurgeImportedTransactions(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1187,7 +1165,6 @@ func (r *TransactionRepository) PurgeImportedTransactions(ctx context.Context, t
 }
 
 func (r *TransactionRepository) PurgeImportedTransfers(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1205,7 +1182,6 @@ func (r *TransactionRepository) PurgeImportedTransfers(ctx context.Context, tx *
 }
 
 func (r *TransactionRepository) PurgeImportedCategories(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1243,7 +1219,6 @@ func (r *TransactionRepository) PurgeImportedCategories(ctx context.Context, tx 
 }
 
 func (r *TransactionRepository) FindAllCategoryGroups(ctx context.Context, tx *gorm.DB, userID int64) ([]models.CategoryGroup, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1260,7 +1235,6 @@ func (r *TransactionRepository) FindAllCategoryGroups(ctx context.Context, tx *g
 }
 
 func (r *TransactionRepository) FindAllCategoriesAndGroups(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Category, []models.CategoryGroup, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1288,7 +1262,6 @@ func (r *TransactionRepository) FindAllCategoriesAndGroups(ctx context.Context, 
 }
 
 func (r *TransactionRepository) FindCategoryGroupByID(ctx context.Context, tx *gorm.DB, ID int64, userID int64) (models.CategoryGroup, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1305,7 +1278,6 @@ func (r *TransactionRepository) FindCategoryGroupByID(ctx context.Context, tx *g
 }
 
 func (r *TransactionRepository) InsertCategoryGroup(ctx context.Context, tx *gorm.DB, newRecord *models.CategoryGroup) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1327,7 +1299,6 @@ func (r *TransactionRepository) InsertCategoryGroupMember(ctx context.Context, t
 }
 
 func (r *TransactionRepository) UpdateCategoryGroup(ctx context.Context, tx *gorm.DB, record models.CategoryGroup) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1382,7 +1353,6 @@ func (r *TransactionRepository) IsCategoryInGroup(ctx context.Context, tx *gorm.
 }
 
 func (r *TransactionRepository) GetYearlyAverageForCategory(ctx context.Context, tx *gorm.DB, userID, accountID, categoryID int64, year int) (float64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1419,7 +1389,6 @@ func (r *TransactionRepository) GetYearlyAverageForCategory(ctx context.Context,
 }
 
 func (r *TransactionRepository) GetYearlyAverageForCategoryGroup(ctx context.Context, tx *gorm.DB, userID, accountID, groupID int64, year int) (float64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1458,7 +1427,6 @@ func (r *TransactionRepository) GetYearlyAverageForCategoryGroup(ctx context.Con
 }
 
 func (r *TransactionRepository) GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db

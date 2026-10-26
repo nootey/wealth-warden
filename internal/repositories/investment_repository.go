@@ -149,7 +149,6 @@ func (r *InvestmentRepository) CountInvestmentTrades(ctx context.Context, tx *go
 }
 
 func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error) {
-
 	var records []models.InvestmentAsset
 	db := tx
 	if db == nil {
@@ -271,7 +270,6 @@ func (r *InvestmentRepository) FindAssetsByAccountID(ctx context.Context, tx *go
 }
 
 func (r *InvestmentRepository) FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error) {
-
 	var records []models.InvestmentTrade
 	db := tx
 	if db == nil {
@@ -342,7 +340,6 @@ func (r *InvestmentRepository) FindInvestmentTradesByAssetID(ctx context.Context
 }
 
 func (r *InvestmentRepository) FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -361,7 +358,6 @@ func (r *InvestmentRepository) FindInvestmentAssetsByImportID(ctx context.Contex
 }
 
 func (r *InvestmentRepository) FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -449,7 +445,6 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 }
 
 func (r *InvestmentRepository) UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -469,7 +464,6 @@ func (r *InvestmentRepository) UpdateInvestmentAsset(ctx context.Context, tx *go
 }
 
 func (r *InvestmentRepository) UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -588,7 +582,6 @@ func (r *InvestmentRepository) GetEarliestTradeDate(ctx context.Context, tx *gor
 	err := db.Where("asset_id = ? AND user_id = ?", assetID, userID).
 		Order("txn_date ASC").
 		First(&txn).Error
-
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -821,7 +814,6 @@ func (r *InvestmentRepository) GetInvestmentTradesDateRange(ctx context.Context,
 		Where("investment_assets.account_id = ?", accountID).
 		Select("MIN(txn_date) as min_date, MAX(txn_date) as max_date").
 		Scan(&result).Error
-
 	if err != nil {
 		return time.Time{}, time.Time{}, err
 	}

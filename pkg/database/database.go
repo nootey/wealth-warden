@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -17,12 +18,10 @@ import (
 	"gorm.io/plugin/opentelemetry/tracing"
 )
 
-var (
-	postgresDB *gorm.DB
-)
+var postgresDB *gorm.DB
 
-func ConnectToPostgres(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
-	return ConnectToDatabase(cfg, cfg.Postgres.Database, zapLogger)
+func ConnectToPostgres(ctx context.Context, cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
+	return ConnectToDatabase(ctx, cfg, cfg.Postgres.Database, zapLogger)
 }
 
 func buildDSN(cfg *config.Config, targetDB string) string {
@@ -30,7 +29,7 @@ func buildDSN(cfg *config.Config, targetDB string) string {
 		cfg.Postgres.Host, cfg.Postgres.User, cfg.Postgres.Password, targetDB, cfg.Postgres.Port)
 }
 
-func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logger) (*gorm.DB, error) {
+func ConnectToDatabase(ctx context.Context, cfg *config.Config, targetDB string, zapLogger *zap.Logger) (*gorm.DB, error) {
 	host := cfg.Postgres.Host
 
 	dsn := buildDSN(cfg, targetDB)
@@ -75,7 +74,7 @@ func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logge
 	sqlDB.SetMaxIdleConns(cfg.Postgres.MaxConns)
 	sqlDB.SetMaxOpenConns(cfg.Postgres.MaxConns)
 
-	if err := sqlDB.Ping(); err != nil {
+	if err := sqlDB.PingContext(ctx); err != nil {
 		zapLogger.Error("Could not ping database",
 			zap.String("host", host),
 			zap.Error(err))
@@ -124,9 +123,9 @@ func DisconnectPostgres() error {
 	return sqlDB.Close()
 }
 
-func PingPostgresDatabase() error {
+func PingPostgresDatabase(ctx context.Context) error {
 	if postgresDB == nil {
-		return fmt.Errorf("database connection is nil")
+		return errors.New("database connection is nil")
 	}
 
 	sqlDB, err := postgresDB.DB()
@@ -134,11 +133,11 @@ func PingPostgresDatabase() error {
 		return fmt.Errorf("failed to get database instance: %v", err)
 	}
 
-	return sqlDB.Ping()
+	return sqlDB.PingContext(ctx)
 }
 
-func EnsureDatabaseExists(cfg *config.Config, zapLogger *zap.Logger) error {
-	db, err := ConnectToPostgres(cfg, zapLogger)
+func EnsureDatabaseExists(ctx context.Context, cfg *config.Config, zapLogger *zap.Logger) error {
+	db, err := ConnectToPostgres(ctx, cfg, zapLogger)
 	if err != nil {
 		return fmt.Errorf("failed to connect to PostgresDB server: %w", err)
 	}
@@ -174,27 +173,24 @@ func EnsureDatabaseExists(cfg *config.Config, zapLogger *zap.Logger) error {
 	return nil
 }
 
-func DropAndRecreateDatabase(db *sql.DB, cfg *config.Config) error {
+func DropAndRecreateDatabase(ctx context.Context, db *sql.DB, cfg *config.Config) error {
 	dbName := cfg.Postgres.Database
 
 	// Terminate all active connections to the target database.
-	terminateQuery := fmt.Sprintf(
-		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '%s' AND pid <> pg_backend_pid();",
-		dbName,
-	)
-	if _, err := db.Exec(terminateQuery); err != nil {
+	terminateQuery := "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid();"
+	if _, err := db.ExecContext(ctx, terminateQuery, dbName); err != nil {
 		return fmt.Errorf("failed to terminate connections to database %s: %w", dbName, err)
 	}
 
 	// Drop the database if it exists.
 	dropQuery := fmt.Sprintf("DROP DATABASE IF EXISTS \"%s\";", dbName)
-	if _, err := db.Exec(dropQuery); err != nil {
+	if _, err := db.ExecContext(ctx, dropQuery); err != nil {
 		return fmt.Errorf("failed to drop database %s: %w", dbName, err)
 	}
 
 	// Create the database.
 	createQuery := fmt.Sprintf("CREATE DATABASE \"%s\";", dbName)
-	if _, err := db.Exec(createQuery); err != nil {
+	if _, err := db.ExecContext(ctx, createQuery); err != nil {
 		return fmt.Errorf("failed to create database %s: %w", dbName, err)
 	}
 

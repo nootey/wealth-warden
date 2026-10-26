@@ -58,7 +58,6 @@ func (h *AccountHandler) Routes(apiGroup *gin.RouterGroup) {
 }
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -86,7 +85,6 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -100,11 +98,9 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *AccountHandler) GetAccountByID(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -131,11 +127,9 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *AccountHandler) GetAccountByName(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -147,11 +141,9 @@ func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
-
 	ctx := c.Request.Context()
 
 	records, err := h.service.FetchAllAccountTypes(ctx)
@@ -160,11 +152,9 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -176,11 +166,9 @@ func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -192,11 +180,9 @@ func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, records)
-
 }
 
 func (h *AccountHandler) InsertAccount(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -218,11 +204,9 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
-
 }
 
 func (h *AccountHandler) UpdateAccount(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -251,11 +235,9 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
-
 }
 
 func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -271,11 +253,9 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Account status updated", "Success", http.StatusOK)
-
 }
 
 func (h *AccountHandler) CloseAccount(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -294,7 +274,6 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetAccountsForUser(c *gin.Context) {
-
 	ctx := c.Request.Context()
 
 	userID, err := utils.ParseID(c, "userID")
@@ -313,7 +292,6 @@ func (h *AccountHandler) GetAccountsForUser(c *gin.Context) {
 }
 
 func (h *AccountHandler) PurgeAccount(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	actorID := c.GetInt64("user_id")
 
@@ -332,7 +310,6 @@ func (h *AccountHandler) PurgeAccount(c *gin.Context) {
 }
 
 func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -348,7 +325,6 @@ func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 }
 
 func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -379,7 +355,6 @@ func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
 }
 
 func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -399,7 +374,6 @@ func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
@@ -419,7 +393,6 @@ func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetAvailableBalance(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 

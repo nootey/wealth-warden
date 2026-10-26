@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -375,6 +376,30 @@ func (s *ImportServiceSuite) TestDeleteBankImport() {
 	s.Require().Error(err)
 	status, _ := apperr.Resolve(err)
 	s.Equal(http.StatusNotFound, status)
+}
+
+func (s *ImportServiceSuite) TestImportIdentifierCannotEscapeUserFolder() {
+	s.T().Cleanup(func() { _ = os.RemoveAll("storage") })
+
+	balance := decimal.NewFromInt(1000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, seedUserID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().AddDate(-2, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	_, err = s.TC.App.ImportService.ImportTransactions(s.Ctx, seedUserID, accID, models.ImportTypeCustom, s.bankPayload("/../../escape", "TX1"))
+	status, _ := apperr.Resolve(err)
+	s.Equal(http.StatusUnprocessableEntity, status)
+
+	err = s.TC.App.ImportService.TransferInvestmentsTrades(s.Ctx, seedUserID, []byte(`{"identifier":"/../../escape"}`), models.InvestmentTradesPayload{})
+	status, _ = apperr.Resolve(err)
+	s.Equal(http.StatusUnprocessableEntity, status)
+
+	today := time.Now().UTC().Format("2006-01-02")
+	s.NoFileExists(filepath.Join("storage", "imports", "escape_generated_"+today+".json"))
 }
 
 // A category set by hand on a row wins over a rule, a rule wins over the fallback, and the rest stay uncategorized.

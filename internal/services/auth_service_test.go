@@ -4,8 +4,6 @@ package services_test
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"testing"
 	"time"
 	"wealth-warden/internal/config"
@@ -27,11 +25,10 @@ func TestIntegrationAuthAccountServiceSuite(t *testing.T) {
 }
 
 func (s *AuthServiceTestSuite) TestValidateLogin_Success() {
-
 	svc := s.TC.App.AuthService
 	cfg, err := config.LoadConfig(nil)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load configuration: %s", err.Error()))
+		panic("Failed to load configuration: " + err.Error())
 	}
 
 	user, err := svc.ValidateLogin(
@@ -42,7 +39,7 @@ func (s *AuthServiceTestSuite) TestValidateLogin_Success() {
 		"127.0.0.1",
 	)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotNil(user)
 	s.Equal(cfg.Seed.SuperAdminEmail, user.Email)
 }
@@ -51,7 +48,7 @@ func (s *AuthServiceTestSuite) TestValidateLogin_WrongPassword() {
 	svc := s.TC.App.AuthService
 	cfg, err := config.LoadConfig(nil)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load configuration: %s", err.Error()))
+		panic("Failed to load configuration: " + err.Error())
 	}
 
 	user, err := svc.ValidateLogin(
@@ -62,9 +59,9 @@ func (s *AuthServiceTestSuite) TestValidateLogin_WrongPassword() {
 		"127.0.0.1",
 	)
 
-	s.Error(err)
+	s.Require().Error(err)
 	s.Nil(user)
-	s.True(errors.Is(err, services.ErrInvalidCredentials))
+	s.ErrorIs(err, services.ErrInvalidCredentials)
 }
 
 func (s *AuthServiceTestSuite) TestPermsForUser_CachesRoleUntilTTL() {
@@ -86,11 +83,11 @@ func (s *AuthServiceTestSuite) TestPermsForUser_CachesRoleUntilTTL() {
 	defer s.TC.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("role_id", user.RoleID)
 
 	perms, err := cached.PermsForUser(ctx, user.ID)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.Contains(perms, "root_access")
 
 	perms, err = expired.PermsForUser(ctx, user.ID)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotContains(perms, "root_access")
 }
 
@@ -122,7 +119,7 @@ func (s *AuthServiceTestSuite) TestUpdateUser_RoleChangeClearsCachedRole() {
 	defer s.setUserRole(user, user.RoleID)
 
 	perms, err = authzSvc.PermsForUser(s.Ctx, user.ID)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotContains(perms, "root_access")
 }
 
@@ -149,10 +146,10 @@ func (s *AuthServiceTestSuite) TestUpdateUser_ValidatesPassword() {
 
 	strong, mismatch, weak := "SecurePassword123!", "DifferentPassword123!", "weak"
 
-	s.Error(updatePassword(strong, nil))
-	s.Error(updatePassword(strong, &mismatch))
-	s.Error(updatePassword(weak, &weak))
-	s.Error(login(strong))
+	s.Require().Error(updatePassword(strong, nil))
+	s.Require().Error(updatePassword(strong, &mismatch))
+	s.Require().Error(updatePassword(weak, &weak))
+	s.Require().Error(login(strong))
 
 	s.NoError(updatePassword("", nil), "an empty password must skip the change")
 
@@ -187,7 +184,7 @@ func (s *AuthServiceTestSuite) TestUpdateRole_PermissionChangeClearsCachedPerms(
 	s.Require().NoError(err)
 
 	perms, err = authzSvc.PermsForUser(s.Ctx, user.ID)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.Contains(perms, "manage_data")
 }
 
@@ -195,7 +192,7 @@ func (s *AuthServiceTestSuite) TestGetCurrentUser() {
 	svc := s.TC.App.AuthService
 	cfg, err := config.LoadConfig(nil)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load configuration: %s", err.Error()))
+		panic("Failed to load configuration: " + err.Error())
 	}
 
 	user, err := svc.ValidateLogin(
@@ -206,13 +203,13 @@ func (s *AuthServiceTestSuite) TestGetCurrentUser() {
 		"127.0.0.1",
 	)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotNil(user)
 
 	// Fetch the same user by ID
 	currentUser, err := svc.GetCurrentUser(context.Background(), user.ID)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotNil(currentUser)
 	s.Equal(user.ID, currentUser.ID)
 	s.Equal(user.Email, currentUser.Email)
@@ -224,7 +221,7 @@ func (s *AuthServiceTestSuite) TestGetCurrentUser_InvalidUserID() {
 	// Try to fetch user with non-existent ID
 	currentUser, err := svc.GetCurrentUser(context.Background(), 999999)
 
-	s.Error(err)
+	s.Require().Error(err)
 	s.Nil(currentUser)
 }
 
@@ -247,12 +244,12 @@ func (s *AuthServiceTestSuite) TestSignUp_Success() {
 		"127.0.0.1",
 	)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotZero(userID)
 
 	// Verify user was created
 	user, err := svc.GetCurrentUser(context.Background(), userID)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.Equal(form.Email, user.Email)
 	s.Equal(form.DisplayName, user.DisplayName)
 	// Dev defaults have no mailer, so the user is auto-confirmed on signup.
@@ -278,9 +275,9 @@ func (s *AuthServiceTestSuite) TestSignUp_PasswordMismatch() {
 		"127.0.0.1",
 	)
 
-	s.Error(err)
+	s.Require().Error(err)
 	s.Zero(userID)
-	s.True(errors.Is(err, services.ErrPasswordMismatch))
+	s.ErrorIs(err, services.ErrPasswordMismatch)
 }
 
 func (s *AuthServiceTestSuite) TestSignUp_WeakPassword() {
@@ -302,7 +299,7 @@ func (s *AuthServiceTestSuite) TestSignUp_WeakPassword() {
 		"127.0.0.1",
 	)
 
-	s.Error(err)
+	s.Require().Error(err)
 	s.Zero(userID)
 }
 
@@ -318,7 +315,7 @@ func (s *AuthServiceTestSuite) TestResetPassword_UnknownToken() {
 		Token:                "not-a-real-token",
 	}, "test-agent", "127.0.0.1")
 
-	s.True(errors.Is(err, services.ErrInvalidToken))
+	s.Require().ErrorIs(err, services.ErrInvalidToken)
 
 	// the old password still works
 	_, err = svc.ValidateLogin(s.Ctx, cfg.Seed.SuperAdminEmail, cfg.Seed.SuperAdminPassword, "test-agent", "127.0.0.1")
@@ -347,12 +344,12 @@ func (s *AuthServiceTestSuite) TestResetPassword_Success() {
 		PasswordConfirmation: "NewPassword123!",
 		Token:                token.TokenValue,
 	}, "test-agent", "127.0.0.1")
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	_, err = svc.ValidateLogin(s.Ctx, "reset@example.com", "NewPassword123!", "test-agent", "127.0.0.1")
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// the token is single use
 	_, err = svc.ValidatePasswordReset(s.Ctx, token.TokenValue)
-	s.True(errors.Is(err, services.ErrInvalidToken))
+	s.ErrorIs(err, services.ErrInvalidToken)
 }

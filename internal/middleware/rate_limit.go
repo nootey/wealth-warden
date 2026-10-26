@@ -2,9 +2,10 @@ package middleware
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
-	"sync"
 )
 
 type RateLimiter struct {

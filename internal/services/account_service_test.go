@@ -51,7 +51,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshotBefore.EndBalance),
+	s.True(initialBalance.Equal(snapshotBefore.EndBalance),
 		"Initial snapshot should be %s", initialBalance.String())
 
 	// Update account balance to 15,000 (increase by 5,000)
@@ -78,12 +78,12 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 
 	// Verify adjustment is an income of 5,000
 	expectedAdjustment := decimal.NewFromInt(5000)
-	s.Assert().Equal(models.TxnDirectionIncome, adjustmentTxn.Direction,
+	s.Equal(models.TxnDirectionIncome, adjustmentTxn.Direction,
 		"adjustment should be income type")
-	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
+	s.True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
 		expectedAdjustment.String(), adjustmentTxn.Amount.String())
-	s.Assert().Equal("Manual adjustment", *adjustmentTxn.Description)
+	s.Equal("Manual adjustment", *adjustmentTxn.Description)
 
 	// Verify the adjustment has adjustment category
 	var category models.Category
@@ -91,7 +91,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 		Where("id = ?", *adjustmentTxn.CategoryID).
 		First(&category).Error
 	s.Require().NoError(err)
-	s.Assert().Equal("adjustment", category.Classification)
+	s.Equal("adjustment", category.Classification)
 
 	// Verify the account balance carries the income
 	var balance models.Balance
@@ -99,7 +99,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(balance.Balance),
+	s.True(newBalance.Equal(balance.Balance),
 		"balance should be %s, got %s",
 		newBalance.String(), balance.Balance.String())
 
@@ -109,7 +109,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(snapshotAfter.EndBalance),
+	s.True(newBalance.Equal(snapshotAfter.EndBalance),
 		"Snapshot should be updated to %s, got %s",
 		newBalance.String(), snapshotAfter.EndBalance.String())
 }
@@ -141,7 +141,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshotBefore.EndBalance),
+	s.True(initialBalance.Equal(snapshotBefore.EndBalance),
 		"Initial snapshot should be %s", initialBalance.String())
 
 	// Update account balance to 12,000 (decrease by 8,000)
@@ -168,13 +168,13 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 
 	// Verify adjustment is an expense of 8,000
 	expectedAdjustment := decimal.NewFromInt(8000)
-	s.Assert().Equal(models.TxnDirectionExpense, adjustmentTxn.Direction,
+	s.Equal(models.TxnDirectionExpense, adjustmentTxn.Direction,
 		"adjustment should be expense type")
-	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
+	s.True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
 		expectedAdjustment.String(), adjustmentTxn.Amount.String())
-	s.Assert().Equal("Manual adjustment", *adjustmentTxn.Description)
-	s.Assert().Equal(models.TxnTypeAdjustment, adjustmentTxn.TransactionType, "transaction should be marked as adjustment")
+	s.Equal("Manual adjustment", *adjustmentTxn.Description)
+	s.Equal(models.TxnTypeAdjustment, adjustmentTxn.TransactionType, "transaction should be marked as adjustment")
 
 	// Verify the account balance carries the outflow
 	var balance models.Balance
@@ -182,7 +182,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(balance.Balance),
+	s.True(newBalance.Equal(balance.Balance),
 		"balance should be %s, got %s",
 		newBalance.String(), balance.Balance.String())
 
@@ -192,7 +192,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(snapshotAfter.EndBalance),
+	s.True(newBalance.Equal(snapshotAfter.EndBalance),
 		"Snapshot should be updated to %s, got %s",
 		newBalance.String(), snapshotAfter.EndBalance.String())
 }
@@ -239,7 +239,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceNoChange() {
 		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount,
+	s.Equal(int64(0), txnCount,
 		"no adjustment transaction should be created when balance doesn't change")
 
 	// Verify the balance still holds the opening amount only
@@ -249,7 +249,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceNoChange() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(balance.Balance),
+	s.True(initialBalance.Equal(balance.Balance),
 		"balance should hold the opening amount only, got %s", balance.Balance.String())
 
 	// Verify snapshot remains at 10,000
@@ -258,7 +258,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceNoChange() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshot.EndBalance),
+	s.True(initialBalance.Equal(snapshot.EndBalance),
 		"Snapshot should remain %s, got %s",
 		initialBalance.String(), snapshot.EndBalance.String())
 }
@@ -291,7 +291,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 		First(&snapshotBefore).Error
 	s.Require().NoError(err)
 	expectedInitial := initialBalance.Neg()
-	s.Assert().True(expectedInitial.Equal(snapshotBefore.EndBalance),
+	s.True(expectedInitial.Equal(snapshotBefore.EndBalance),
 		"Initial liability snapshot should be %s (negative), got %s",
 		expectedInitial.String(), snapshotBefore.EndBalance.String())
 
@@ -318,9 +318,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 	s.Require().NoError(err, "adjustment transaction should exist")
 
 	expectedAdjustment := decimal.NewFromInt(3000)
-	s.Assert().Equal(models.TxnDirectionExpense, adjustmentTxn.Direction,
+	s.Equal(models.TxnDirectionExpense, adjustmentTxn.Direction,
 		"increasing liability debt should be expense type")
-	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
+	s.True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
 		expectedAdjustment.String(), adjustmentTxn.Amount.String())
 
@@ -330,7 +330,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(balance.Balance),
+	s.True(newBalance.Equal(balance.Balance),
 		"balance should be %s, got %s",
 		newBalance.String(), balance.Balance.String())
 
@@ -340,7 +340,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(snapshotAfter.EndBalance),
+	s.True(newBalance.Equal(snapshotAfter.EndBalance),
 		"Snapshot should be updated to %s, got %s",
 		newBalance.String(), snapshotAfter.EndBalance.String())
 }
@@ -377,11 +377,11 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Order("as_of ASC").
 		Find(&snapshotsBefore).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(6, len(snapshotsBefore), "should have 6 snapshots (day -5 to today)")
+	s.Len(snapshotsBefore, 6, "should have 6 snapshots (day -5 to today)")
 
 	// All snapshots should be 10,000 (no transactions yet)
 	for _, snap := range snapshotsBefore {
-		s.Assert().True(initialBalance.Equal(snap.EndBalance),
+		s.True(initialBalance.Equal(snap.EndBalance),
 			"Snapshot on %s should be %s", snap.AsOf.Format("2006-01-02"), initialBalance.String())
 	}
 
@@ -406,8 +406,8 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		First(&adjustmentTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(models.TxnDirectionIncome, adjustmentTxn.Direction)
-	s.Assert().True(decimal.NewFromInt(5000).Equal(adjustmentTxn.Amount))
+	s.Equal(models.TxnDirectionIncome, adjustmentTxn.Direction)
+	s.True(decimal.NewFromInt(5000).Equal(adjustmentTxn.Amount))
 
 	// Verify the account balance carries the adjustment
 	var todayBalance models.Balance
@@ -415,7 +415,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Where("account_id = ?", accID).
 		First(&todayBalance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(todayBalance.Balance),
+	s.True(newBalance.Equal(todayBalance.Balance),
 		"balance should be %s, got %s",
 		newBalance.String(), todayBalance.Balance.String())
 
@@ -426,7 +426,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Where("account_id = ? AND as_of = ?", accID, day4Midnight).
 		First(&snapshotDay4).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshotDay4.EndBalance),
+	s.True(initialBalance.Equal(snapshotDay4.EndBalance),
 		"Day -4 snapshot should remain %s, got %s",
 		initialBalance.String(), snapshotDay4.EndBalance.String())
 
@@ -436,7 +436,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&todaySnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(todaySnapshot.EndBalance),
+	s.True(newBalance.Equal(todaySnapshot.EndBalance),
 		"Today's snapshot should be %s, got %s",
 		newBalance.String(), todaySnapshot.EndBalance.String())
 
@@ -448,7 +448,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Order("as_of ASC").
 		Find(&snapshotsAfter).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(6, len(snapshotsAfter), "should still have 6 snapshots")
+	s.Len(snapshotsAfter, 6, "should still have 6 snapshots")
 }
 
 // Tests closing an account and verifying snapshots/balances are correct
@@ -501,7 +501,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Order("as_of ASC").
 		Find(&snapshotsBefore).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(4, len(snapshotsBefore), "should have 4 snapshots before closing")
+	s.Len(snapshotsBefore, 4, "should have 4 snapshots before closing")
 
 	// Verify account is active
 	var accountBefore models.Account
@@ -509,8 +509,8 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("id = ?", accID).
 		First(&accountBefore).Error
 	s.Require().NoError(err)
-	s.Assert().True(accountBefore.IsActive)
-	s.Assert().Nil(accountBefore.ClosedAt)
+	s.True(accountBefore.IsActive)
+	s.Nil(accountBefore.ClosedAt)
 
 	// Verify yesterday's snapshot reflects the transaction (12,000)
 	var yesterdaySnapshotBefore models.BalanceSnapshot
@@ -518,7 +518,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("account_id = ? AND as_of = ?", accID, oneDayAgoMidnight).
 		First(&yesterdaySnapshotBefore).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedBalanceAfterTxn.Equal(yesterdaySnapshotBefore.EndBalance),
+	s.True(expectedBalanceAfterTxn.Equal(yesterdaySnapshotBefore.EndBalance),
 		"Yesterday's snapshot should be %s (after transaction), got %s",
 		expectedBalanceAfterTxn.String(), yesterdaySnapshotBefore.EndBalance.String())
 
@@ -543,9 +543,9 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("id = ?", accID).
 		First(&accountAfter).Error
 	s.Require().NoError(err)
-	s.Assert().False(accountAfter.IsActive, "account should be inactive")
-	s.Assert().NotNil(accountAfter.ClosedAt, "ClosedAt should be set")
-	s.Assert().Equal(todayMidnight.Format("2006-01-02"),
+	s.False(accountAfter.IsActive, "account should be inactive")
+	s.NotNil(accountAfter.ClosedAt, "ClosedAt should be set")
+	s.Equal(todayMidnight.Format("2006-01-02"),
 		accountAfter.ClosedAt.UTC().Truncate(24*time.Hour).Format("2006-01-02"),
 		"ClosedAt should be set to today")
 
@@ -557,7 +557,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Order("as_of ASC").
 		Find(&snapshotsAfter).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(4, len(snapshotsAfter), "should still have 4 snapshots after closing")
+	s.Len(snapshotsAfter, 4, "should still have 4 snapshots after closing")
 
 	// Verify opening day snapshot is still 10,000
 	var openSnapshot models.BalanceSnapshot
@@ -565,7 +565,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("account_id = ? AND as_of = ?", accID, openMidnight).
 		First(&openSnapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(openSnapshot.EndBalance),
+	s.True(initialBalance.Equal(openSnapshot.EndBalance),
 		"Opening day snapshot should be %s, got %s",
 		initialBalance.String(), openSnapshot.EndBalance.String())
 
@@ -575,7 +575,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("account_id = ? AND as_of = ?", accID, oneDayAgoMidnight).
 		First(&yesterdaySnapshotAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedBalanceAfterTxn.Equal(yesterdaySnapshotAfter.EndBalance),
+	s.True(expectedBalanceAfterTxn.Equal(yesterdaySnapshotAfter.EndBalance),
 		"Yesterday's snapshot should still be %s (after transaction), got %s",
 		expectedBalanceAfterTxn.String(), yesterdaySnapshotAfter.EndBalance.String())
 
@@ -585,7 +585,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&todaySnapshot).Error
 	s.Require().NoError(err, "snapshot should exist for closing date")
-	s.Assert().True(todaySnapshot.EndBalance.IsZero(),
+	s.True(todaySnapshot.EndBalance.IsZero(),
 		"Today's final snapshot should be 0, got %s", todaySnapshot.EndBalance.String())
 
 	// The closed account was emptied, so its balance is zero
@@ -594,7 +594,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err, "balance record should exist for a closed account")
-	s.Assert().True(balance.Balance.IsZero(),
+	s.True(balance.Balance.IsZero(),
 		"closed account balance should be 0, got %s", balance.Balance.String())
 }
 
@@ -678,15 +678,15 @@ func (s *AccountServiceTestSuite) TestCloseAccount_CloseDayVisibleInNetWorthView
 
 	s.Require().NotEmpty(visible)
 	last := visible[len(visible)-1]
-	s.Assert().Equal(todayMidnight, last.AsOf.UTC(), "close day should be the last visible day")
-	s.Assert().True(last.EndBalance.IsZero(),
+	s.Equal(todayMidnight, last.AsOf.UTC(), "close day should be the last visible day")
+	s.True(last.EndBalance.IsZero(),
 		"close day should be empty, got %s", last.EndBalance.String())
 
 	netWorthOnCloseDay := netWorthOn(todayMidnight)
-	s.Assert().True(initialBalance.Equal(netWorthOnCloseDay),
+	s.True(initialBalance.Equal(netWorthOnCloseDay),
 		"net worth on the close day should be %s, got %s",
 		initialBalance.String(), netWorthOnCloseDay.String())
-	s.Assert().True(netWorthBefore.Equal(netWorthOnCloseDay),
+	s.True(netWorthBefore.Equal(netWorthOnCloseDay),
 		"closing must not move net worth: %s before, %s on the close day",
 		netWorthBefore.String(), netWorthOnCloseDay.String())
 }
@@ -711,13 +711,13 @@ func (s *AccountServiceTestSuite) TestCloseAccount_RefusesNonEmptyAccount() {
 
 	err = svc.CloseAccount(s.Ctx, userID, accID)
 	s.Require().Error(err)
-	s.Assert().ErrorIs(err, services.ErrAccountNotEmpty)
+	s.Require().ErrorIs(err, services.ErrAccountNotEmpty)
 
 	var account models.Account
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
 		Where("id = ?", accID).First(&account).Error)
-	s.Assert().True(account.IsActive, "a refused close must leave the account open")
-	s.Assert().Nil(account.ClosedAt, "a refused close must not set closed_at")
+	s.True(account.IsActive, "a refused close must leave the account open")
+	s.Nil(account.ClosedAt, "a refused close must not set closed_at")
 }
 
 // A purge takes the account and every row hanging off it, including both legs of
@@ -775,16 +775,16 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_RemovesEverythingAndRebuildsP
 		return n
 	}
 
-	s.Assert().Zero(count("accounts", "id = ?", victimID), "account row should be gone")
-	s.Assert().Zero(count("balances", "account_id = ?", victimID), "balances should be gone")
-	s.Assert().Zero(count("balance_snapshots", "account_id = ?", victimID), "snapshots should be gone")
-	s.Assert().Zero(count("transactions", "account_id = ?", victimID), "transactions should be gone")
-	s.Assert().Zero(count("transfers", "user_id = ?", userID), "the transfer should be gone")
-	s.Assert().Zero(count("transactions", "account_id = ? AND transaction_type <> 'opening'", peerID),
+	s.Zero(count("accounts", "id = ?", victimID), "account row should be gone")
+	s.Zero(count("balances", "account_id = ?", victimID), "balances should be gone")
+	s.Zero(count("balance_snapshots", "account_id = ?", victimID), "snapshots should be gone")
+	s.Zero(count("transactions", "account_id = ?", victimID), "transactions should be gone")
+	s.Zero(count("transfers", "user_id = ?", userID), "the transfer should be gone")
+	s.Zero(count("transactions", "account_id = ? AND transaction_type <> 'opening'", peerID),
 		"the far transfer leg should be gone")
 
 	// The peer is rebuilt back to its opening balance, without the transfer.
-	s.Assert().True(peerStart.Equal(s.latestSnapshot(peerID)),
+	s.True(peerStart.Equal(s.latestSnapshot(peerID)),
 		"peer should be back to %s, got %s", peerStart.String(), s.latestSnapshot(peerID).String())
 }
 
@@ -808,7 +808,7 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_WorksOnClosedAccount() {
 	var n int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Account{}).
 		Where("id = ?", accID).Count(&n).Error)
-	s.Assert().Zero(n)
+	s.Zero(n)
 }
 
 func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsTradeCashFlows() {
@@ -864,11 +864,11 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsTradeCashFlows() {
 	var bal models.Balance
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ?", peerID).First(&bal).Error)
-	s.Assert().True(peerStart.Sub(tradeCost).Equal(bal.Balance),
+	s.True(peerStart.Sub(tradeCost).Equal(bal.Balance),
 		"trade outflow should survive, got %s", bal.Balance.String())
 
 	want := peerStart.Sub(tradeCost)
-	s.Assert().True(want.Equal(s.latestSnapshot(peerID)),
+	s.True(want.Equal(s.latestSnapshot(peerID)),
 		"rebuild should carry the outflow forward to %s, got %s",
 		want.String(), s.latestSnapshot(peerID).String())
 }
@@ -912,8 +912,8 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 		Where("id = ?", accID).
 		First(&account).Error
 	s.Require().NoError(err)
-	s.Assert().False(account.IsActive)
-	s.Assert().NotNil(account.ClosedAt)
+	s.False(account.IsActive)
+	s.NotNil(account.ClosedAt)
 
 	// Attempt to insert a transaction to the closed account
 	txnAmount := decimal.NewFromInt(1000)
@@ -928,7 +928,7 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
 	s.Require().Error(err, "should not allow transaction on closed account")
-	s.Assert().Contains(err.Error(), "closed",
+	s.Contains(err.Error(), "closed",
 		"error message should indicate account is closed")
 
 	// Verify no transaction was created
@@ -938,7 +938,7 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount,
+	s.Equal(int64(0), txnCount,
 		"no transactions should exist for closed account")
 
 	// Verify balance hasn't changed
@@ -947,7 +947,7 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 		Where("account_id = ?", accID).
 		First(&todayBalance).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(todayBalance.Balance),
+	s.True(decimal.Zero.Equal(todayBalance.Balance),
 		"balance should remain 0, got %s", todayBalance.Balance.String())
 }
 
@@ -1026,7 +1026,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 	s.Require().NoError(err)
 
 	expectedBalance := decimal.NewFromInt(10000)
-	s.Assert().True(expectedBalance.Equal(latestBalance.Balance),
+	s.True(expectedBalance.Equal(latestBalance.Balance),
 		"balance should remain at %s, got %s",
 		expectedBalance.String(), latestBalance.Balance.String())
 }
@@ -1079,7 +1079,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByGoalAllocation() {
 		Where("account_id = ?", accID).
 		First(&latestBalance).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(latestBalance.Balance),
+	s.True(initialBalance.Equal(latestBalance.Balance),
 		"balance should remain at %s, got %s",
 		initialBalance.String(), latestBalance.Balance.String())
 }
@@ -1123,7 +1123,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_CreditLimitOverridesGoalAllo
 
 	latest, err := accSvc.FetchLatestBalance(s.Ctx, accID, userID)
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(latest.Balance),
+	s.True(newBalance.Equal(latest.Balance),
 		"balance should be %s, got %s", newBalance.String(), latest.Balance.String())
 }
 
@@ -1162,12 +1162,12 @@ func (s *AccountServiceTestSuite) TestFetchAvailableBalance() {
 
 	plain, err := accSvc.FetchAvailableBalance(s.Ctx, plainID, userID)
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(600).Equal(plain.Available),
+	s.True(decimal.NewFromInt(600).Equal(plain.Available),
 		"without a credit limit goal money is excluded, got %s", plain.Available.String())
 
 	overdraft, err := accSvc.FetchAvailableBalance(s.Ctx, overdraftID, userID)
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(overdraft.Available),
+	s.True(initialBalance.Equal(overdraft.Available),
 		"with a credit limit goal money is included but the limit is not, got %s", overdraft.Available.String())
 
 	_, err = s.TC.App.TransactionService.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
@@ -1177,7 +1177,7 @@ func (s *AccountServiceTestSuite) TestFetchAvailableBalance() {
 
 	overdrawn, err := accSvc.FetchAvailableBalance(s.Ctx, overdraftID, userID)
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(-10).Equal(overdrawn.Available),
+	s.True(decimal.NewFromInt(-10).Equal(overdrawn.Available),
 		"an overdrawn account should report how far into the limit it is, got %s", overdrawn.Available.String())
 }
 
@@ -1228,7 +1228,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
 	var src models.Account
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", srcID).First(&src).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(src.ClosedAt, "source account should be closed")
+	s.NotNil(src.ClosedAt, "source account should be closed")
 
 	// Both transactions should now belong to destination, next to the two opening rows
 	var count int64
@@ -1236,7 +1236,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
 		Where("account_id = ? AND deleted_at IS NULL AND transaction_type <> ?", dstID, models.TxnTypeOpening).
 		Count(&count).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(2), count, "both transactions should be on destination")
+	s.Equal(int64(2), count, "both transactions should be on destination")
 
 	// Destination balance should reflect the moved transactions
 	var bal models.Balance
@@ -1244,7 +1244,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
 		Where("account_id = ?", dstID).
 		First(&bal).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(800).Equal(bal.Balance),
+	s.True(decimal.NewFromInt(800).Equal(bal.Balance),
 		"destination balance should be 800, got %s", bal.Balance)
 
 	var srcBal models.Balance
@@ -1252,7 +1252,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
 		Where("account_id = ?", srcID).
 		First(&srcBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcBal.Balance.IsZero(),
+	s.True(srcBal.Balance.IsZero(),
 		"source balance should be 0, got %s", srcBal.Balance)
 }
 
@@ -1280,8 +1280,8 @@ func (s *AccountServiceTestSuite) TestQueueAccountMerge_ValidatesWithoutTransact
 	s.Require().NoError(svc.QueueAccountMerge(s.Ctx, userID, srcID, dstID))
 
 	err = svc.QueueAccountMerge(s.Ctx, userID, srcID, srcID)
-	s.Assert().Error(err)
-	s.Assert().Contains(err.Error(), "must be different")
+	s.Require().Error(err)
+	s.Contains(err.Error(), "must be different")
 }
 
 // Merging an account into itself should return an error
@@ -1299,8 +1299,8 @@ func (s *AccountServiceTestSuite) TestMergeAccount_SameAccount() {
 	s.Require().NoError(err)
 
 	err = svc.MergeAccount(s.Ctx, userID, accID, accID)
-	s.Assert().Error(err)
-	s.Assert().Contains(err.Error(), "must be different")
+	s.Require().Error(err)
+	s.Contains(err.Error(), "must be different")
 }
 
 // A transfer between source and destination gets soft-deleted
@@ -1350,7 +1350,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_IntraTransferVoided() {
 	var transfer models.Transfer
 	err = s.TC.DB.WithContext(s.Ctx).Where("user_id = ?", userID).First(&transfer).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(transfer.DeletedAt, "transfer should be soft-deleted")
+	s.NotNil(transfer.DeletedAt, "transfer should be soft-deleted")
 
 	// Both transfer transactions should be flagged as adjustments
 	var adjustmentCount int64
@@ -1358,7 +1358,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_IntraTransferVoided() {
 		Where("transaction_type = ? AND user_id = ?", models.TxnTypeAdjustment, userID).
 		Count(&adjustmentCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(2), adjustmentCount, "both transfer transactions should be flagged as adjustments")
+	s.Equal(int64(2), adjustmentCount, "both transfer transactions should be flagged as adjustments")
 }
 
 // Investment accounts can only merge into the same type and sub-type
@@ -1385,8 +1385,8 @@ func (s *AccountServiceTestSuite) TestMergeAccount_InvestmentGuard_SubtypeMismat
 	s.Require().NoError(err)
 
 	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
-	s.Assert().Error(err)
-	s.Assert().Contains(err.Error(), "same type and sub-type")
+	s.Require().Error(err)
+	s.Contains(err.Error(), "same type and sub-type")
 }
 
 // Investment accounts cannot be merged into crypto accounts
@@ -1413,8 +1413,8 @@ func (s *AccountServiceTestSuite) TestMergeAccount_InvestmentGuard_CrossTypeCryp
 	s.Require().NoError(err)
 
 	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
-	s.Assert().Error(err)
-	s.Assert().Contains(err.Error(), "same type and sub-type")
+	s.Require().Error(err)
+	s.Contains(err.Error(), "same type and sub-type")
 }
 
 // Liability accounts cannot be merged into asset accounts
@@ -1441,8 +1441,8 @@ func (s *AccountServiceTestSuite) TestMergeAccount_LiabilityGuard() {
 	s.Require().NoError(err)
 
 	err = svc.MergeAccount(s.Ctx, userID, creditAccID, cashAccID)
-	s.Assert().Error(err)
-	s.Assert().Contains(err.Error(), "liability")
+	s.Require().Error(err)
+	s.Contains(err.Error(), "liability")
 }
 
 // Merging two accounts with initial balances and transactions on different days
@@ -1488,27 +1488,27 @@ func (s *AccountServiceTestSuite) TestMergeAccount_BalancesAndSnapshotsWithTrans
 	var dstSnap models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, today).First(&dstSnap).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedTotal.Equal(dstSnap.EndBalance),
+	s.True(expectedTotal.Equal(dstSnap.EndBalance),
 		"dest today snapshot should be %s, got %s", expectedTotal, dstSnap.EndBalance)
 
 	// Source today snapshot = 0
 	var srcSnap models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", srcID, today).First(&srcSnap).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcSnap.EndBalance.IsZero(),
+	s.True(srcSnap.EndBalance.IsZero(),
 		"source today snapshot should be 0, got %s", srcSnap.EndBalance)
 
 	// The destination balance holds every moved transaction, the source none
 	var dstBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", dstID).First(&dstBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedTotal.Equal(dstBal.Balance),
+	s.True(expectedTotal.Equal(dstBal.Balance),
 		"dest balance should be %s, got %s", expectedTotal, dstBal.Balance)
 
 	var srcBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", srcID).First(&srcBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcBal.Balance.IsZero(),
+	s.True(srcBal.Balance.IsZero(),
 		"source balance should be 0, got %s", srcBal.Balance)
 }
 
@@ -1549,13 +1549,13 @@ func (s *AccountServiceTestSuite) TestMergeAccount_SourceOlderThanDestination_Ke
 	s.Require().NoError(svc.MergeAccount(s.Ctx, userID, srcID, dstID))
 
 	totalAfter := s.mergeSnapshotTotal(srcID, dstID, today)
-	s.Assert().True(totalBefore.Equal(totalAfter),
+	s.True(totalBefore.Equal(totalAfter),
 		"total should survive the merge: before %s, after %s", totalBefore, totalAfter)
 
 	var dstSnap models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, today).First(&dstSnap).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedTotal.Equal(dstSnap.EndBalance),
+	s.True(expectedTotal.Equal(dstSnap.EndBalance),
 		"dest today snapshot should hold the whole total, got %s", dstSnap.EndBalance)
 }
 
@@ -1600,27 +1600,27 @@ func (s *AccountServiceTestSuite) TestMergeAccount_SourceNoTransactions_InitialB
 	var dstSnap models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, today).First(&dstSnap).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedTotal.Equal(dstSnap.EndBalance),
+	s.True(expectedTotal.Equal(dstSnap.EndBalance),
 		"dest today snapshot should be %s, got %s", expectedTotal, dstSnap.EndBalance)
 
 	// Source today snapshot = 0
 	var srcSnap models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", srcID, today).First(&srcSnap).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcSnap.EndBalance.IsZero(),
+	s.True(srcSnap.EndBalance.IsZero(),
 		"source today snapshot should be 0, got %s", srcSnap.EndBalance)
 
 	// The destination balance holds every moved transaction, the source none
 	var dstBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", dstID).First(&dstBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedTotal.Equal(dstBal.Balance),
+	s.True(expectedTotal.Equal(dstBal.Balance),
 		"dest balance should be %s, got %s", expectedTotal, dstBal.Balance)
 
 	var srcBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", srcID).First(&srcBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcBal.Balance.IsZero(),
+	s.True(srcBal.Balance.IsZero(),
 		"source balance should be 0, got %s", srcBal.Balance)
 }
 
@@ -1648,7 +1648,7 @@ func (s *AccountServiceTestSuite) TestInsertAccount_WithCreditLimit_NegativeInit
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshot).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(snapshot.EndBalance),
+	s.True(initialBalance.Equal(snapshot.EndBalance),
 		"snapshot should be %s, got %s", initialBalance.String(), snapshot.EndBalance.String())
 }
 
@@ -1669,7 +1669,7 @@ func (s *AccountServiceTestSuite) TestInsertAccount_WithCreditLimit_BelowLimit()
 	}
 	_, err := svc.InsertAccount(s.Ctx, userID, accReq)
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "cannot be below credit limit")
+	s.Contains(err.Error(), "cannot be below credit limit")
 }
 
 // Tests that removing a credit limit is rejected when the account balance is negative
@@ -1697,7 +1697,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_RemoveCreditLimit_WithNegati
 		OpenedAt:      time.Now(),
 	})
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "cannot remove credit limit")
+	s.Contains(err.Error(), "cannot remove credit limit")
 }
 
 // Tests that creating an account with a zero credit limit stores it as none
@@ -1717,7 +1717,7 @@ func (s *AccountServiceTestSuite) TestInsertAccount_ZeroCreditLimit_StoredAsNil(
 
 	acc, err := svc.FetchAccountByID(s.Ctx, userID, accID)
 	s.Require().NoError(err)
-	s.Assert().Nil(acc.CreditLimit)
+	s.Nil(acc.CreditLimit)
 }
 
 // Tests that a credit limit can be removed when the account balance is zero
@@ -1773,7 +1773,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_ReduceCreditLimit_BelowCurre
 		OpenedAt:      time.Now(),
 	})
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "credit limit must exceed current negative balance")
+	s.Contains(err.Error(), "credit limit must exceed current negative balance")
 }
 
 // Tests that a balance adjustment below the credit limit floor is rejected
@@ -1802,7 +1802,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_SetBalance_BelowCreditLimit(
 		OpenedAt:      time.Now(),
 	})
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "insufficient funds")
+	s.Contains(err.Error(), "insufficient funds")
 }
 
 // Two liability accounts of different sub-types can be merged
@@ -1829,12 +1829,12 @@ func (s *AccountServiceTestSuite) TestMergeAccount_LiabilityToLiability_OK() {
 	s.Require().NoError(err)
 
 	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
-	s.Assert().NoError(err)
+	s.Require().NoError(err)
 
 	var src models.Account
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", srcID).First(&src).Error
 	s.Require().NoError(err)
-	s.Assert().NotNil(src.ClosedAt)
+	s.NotNil(src.ClosedAt)
 }
 
 // The opening transaction created alongside a new account must be filed under the
@@ -1861,7 +1861,7 @@ func (s *AccountServiceTestSuite) TestInsertAccount_OpeningTransactionUsesAdjust
 	var category models.Category
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", *opening.CategoryID).First(&category).Error
 	s.Require().NoError(err)
-	s.Assert().Equal("adjustment", category.Classification)
+	s.Equal("adjustment", category.Classification)
 }
 
 func (s *AccountServiceTestSuite) newEmptyAccount(name string) int64 {
@@ -1891,7 +1891,7 @@ func (s *AccountServiceTestSuite) TestCloseAccount_WaitsForInFlightWrite() {
 
 	var account models.Account
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&account, accID).Error)
-	s.Assert().Nil(account.ClosedAt, "a refused close must leave the account open")
+	s.Nil(account.ClosedAt, "a refused close must leave the account open")
 }
 
 func (s *AccountServiceTestSuite) TestInsertTransaction_WaitsForInFlightClose() {
@@ -1910,11 +1910,11 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_WaitsForInFlightClose() 
 	})
 	var appErr *apperr.Error
 	s.Require().ErrorAs(err, &appErr, "the write must fail validation, not hit the database guard")
-	s.Assert().Equal(apperr.Conflict, appErr.Kind)
+	s.Equal(apperr.Conflict, appErr.Kind)
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error)
-	s.Assert().Zero(txnCount, "nothing may post to the closed account")
+	s.Zero(txnCount, "nothing may post to the closed account")
 }

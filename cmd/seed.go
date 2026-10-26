@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 	"wealth-warden/internal/config"
@@ -17,7 +18,6 @@ var seedCmd = &cobra.Command{
 	Short: "Run database seeders",
 	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		seedType := "help"
 		seedLogger := logger.Named("seeder")
 		seedLogger.Info("Loaded the configuration", zap.Any("config", cfg))
@@ -73,29 +73,28 @@ func isValidSeedType(seedType string) bool {
 }
 
 func runSeeders(seedType string, seederName string, cfg *config.Config, logger *zap.Logger, timeout time.Duration) error {
-
 	if !isValidSeedType(seedType) {
 		return fmt.Errorf("invalid seed type: %s", seedType)
 	}
 
 	if seedType == "help" {
-		return fmt.Errorf("\n Provide an additional argument to the seeder function. Valid arguments are: full, basic, bulk, individual <name>")
+		return errors.New("\n Provide an additional argument to the seeder function. Valid arguments are: full, basic, bulk, individual <name>")
 	}
 
 	if seedType == "individual" && seederName == "" {
-		return fmt.Errorf("seeder name required for individual type")
+		return errors.New("seeder name required for individual type")
 	}
 
 	logger.Info("Starting database seeding")
 
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	dbLogger := logger.Named("database")
-	gormDB, err := database.ConnectToPostgres(cfg, dbLogger)
+	gormDB, err := database.ConnectToPostgres(ctx, cfg, dbLogger)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 
 	args := []string{}
 	if seederName != "" {

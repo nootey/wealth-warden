@@ -41,7 +41,6 @@ func (r *ImportRepository) CountTransactionsForImport(ctx context.Context, userI
 				Where("user_id = ? AND import_id = ?", userID, importID),
 		).
 		Count(&count).Error
-
 	if err != nil {
 		return 0, err
 	}
@@ -50,7 +49,6 @@ func (r *ImportRepository) CountTransactionsForImport(ctx context.Context, userI
 }
 
 func (r *ImportRepository) FindImportsByImportType(ctx context.Context, tx *gorm.DB, userID int64, importType string) ([]models.Import, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -70,7 +68,6 @@ func (r *ImportRepository) FindImportsByImportType(ctx context.Context, tx *gorm
 }
 
 func (r *ImportRepository) FindImportByID(ctx context.Context, tx *gorm.DB, id, userID int64, importType string) (*models.Import, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -93,7 +90,6 @@ func (r *ImportRepository) FindImportByID(ctx context.Context, tx *gorm.DB, id, 
 }
 
 func (r *ImportRepository) InsertImport(ctx context.Context, tx *gorm.DB, record models.Import) (int64, error) {
-
 	db := tx
 	if db == nil {
 		db = r.db
@@ -116,7 +112,6 @@ func (r *ImportRepository) UpdateImport(ctx context.Context, tx *gorm.DB, id int
 }
 
 func (r *ImportRepository) DeleteImport(ctx context.Context, tx *gorm.DB, id, userID int64) error {
-
 	db := tx
 	if db == nil {
 		db = r.db

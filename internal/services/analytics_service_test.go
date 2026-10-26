@@ -180,7 +180,7 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyCashFlowBreakdown_RejectsClosed
 	_, err := svc.GetYearlyCashFlowBreakdown(s.Ctx, userID, time.Now().Year(), &accID)
 
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "closed")
+	s.Contains(err.Error(), "closed")
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetYearlySankeyData_RejectsClosedAccount() {
@@ -191,7 +191,7 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlySankeyData_RejectsClosedAccount
 	_, err := svc.GetYearlySankeyData(s.Ctx, userID, &accID, time.Now().Year())
 
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "closed")
+	s.Contains(err.Error(), "closed")
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_RejectsClosedAccount() {
@@ -202,7 +202,7 @@ func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_RejectsClosedA
 	_, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, time.Now().Year())
 
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "closed")
+	s.Contains(err.Error(), "closed")
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetMonthlyStats_RejectsClosedAccount() {
@@ -214,7 +214,7 @@ func (s *AnalyticsServiceTestSuite) TestGetMonthlyStats_RejectsClosedAccount() {
 	_, err := svc.GetMonthlyStats(s.Ctx, userID, &accID, now.Year(), int(now.Month()))
 
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "closed")
+	s.Contains(err.Error(), "closed")
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetTodayStats_RejectsClosedAccount() {
@@ -225,7 +225,7 @@ func (s *AnalyticsServiceTestSuite) TestGetTodayStats_RejectsClosedAccount() {
 	_, err := svc.GetTodayStats(s.Ctx, userID, &accID)
 
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "closed")
+	s.Contains(err.Error(), "closed")
 }
 
 // Exercises getYearStatsWithAllocations, which is unexported and only reachable
@@ -238,7 +238,7 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_RejectsClosedAcc
 	_, err := svc.GetYearlyBreakdownStats(s.Ctx, &accID, userID, time.Now().Year(), nil)
 
 	s.Require().Error(err)
-	s.Assert().Contains(err.Error(), "closed")
+	s.Contains(err.Error(), "closed")
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_AveragesTakeHomeOverActiveMonths() {
@@ -252,8 +252,8 @@ func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_AveragesTakeHo
 	stats, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, 2024)
 
 	s.Require().NoError(err)
-	s.Assert().True(stats.AvgMonthlyTakeHome.Equal(decimal.NewFromInt(1000)), "got %s", stats.AvgMonthlyTakeHome)
-	s.Assert().True(stats.AvgMonthlyTakeHome.Equal(stats.AvgMonthlyInflow))
+	s.True(stats.AvgMonthlyTakeHome.Equal(decimal.NewFromInt(1000)), "got %s", stats.AvgMonthlyTakeHome)
+	s.True(stats.AvgMonthlyTakeHome.Equal(stats.AvgMonthlyInflow))
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_AveragesTakeHomeOverElapsedMonths() {
@@ -266,7 +266,7 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_AveragesTakeHome
 
 	s.Require().NoError(err)
 	cur := res.CurrentYear
-	s.Assert().True(cur.AvgMonthlyTakeHome.Equal(cur.AvgMonthlyInflow), "take home %s, inflow %s", cur.AvgMonthlyTakeHome, cur.AvgMonthlyInflow)
+	s.True(cur.AvgMonthlyTakeHome.Equal(cur.AvgMonthlyInflow), "take home %s, inflow %s", cur.AvgMonthlyTakeHome, cur.AvgMonthlyInflow)
 }
 
 func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_CategoryChangesCapBothYearsAtCurrentMonth() {
@@ -293,8 +293,8 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_CategoryChangesC
 
 	s.Require().NoError(err)
 	s.Require().NotNil(res.CategoryChanges)
-	s.Assert().Equal(int(today.Month()), res.CategoryChanges.ThroughMonth)
-	s.Assert().Empty(res.CategoryChanges.Expense)
+	s.Equal(int(today.Month()), res.CategoryChanges.ThroughMonth)
+	s.Empty(res.CategoryChanges.Expense)
 	s.Require().Len(res.CategoryChanges.Income, 1)
 
 	wantComparison := decimal.NewFromInt(1000)
@@ -302,8 +302,8 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_CategoryChangesC
 		wantComparison = decimal.NewFromInt(6000)
 	}
 	inc := res.CategoryChanges.Income[0]
-	s.Assert().True(inc.Current.Equal(decimal.NewFromInt(1200)), "current %s", inc.Current)
-	s.Assert().True(inc.Comparison.Equal(wantComparison), "comparison %s", inc.Comparison)
+	s.True(inc.Current.Equal(decimal.NewFromInt(1200)), "current %s", inc.Current)
+	s.True(inc.Comparison.Equal(wantComparison), "comparison %s", inc.Comparison)
 }
 
 func (s *AnalyticsServiceTestSuite) TestNecessitySplit_InBasicMonthlyAndBreakdownStats() {
@@ -331,11 +331,11 @@ func (s *AnalyticsServiceTestSuite) TestNecessitySplit_InBasicMonthlyAndBreakdow
 	}
 
 	assertSplit := func(split models.NecessitySplit) {
-		s.Assert().True(split.Needs.Equal(decimal.NewFromInt(750)), "needs %s", split.Needs)
-		s.Assert().True(split.Wants.Equal(decimal.NewFromInt(250)), "wants %s", split.Wants)
-		s.Assert().True(split.Other.IsZero(), "other %s", split.Other)
-		s.Assert().InDelta(75.0, split.NeedsPct, 0.001)
-		s.Assert().InDelta(25.0, split.WantsPct, 0.001)
+		s.True(split.Needs.Equal(decimal.NewFromInt(750)), "needs %s", split.Needs)
+		s.True(split.Wants.Equal(decimal.NewFromInt(250)), "wants %s", split.Wants)
+		s.True(split.Other.IsZero(), "other %s", split.Other)
+		s.InDelta(75.0, split.NeedsPct, 0.001)
+		s.InDelta(25.0, split.WantsPct, 0.001)
 	}
 
 	basic, err := svc.GetAccountBasicStatistics(s.Ctx, &accID, userID, 2024)
