@@ -1,3 +1,5 @@
+//go:build integration
+
 package jobs_test
 
 import (
@@ -21,7 +23,7 @@ type BackfillCashFlowsIntegrationSuite struct {
 	tests.ServiceIntegrationSuite
 }
 
-func TestBackfillCashFlowsIntegrationSuite(t *testing.T) {
+func TestIntegrationBackfillCashFlowsSuite(t *testing.T) {
 	suite.Run(t, new(BackfillCashFlowsIntegrationSuite))
 }
 

@@ -1,3 +1,5 @@
+//go:build integration
+
 package jobs_test
 
 import (
@@ -19,7 +21,7 @@ type RiverClientIntegrationSuite struct {
 	tests.ServiceIntegrationSuite
 }
 
-func TestRiverClientIntegrationSuite(t *testing.T) {
+func TestIntegrationRiverClientSuite(t *testing.T) {
 	suite.Run(t, new(RiverClientIntegrationSuite))
 }
 

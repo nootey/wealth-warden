@@ -1,3 +1,5 @@
+//go:build integration
+
 package jobs_test
 
 import (
@@ -20,7 +22,7 @@ type AutoFundGoalsJobTestSuite struct {
 	savingsTypeID int64
 }
 
-func TestAutoFundGoalsJobSuite(t *testing.T) {
+func TestIntegrationAutoFundGoalsJobSuite(t *testing.T) {
 	suite.Run(t, new(AutoFundGoalsJobTestSuite))
 }
 
