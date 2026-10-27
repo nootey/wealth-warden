@@ -17,10 +17,19 @@ func NewMockBackofficeServiceInterface(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *MockBackofficeServiceInterface {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &MockBackofficeServiceInterface{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }

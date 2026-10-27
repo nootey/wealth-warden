@@ -18,10 +18,19 @@ func NewMockNotesServiceInterface(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *MockNotesServiceInterface {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &MockNotesServiceInterface{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
