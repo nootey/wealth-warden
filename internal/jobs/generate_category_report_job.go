@@ -86,7 +86,7 @@ func (j *categoryReportRun) run(ctx context.Context) error {
 		return j.fail(ctx, ErrNoCategoryData)
 	}
 
-	data, err := reports.BuildCategoryXLSX(rows, j.Params, scopeLabel)
+	data, err := reports.BuildCategoryXLSX(rows, scopeLabel)
 	if err != nil {
 		return j.fail(ctx, err)
 	}

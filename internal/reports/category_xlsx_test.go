@@ -18,9 +18,9 @@ func row(year, month int, name, class string, total int64) models.CategoryReport
 	}
 }
 
-func build(t *testing.T, rows []models.CategoryReportDataRow, params models.CategoryReportParams) *excelize.File {
+func build(t *testing.T, rows []models.CategoryReportDataRow) *excelize.File {
 	t.Helper()
-	data, err := reports.BuildCategoryXLSX(rows, params, "All accounts")
+	data, err := reports.BuildCategoryXLSX(rows, "All accounts")
 	if err != nil {
 		t.Fatalf("BuildCategoryXLSX: %v", err)
 	}
@@ -48,8 +48,8 @@ func TestBuildCategoryXLSX_SheetsPerYear(t *testing.T) {
 		row(2024, 1, "Salary", "inflow", 5000),
 	}
 
-	t.Run("all time adds a comparison sheet", func(t *testing.T) {
-		f := build(t, rows, models.CategoryReportParams{AllTime: true})
+	t.Run("multiple years add a comparison sheet", func(t *testing.T) {
+		f := build(t, rows)
 		want := []string{"Summary", "All Time", "2022", "2023", "2024"}
 		if got := f.GetSheetList(); !equal(got, want) {
 			t.Errorf("sheets = %v, want %v", got, want)
@@ -57,7 +57,7 @@ func TestBuildCategoryXLSX_SheetsPerYear(t *testing.T) {
 	})
 
 	t.Run("single year has no comparison sheet", func(t *testing.T) {
-		f := build(t, rows[2:], models.CategoryReportParams{Years: []int{2024}})
+		f := build(t, rows[2:])
 		want := []string{"Summary", "2024"}
 		if got := f.GetSheetList(); !equal(got, want) {
 			t.Errorf("sheets = %v, want %v", got, want)
@@ -73,7 +73,7 @@ func TestBuildCategoryXLSX_SummaryEffective(t *testing.T) {
 		row(2024, 2, "Salary", "inflow", 5200),
 		row(2024, 1, "Rent", "outflow", 1200),
 	}
-	f := build(t, rows, models.CategoryReportParams{Years: []int{2024}})
+	f := build(t, rows)
 
 	if got := cell(t, f, "Summary", "B3"); got != "All accounts" {
 		t.Errorf("scope label = %q, want \"All accounts\"", got)
@@ -87,6 +87,25 @@ func TestBuildCategoryXLSX_SummaryEffective(t *testing.T) {
 	} {
 		if got := cell(t, f, "Summary", tc.ref); got != tc.want {
 			t.Errorf("Summary!%s = %q, want %q", tc.ref, got, tc.want)
+		}
+	}
+}
+
+func TestBuildCategoryXLSX_AllTimeAverages(t *testing.T) {
+	rows := []models.CategoryReportDataRow{
+		row(2022, 1, "Salary", "inflow", 2400),
+		row(2023, 1, "Salary", "inflow", 4800),
+	}
+	f := build(t, rows)
+
+	for _, tc := range []struct{ ref, want string }{
+		{"E4", "7200"}, // category total
+		{"F4", "3600"}, // category avg/year
+		{"G4", "300"},  // category avg/calendar month
+		{"G11", "300"}, // effective avg/calendar month
+	} {
+		if got := cell(t, f, "All Time", tc.ref); got != tc.want {
+			t.Errorf("All Time!%s = %q, want %q", tc.ref, got, tc.want)
 		}
 	}
 }

@@ -23,7 +23,7 @@ type xlsxStyles struct {
 	LabelCell    int
 }
 
-func BuildCategoryXLSX(rows []models.CategoryReportDataRow, params models.CategoryReportParams, scopeLabel string) (data []byte, err error) {
+func BuildCategoryXLSX(rows []models.CategoryReportDataRow, scopeLabel string) (data []byte, err error) {
 	byYear := make(map[int][]models.CategoryReportDataRow)
 	for _, r := range rows {
 		byYear[r.Year] = append(byYear[r.Year], r)
@@ -44,7 +44,7 @@ func BuildCategoryXLSX(rows []models.CategoryReportDataRow, params models.Catego
 	}
 	writeSummarySheet(f, "Summary", styles, rows, years, scopeLabel)
 
-	if params.AllTime && len(years) > 1 {
+	if len(years) > 1 {
 		if _, err := f.NewSheet("All Time"); err != nil {
 			return nil, err
 		}
@@ -482,7 +482,12 @@ func writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows [
 	sort.Slice(outflows, func(i, j int) bool { return outflows[i].name < outflows[j].name })
 
 	yearStrs := utils.YearStrings(years)
-	catHeaders := append(append([]string{"Category", "Classification"}, yearStrs...), "Total", "Avg/Year")
+	catHeaders := append(append([]string{"Category", "Classification"}, yearStrs...), "Total", "Avg/Year", "Avg/Calendar Month")
+
+	calM := 0
+	for _, y := range years {
+		calM += utils.CalendarMonths(y)
+	}
 
 	buildCatRow := func(k catKey) []string {
 		vals := []string{k.name, catDisplayClass[k]}
@@ -493,7 +498,8 @@ func writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows [
 			total = total.Add(v)
 		}
 		avg := total.Div(decimal.NewFromInt(int64(len(years))))
-		return append(vals, total.StringFixed(2), avg.StringFixed(2))
+		calAvg := total.Div(decimal.NewFromInt(int64(calM)))
+		return append(vals, total.StringFixed(2), avg.StringFixed(2), calAvg.StringFixed(2))
 	}
 
 	cur := 1
@@ -536,10 +542,11 @@ func writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows [
 			total = total.Add(v)
 		}
 		avg := total.Div(decimal.NewFromInt(int64(len(years))))
-		return append(vals, total.StringFixed(2), avg.StringFixed(2))
+		calAvg := total.Div(decimal.NewFromInt(int64(calM)))
+		return append(vals, total.StringFixed(2), avg.StringFixed(2), calAvg.StringFixed(2))
 	}
 
-	sumHeaders := append(append([]string{"", ""}, yearStrs...), "Total", "Avg/Year")
+	sumHeaders := append(append([]string{"", ""}, yearStrs...), "Total", "Avg/Year", "Avg/Calendar Month")
 
 	cur++
 	cur = xlsxTitle(f, sheet, cur, "Annual Summary", styles.SectionTitle)
@@ -567,8 +574,8 @@ func writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows [
 			yoyPctRow = append(yoyPctRow, "-")
 		}
 	}
-	yoyRow = append(yoyRow, "", "")
-	yoyPctRow = append(yoyPctRow, "", "")
+	yoyRow = append(yoyRow, "", "", "")
+	yoyPctRow = append(yoyPctRow, "", "", "")
 	cur = xlsxDataRow(f, sheet, cur, yoyRow, 2, styles)
 	cur = xlsxDataRow(f, sheet, cur, yoyPctRow, 2, styles)
 
@@ -654,10 +661,14 @@ func writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows [
 	}
 	totalCol, _ := excelize.ColumnNumberToName(len(years) + 3)
 	avgCol, _ := excelize.ColumnNumberToName(len(years) + 4)
+	calAvgCol, _ := excelize.ColumnNumberToName(len(years) + 5)
 	if err := f.SetColWidth(sheet, totalCol, totalCol, 14); err != nil {
 		return
 	}
 	if err := f.SetColWidth(sheet, avgCol, avgCol, 14); err != nil {
+		return
+	}
+	if err := f.SetColWidth(sheet, calAvgCol, calAvgCol, 24); err != nil {
 		return
 	}
 }
