@@ -131,16 +131,20 @@ const groupedAccounts = computed(() => {
   return sorted;
 });
 
+const isInNetWorth = (acc: Account) => acc.include_in_net_worth !== false;
+
 const groupTotal = (group: Account[]) =>
-  group.reduce(
-    (sum, acc) => sum.add(new Decimal(acc.balance.total_balance || 0)),
-    new Decimal(0),
-  );
+  group
+    .filter(isInNetWorth)
+    .reduce(
+      (sum, acc) => sum.add(new Decimal(acc.balance.total_balance || 0)),
+      new Decimal(0),
+    );
 
 const totals = computed(() => {
-  const vals = accounts.value.map(
-    (a) => new Decimal(a.balance.total_balance || 0),
-  );
+  const vals = accounts.value
+    .filter(isInNetWorth)
+    .map((a) => new Decimal(a.balance.total_balance || 0));
   const total = vals.reduce((s, v) => s.add(v), new Decimal(0));
   const positive = vals.reduce(
     (s, v) => (v.greaterThan(0) ? s.add(v) : s),
@@ -301,6 +305,12 @@ defineExpose({ refresh: getData, hasAccounts });
               {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
             </span>
           </div>
+          <div
+            v-if="!group.every(isInNetWorth)"
+            class="mx-1 mt-1 text-xs text-muted"
+          >
+            Total excludes accounts not included in net worth.
+          </div>
 
           <TransitionGroup name="list-anim" tag="div" class="relative">
             <div
@@ -338,6 +348,9 @@ defineExpose({ refresh: getData, hasAccounts });
                   <div class="text-xs text-muted">
                     {{ vueHelper.formatString(account.account_type?.sub_type) }}
                     {{ !account.is_active ? " - Inactive" : "" }}
+                    <template v-if="!isInNetWorth(account)">
+                      - <span class="text-accent">Excluded</span>
+                    </template>
                   </div>
                 </div>
 

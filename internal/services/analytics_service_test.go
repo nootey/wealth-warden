@@ -241,6 +241,69 @@ func (s *AnalyticsServiceTestSuite) TestGetYearlyBreakdownStats_RejectsClosedAcc
 	s.Contains(err.Error(), "closed")
 }
 
+func (s *AnalyticsServiceTestSuite) TestExcludedAccount_LeavesNetWorthAndCountsAsCashFlow() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	openedAt := today.AddDate(0, 0, -3)
+
+	opening := decimal.NewFromInt(10000)
+	checkingID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Lending Checking",
+		AccountTypeID: checkingTypeID,
+		Balance:       &opening,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	zero := decimal.Zero
+	excluded := false
+	loanID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:              "Loan To Joe",
+		AccountTypeID:     personalLoanTypeID,
+		Balance:           &zero,
+		IncludeInNetWorth: &excluded,
+		OpenedAt:          openedAt,
+	})
+	s.Require().NoError(err)
+
+	netWorth := func() decimal.Decimal {
+		var total decimal.Decimal
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+			Raw(`SELECT COALESCE(SUM(end_balance), 0)
+			     FROM v_user_networth_snapshots
+			     WHERE user_id = ? AND as_of = ?`, userID, today).
+			Scan(&total).Error)
+		return total
+	}
+	before := netWorth()
+
+	transfer := func(from, to, amount int64) {
+		_, err := txnSvc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+			SourceID:      from,
+			DestinationID: to,
+			Amount:        decimal.NewFromInt(amount),
+			CreatedAt:     time.Now(),
+		})
+		s.Require().NoError(err)
+	}
+	transfer(checkingID, loanID, 5000)
+	transfer(loanID, checkingID, 2000)
+
+	after := netWorth()
+	s.True(before.Sub(decimal.NewFromInt(3000)).Equal(after),
+		"net worth should drop by the 3000 still owed: %s before, %s after", before, after)
+
+	res, err := s.TC.App.AnalyticsService.GetYearlyCashFlowBreakdown(s.Ctx, userID, today.Year(), &checkingID)
+	s.Require().NoError(err)
+	month := res.Months[int(today.Month())-1].Categories
+	s.True(month.Outflows.Equal(decimal.NewFromInt(-5000)), "outflows %s", month.Outflows)
+	s.True(month.Inflows.Equal(decimal.NewFromInt(2000)), "inflows %s", month.Inflows)
+	s.True(month.DebtRepayments.IsZero(), "debt repayments %s", month.DebtRepayments)
+	s.True(month.Net.Equal(decimal.NewFromInt(-3000)), "net %s", month.Net)
+}
+
 func (s *AnalyticsServiceTestSuite) TestGetAccountBasicStatistics_AveragesNetOverActiveMonths() {
 	svc := s.TC.App.AnalyticsService
 	userID := int64(1)

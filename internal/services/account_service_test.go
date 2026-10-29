@@ -1864,6 +1864,101 @@ func (s *AccountServiceTestSuite) TestInsertAccount_OpeningTransactionUsesAdjust
 	s.Equal("adjustment", category.Classification)
 }
 
+// The column defaults to true, so a false flag on create needs its own write to stick.
+func (s *AccountServiceTestSuite) TestIncludeInNetWorth_PersistsOnInsertAndUpdate() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	zero := decimal.Zero
+	excluded := false
+	openedAt := time.Now()
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:              "Loan To Joe",
+		AccountTypeID:     personalLoanTypeID,
+		Balance:           &zero,
+		IncludeInNetWorth: &excluded,
+		OpenedAt:          openedAt,
+	})
+	s.Require().NoError(err)
+
+	includeInNetWorth := func() bool {
+		var acc models.Account
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", accID).First(&acc).Error)
+		return acc.IncludeInNetWorth
+	}
+	s.False(includeInNetWorth(), "flag should be off after insert")
+
+	included := true
+	_, err = svc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:              "Loan To Joe",
+		AccountTypeID:     personalLoanTypeID,
+		IncludeInNetWorth: &included,
+		OpenedAt:          openedAt,
+	})
+	s.Require().NoError(err)
+	s.True(includeInNetWorth(), "flag should be on after update")
+
+	// A request without the flag leaves it as it is.
+	_, err = svc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Loan To Joe",
+		AccountTypeID: personalLoanTypeID,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+	s.True(includeInNetWorth(), "flag should not change when the request leaves it out")
+}
+
+// Money lent goes in through transfers, so a personal loan cannot open with a balance.
+func (s *AccountServiceTestSuite) TestInsertAccount_PersonalLoanRejectsStartingBalance() {
+	balance := decimal.NewFromInt(500)
+	_, err := s.TC.App.AccountService.InsertAccount(s.Ctx, int64(1), &models.AccountReq{
+		Name:          "Loan To Joe",
+		AccountTypeID: personalLoanTypeID,
+		Balance:       &balance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().Error(err)
+	s.Contains(err.Error(), "starts at zero")
+}
+
+func (s *AccountServiceTestSuite) TestIncludeInNetWorth_OnlyForPersonalLoans() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+	excluded := false
+	openedAt := time.Now()
+
+	_, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:              "Excluded Checking",
+		AccountTypeID:     checkingTypeID,
+		Balance:           &zero,
+		IncludeInNetWorth: &excluded,
+		OpenedAt:          openedAt,
+	})
+	s.Require().Error(err)
+	s.Contains(err.Error(), "only personal loan")
+
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:              "Loan To Joe",
+		AccountTypeID:     personalLoanTypeID,
+		Balance:           &zero,
+		IncludeInNetWorth: &excluded,
+		OpenedAt:          openedAt,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Loan To Joe",
+		AccountTypeID: creditCardTypeID,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	var acc models.Account
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", accID).First(&acc).Error)
+	s.True(acc.IncludeInNetWorth, "moving off a personal loan should bring the account back into net worth")
+}
+
 func (s *AccountServiceTestSuite) newEmptyAccount(name string) int64 {
 	zero := decimal.Zero
 	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, int64(1), &models.AccountReq{

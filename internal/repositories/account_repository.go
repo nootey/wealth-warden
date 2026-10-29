@@ -32,6 +32,7 @@ type AccountRepositoryInterface interface {
 	InsertAccount(ctx context.Context, tx *gorm.DB, newRecord *models.Account) (int64, error)
 	UpdateAccount(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
 	UpdateAccountProjection(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
+	UpdateIncludeInNetWorth(ctx context.Context, tx *gorm.DB, id int64, include bool) error
 	FindEarliestTransactionDate(ctx context.Context, tx *gorm.DB, accountID int64) (*time.Time, error)
 	CloseAccount(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	PurgeImportedAccounts(ctx context.Context, tx *gorm.DB, importID, userID int64) error
@@ -497,6 +498,18 @@ func (r *AccountRepository) UpdateAccountProjection(ctx context.Context, tx *gor
 	}
 
 	return record.ID, nil
+}
+
+// Create skips a false value because the column has a default, so the flag gets its own write.
+func (r *AccountRepository) UpdateIncludeInNetWorth(ctx context.Context, tx *gorm.DB, id int64, include bool) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Model(&models.Account{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"include_in_net_worth": include, "updated_at": time.Now().UTC()}).Error
 }
 
 func (r *AccountRepository) FindEarliestTransactionDate(ctx context.Context, tx *gorm.DB, accountID int64) (*time.Time, error) {

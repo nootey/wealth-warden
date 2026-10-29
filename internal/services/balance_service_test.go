@@ -28,9 +28,10 @@ const seedUserID int64 = 1
 
 // Account type ids follow the insert order in 010_seed_account_types.go.
 const (
-	checkingTypeID   = 1  // cash / checking
-	brokerageTypeID  = 5  // investment / brokerage
-	creditCardTypeID = 18 // credit_card / credit, classified as a liability
+	checkingTypeID     = 1  // cash / checking
+	brokerageTypeID    = 5  // investment / brokerage
+	creditCardTypeID   = 18 // credit_card / credit, classified as a liability
+	personalLoanTypeID = 21 // loan / personal
 )
 
 func (s *BalanceServiceSuite) insertAccount(name string, typeID, opening int64) int64 {

@@ -84,6 +84,7 @@ type TransactionRepositoryInterface interface {
 	GetYearlyAverageForCategoryGroup(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, groupID int64, year int) (float64, error)
 	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
 	GetYearlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.Transfer, error)
+	GetTransfersOutsideNetWorth(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, from, to time.Time) ([]models.Transfer, error)
 	GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error)
 	GetActiveTemplatesForUser(ctx context.Context, userID int64) ([]models.TransactionTemplate, error)
 	BulkUpdateTemplateTimezone(ctx context.Context, updates []models.TemplateTimezoneUpdate) error
@@ -321,6 +322,28 @@ func (r *TransactionRepository) GetYearlyTransfersFromChecking(ctx context.Conte
 	err := q.
 		Where("tx_out.account_id IN ?", checkingAccountIDs).
 		Where("tx_out.txn_date >= ? AND tx_out.txn_date < ?", start, end).
+		Where("transfers.deleted_at IS NULL").
+		Find(&transfers).Error
+
+	return transfers, err
+}
+
+func (r *TransactionRepository) GetTransfersOutsideNetWorth(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, from, to time.Time) ([]models.Transfer, error) {
+	var transfers []models.Transfer
+
+	q := r.baseTransferQuery(ctx, tx, userID, false, nil).
+		Preload("TransactionOutflow.Account").
+		Preload("TransactionInflow.Account")
+
+	q = q.Joins("JOIN transactions AS tx_out ON tx_out.id = transfers.transaction_outflow_id").
+		Joins("JOIN transactions AS tx_in ON tx_in.id = transfers.transaction_inflow_id").
+		Joins("JOIN accounts AS acc_out ON acc_out.id = tx_out.account_id").
+		Joins("JOIN accounts AS acc_in ON acc_in.id = tx_in.account_id")
+
+	err := q.
+		Where("((tx_out.account_id IN ? AND acc_in.include_in_net_worth = FALSE) OR (tx_in.account_id IN ? AND acc_out.include_in_net_worth = FALSE))",
+			accountIDs, accountIDs).
+		Where("tx_out.txn_date >= ? AND tx_out.txn_date < ?", from, to).
 		Where("transfers.deleted_at IS NULL").
 		Find(&transfers).Error
 

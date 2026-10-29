@@ -41,14 +41,15 @@ type AccountType struct {
 }
 
 type AccountReq struct {
-	Name           string           `json:"name" validate:"required"`
-	AccountTypeID  int64            `json:"account_type_id" validate:"required"`
-	Type           string           `json:"type" validate:"required"`
-	Subtype        string           `json:"sub_type" validate:"required"`
-	Classification string           `json:"classification" validate:"required"`
-	Balance        *decimal.Decimal `json:"balance"`
-	CreditLimit    *decimal.Decimal `json:"credit_limit"`
-	OpenedAt       time.Time        `json:"opened_at"`
+	Name              string           `json:"name" validate:"required"`
+	AccountTypeID     int64            `json:"account_type_id" validate:"required"`
+	Type              string           `json:"type" validate:"required"`
+	Subtype           string           `json:"sub_type" validate:"required"`
+	Classification    string           `json:"classification" validate:"required"`
+	Balance           *decimal.Decimal `json:"balance"`
+	CreditLimit       *decimal.Decimal `json:"credit_limit"`
+	IncludeInNetWorth *bool            `json:"include_in_net_worth"`
+	OpenedAt          time.Time        `json:"opened_at"`
 }
 
 type AccountProjectionReq struct {

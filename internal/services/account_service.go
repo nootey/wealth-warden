@@ -288,6 +288,22 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		return 0, apperr.New(apperr.Conflict, fmt.Sprintf("you can only have %d active accounts", maxAcc))
 	}
 
+	accType, err := s.repo.FindAccountTypeByID(ctx, nil, req.AccountTypeID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrAccountTypeNotFound
+		}
+		return 0, err
+	}
+
+	isPersonalLoan := utils.IsPersonalLoan(&accType)
+	if isPersonalLoan && req.Balance != nil && !req.Balance.IsZero() {
+		return 0, apperr.New(apperr.Validation, "a personal loan starts at zero, use a transfer to lend money")
+	}
+	if !isPersonalLoan && req.IncludeInNetWorth != nil && !*req.IncludeInNetWorth {
+		return 0, apperr.New(apperr.Validation, "only personal loan accounts can be left out of net worth")
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -317,15 +333,6 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	}
 	openedDay := utils.LocalMidnightUTC(openedAt, loc)
 
-	accType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
-	if err != nil {
-		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, ErrAccountTypeNotFound
-		}
-		return 0, err
-	}
-
 	account := &models.Account{
 		Name:              req.Name,
 		Currency:          settings.DefaultCurrency,
@@ -345,6 +352,14 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	if err != nil {
 		tx.Rollback()
 		return 0, err
+	}
+
+	if req.IncludeInNetWorth != nil && !*req.IncludeInNetWorth {
+		if err := s.repo.UpdateIncludeInNetWorth(ctx, tx, accountID, false); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		utils.CompareChanges("", "false", changes, "include_in_net_worth")
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(accountID, 10), changes, "id")
@@ -447,6 +462,18 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, ErrAccountTypeNotFound
 		}
 		return 0, err
+	}
+
+	isPersonalLoan := utils.IsPersonalLoan(&newAccType)
+	if !isPersonalLoan && req.IncludeInNetWorth != nil && !*req.IncludeInNetWorth {
+		tx.Rollback()
+		return 0, apperr.New(apperr.Validation, "only personal loan accounts can be left out of net worth")
+	}
+
+	// Moving off a personal loan brings the account back into net worth
+	includeInNetWorth := !isPersonalLoan || exAcc.IncludeInNetWorth
+	if req.IncludeInNetWorth != nil {
+		includeInNetWorth = *req.IncludeInNetWorth
 	}
 
 	// Handle OpenedAt change
@@ -650,6 +677,14 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	if err != nil {
 		tx.Rollback()
 		return 0, err
+	}
+
+	if includeInNetWorth != exAcc.IncludeInNetWorth {
+		if err := s.repo.UpdateIncludeInNetWorth(ctx, tx, id, includeInNetWorth); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		utils.CompareChanges(strconv.FormatBool(exAcc.IncludeInNetWorth), strconv.FormatBool(includeInNetWorth), changes, "include_in_net_worth")
 	}
 
 	if err := tx.Commit().Error; err != nil {
