@@ -31,6 +31,7 @@ export interface Account {
   closed_at: Date | null;
   is_default?: boolean;
   credit_limit?: string | null;
+  include_in_net_worth: boolean;
 }
 
 export interface AccountWithOpening extends Account {

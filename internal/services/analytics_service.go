@@ -313,9 +313,17 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 	}
 
 	// Fetch all transfers for the year at once
-	var allTransfers []models.Transfer
+	var allTransfers, excludedTransfers []models.Transfer
 	if shouldSubtractTransfers {
 		allTransfers, err = s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		allTransfers = utils.TransfersWithinNetWorth(allTransfers)
+
+		yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+		excludedTransfers, err = s.txnRepo.GetTransfersOutsideNetWorth(ctx, tx, userID, transferAccountIDs, yearStart, yearStart.AddDate(1, 0, 0))
 		if err != nil {
 			tx.Rollback()
 			return nil, err
@@ -327,6 +335,11 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 	for _, tr := range allTransfers {
 		month := int(tr.TransactionOutflow.TxnDate.Month())
 		transfersByMonth[month] = append(transfersByMonth[month], tr)
+	}
+	excludedByMonth := make(map[int][]models.Transfer)
+	for _, tr := range excludedTransfers {
+		month := int(tr.TransactionOutflow.TxnDate.Month())
+		excludedByMonth[month] = append(excludedByMonth[month], tr)
 	}
 
 	months := make([]models.MonthBreakdown, 0, 12)
@@ -341,6 +354,10 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 				break
 			}
 		}
+
+		excludedIn, excludedOut := utils.SplitExcludedFlows(excludedByMonth[month], transferAccountIDs)
+		inflow = inflow.Add(excludedIn)
+		outflow = outflow.Add(excludedOut)
 
 		net := inflow.Add(outflow)
 
@@ -573,6 +590,13 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 	if err != nil {
 		return nil, err
 	}
+	transfers = utils.TransfersWithinNetWorth(transfers)
+
+	yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	excludedTransfers, err := s.txnRepo.GetTransfersOutsideNetWorth(ctx, tx, userID, accountIDs, yearStart, yearStart.AddDate(1, 0, 0))
+	if err != nil {
+		return nil, err
+	}
 
 	for _, tr := range transfers {
 		isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
@@ -586,6 +610,9 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 			debtRepayments = debtRepayments.Add(tr.Amount)
 		}
 	}
+
+	excludedIn, excludedOut := utils.SplitExcludedFlows(excludedTransfers, accountIDs)
+	totalIncome = totalIncome.Add(excludedIn)
 
 	// Get expense categories
 	categoryRows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accountID, year, 12)
@@ -609,6 +636,15 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 			CategoryID:   cat.CategoryID,
 			CategoryName: categoryName,
 			Amount:       outflow,
+			Percentage:   decimal.Zero,
+		})
+	}
+
+	if !excludedOut.IsZero() {
+		totalExpenses = totalExpenses.Add(excludedOut)
+		expenseCategories = append(expenseCategories, models.CategoryFlow{
+			CategoryName: "Not included in net worth",
+			Amount:       excludedOut,
 			Percentage:   decimal.Zero,
 		})
 	}
@@ -716,9 +752,17 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 	}
 
 	// Fetch all transfers for the year at once
-	var allTransfers []models.Transfer
+	var allTransfers, excludedTransfers []models.Transfer
 	if shouldSubtractTransfers {
 		allTransfers, err = s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		allTransfers = utils.TransfersWithinNetWorth(allTransfers)
+
+		yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+		excludedTransfers, err = s.txnRepo.GetTransfersOutsideNetWorth(ctx, tx, userID, transferAccountIDs, yearStart, yearStart.AddDate(1, 0, 0))
 		if err != nil {
 			tx.Rollback()
 			return nil, err
@@ -755,6 +799,11 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 
 		net = net.Add(netm)
 	}
+
+	excludedIn, excludedOut := utils.SplitExcludedFlows(excludedTransfers, transferAccountIDs)
+	inflow = inflow.Add(excludedIn)
+	outflow = outflow.Add(excludedOut)
+	net = net.Add(excludedIn).Add(excludedOut)
 
 	activeMonths := tot.ActiveMonths
 	if activeMonths < 1 {
@@ -909,6 +958,14 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		tx.Rollback()
 		return nil, err
 	}
+	transfers = utils.TransfersWithinNetWorth(transfers)
+
+	monthStart := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	excludedTransfers, err := s.txnRepo.GetTransfersOutsideNetWorth(ctx, tx, userID, accountIDs, monthStart, monthStart.AddDate(0, 1, 0))
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 
 	savingsTotal := decimal.Zero
 	investmentsTotal := decimal.Zero
@@ -929,6 +986,11 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		}
 
 	}
+
+	excludedIn, excludedOut := utils.SplitExcludedFlows(excludedTransfers, accountIDs)
+	inflow = inflow.Add(excludedIn)
+	outflow = outflow.Add(excludedOut)
+	net = net.Add(excludedIn).Add(excludedOut)
 
 	savingsRate := decimal.Zero
 	investRate := decimal.Zero
@@ -1028,6 +1090,7 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 
 	var row *models.MonthlyTotalsRow
 	var checkingAccounts []models.Account
+	var accountIDs []int64
 
 	if accountID != nil {
 		// Verify acc is valid
@@ -1040,6 +1103,7 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 			tx.Rollback()
 			return nil, err
 		}
+		accountIDs = []int64{acc.ID}
 		row, err = s.repo.FetchDailyTotals(ctx, tx, userID, &acc.ID, today)
 	} else {
 		checkingAccounts, err = s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
@@ -1052,7 +1116,7 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 			return nil, nil
 		}
 
-		accountIDs := make([]int64, len(checkingAccounts))
+		accountIDs = make([]int64, len(checkingAccounts))
 		for i, a := range checkingAccounts {
 			accountIDs[i] = a.ID
 		}
@@ -1064,8 +1128,17 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 		return nil, err
 	}
 
+	excludedTransfers, err := s.txnRepo.GetTransfersOutsideNetWorth(ctx, tx, userID, accountIDs, today, today.AddDate(0, 0, 1))
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	excludedIn, excludedOut := utils.SplitExcludedFlows(excludedTransfers, accountIDs)
+
 	inflow, _ := decimal.NewFromString(row.InflowText)
 	outflow, _ := decimal.NewFromString(row.OutflowText)
+	inflow = inflow.Add(excludedIn)
+	outflow = outflow.Add(excludedOut)
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
@@ -1215,9 +1288,17 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		}
 	}
 
-	var allTransfers []models.Transfer
+	var allTransfers, excludedTransfers []models.Transfer
 	if shouldSubtractTransfers {
 		allTransfers, err = s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		allTransfers = utils.TransfersWithinNetWorth(allTransfers)
+
+		yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+		excludedTransfers, err = s.txnRepo.GetTransfersOutsideNetWorth(ctx, tx, userID, transferAccountIDs, yearStart, yearStart.AddDate(1, 0, 0))
 		if err != nil {
 			tx.Rollback()
 			return nil, err
@@ -1260,6 +1341,11 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 
 		net = net.Add(netm)
 	}
+
+	excludedIn, excludedOut := utils.SplitExcludedFlows(excludedTransfers, transferAccountIDs)
+	inflow = inflow.Add(excludedIn)
+	outflow = outflow.Add(excludedOut)
+	net = net.Add(excludedIn).Add(excludedOut)
 
 	totalAllocated := savingsAllocated.Add(investmentAllocated).Add(debtAllocated)
 

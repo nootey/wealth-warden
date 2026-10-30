@@ -8,6 +8,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -200,4 +201,49 @@ func TestCalculateNextRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTransfersWithinNetWorth_DropsExcludedDestinations(t *testing.T) {
+	transfer := func(id int64, includeInNetWorth bool) models.Transfer {
+		return models.Transfer{
+			ID:                id,
+			TransactionInflow: models.Transaction{Account: models.Account{IncludeInNetWorth: includeInNetWorth}},
+		}
+	}
+
+	kept := utils.TransfersWithinNetWorth([]models.Transfer{transfer(1, true), transfer(2, false), transfer(3, true)})
+	require.Len(t, kept, 2)
+	assert.Equal(t, int64(1), kept[0].ID)
+	assert.Equal(t, int64(3), kept[1].ID)
+}
+
+func TestSplitExcludedFlows(t *testing.T) {
+	const checkingID, otherCheckingID, loanID, savingsID = int64(1), int64(2), int64(3), int64(4)
+	leg := func(accountID int64, includeInNetWorth bool) models.Transaction {
+		return models.Transaction{
+			AccountID: accountID,
+			Account:   models.Account{ID: accountID, IncludeInNetWorth: includeInNetWorth},
+		}
+	}
+	transfer := func(from, to models.Transaction, amount int64) models.Transfer {
+		return models.Transfer{TransactionOutflow: from, TransactionInflow: to, Amount: decimal.NewFromInt(amount)}
+	}
+
+	checking := leg(checkingID, true)
+	loan := leg(loanID, false)
+	transfers := []models.Transfer{
+		transfer(checking, loan, 5000),
+		transfer(loan, checking, 2000),
+		transfer(checking, leg(savingsID, true), 300),
+		transfer(leg(otherCheckingID, true), loan, 700),
+	}
+
+	inflow, outflow := utils.SplitExcludedFlows(transfers, []int64{checkingID})
+	assert.True(t, decimal.NewFromInt(2000).Equal(inflow), "inflow = %s", inflow)
+	assert.True(t, decimal.NewFromInt(-5000).Equal(outflow), "outflow = %s", outflow)
+
+	// From the excluded account's own view, nothing is cash flow.
+	inflow, outflow = utils.SplitExcludedFlows(transfers, []int64{loanID})
+	assert.True(t, inflow.IsZero())
+	assert.True(t, outflow.IsZero())
 }

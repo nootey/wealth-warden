@@ -70,6 +70,15 @@ const hasMarketValue = computed(() => {
   const mv = record.value.balance.market_value;
   return props.mode === "update" && mv != null && !new Decimal(mv).isZero();
 });
+const balanceLabelByMode = {
+  create: "Starting balance",
+  update: "Current balance",
+};
+const balanceLabel = computed(() =>
+  hasMarketValue.value
+    ? "Cash balance"
+    : balanceLabelByMode[props.mode ?? "update"],
+);
 const asOfAdjusted = ref(false);
 
 const creditLimitRef = computed({
@@ -89,6 +98,18 @@ const selectedType = ref<string>("");
 const selectedSubtype = ref<string>("");
 
 const accountTypes = computed<AccountType[]>(() => accountStore.accountTypes);
+
+// A personal loan tracks money lent out, so it fills through transfers and can leave net worth
+const isPersonalLoan = computed(
+  () => selectedType.value === "loan" && selectedSubtype.value === "personal",
+);
+const startsAtZero = computed(
+  () => props.mode === "create" && isPersonalLoan.value,
+);
+
+watch(startsAtZero, (zero) => {
+  if (zero) record.value.balance.balance = "0";
+});
 
 // Unique type options for chosen classification
 const typeOptions = computed<string[]>(() => {
@@ -252,6 +273,7 @@ function initData(): Account {
       market_value: null,
     },
     credit_limit: null,
+    include_in_net_worth: true,
   };
 }
 
@@ -391,6 +413,8 @@ async function manageRecord() {
     sub_type: at.sub_type,
     classification: at.classification,
     opened_at: opened_at,
+    include_in_net_worth:
+      !isPersonalLoan.value || record.value.include_in_net_worth,
   };
 
   if (props.mode === "create") {
@@ -477,12 +501,12 @@ async function manageRecord() {
         :is-required="true"
         :message="r$.balance.balance?.$errors[0]"
       >
-        <label>{{ hasMarketValue ? "Cash balance" : "Current balance" }}</label>
+        <label>{{ balanceLabel }}</label>
       </ValidationError>
       <InputNumber
         v-model="balanceNumber"
-        :readonly="readOnly"
-        :disabled="readOnly"
+        :readonly="readOnly || startsAtZero"
+        :disabled="readOnly || startsAtZero"
         size="small"
         mode="currency"
         :currency="settingsStore.defaultCurrency"
@@ -499,6 +523,9 @@ async function manageRecord() {
         :max-fraction-digits="2"
         @update:model-value="balanceAdjusted = true"
       />
+      <small v-if="startsAtZero" class="text-muted">
+        A personal loan starts at zero. Use a transfer to lend money.
+      </small>
       <div v-if="hasMarketValue" class="flex flex-col gap-1 text-sm">
         <div class="flex justify-between text-muted-color">
           <span>Market value</span>
@@ -606,6 +633,24 @@ async function manageRecord() {
           @update:model-value="asOfAdjusted = true"
         />
       </div>
+    </div>
+
+    <div
+      v-if="isPersonalLoan"
+      class="flex flex-row items-center justify-between gap-2 w-full"
+    >
+      <div class="flex flex-col gap-1">
+        <ValidationError :is-required="false">
+          <label>Include in net worth</label>
+        </ValidationError>
+        <small class="text-muted">
+          Turn off for money you lent out. Transfers to it count as money out.
+        </small>
+      </div>
+      <ToggleSwitch
+        v-model="record.include_in_net_worth"
+        :disabled="readOnly"
+      />
     </div>
 
     <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">

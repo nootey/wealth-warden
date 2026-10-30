@@ -32,9 +32,21 @@ function toNumber(v: unknown): number {
   return 0;
 }
 
+const excludedAccounts = computed(() =>
+  accounts.value.filter((a) => a.include_in_net_worth === false),
+);
+
+const excludedTotal = computed(() =>
+  excludedAccounts.value.reduce(
+    (s, a) => s + toNumber(a?.balance?.total_balance),
+    0,
+  ),
+);
+
 const buckets = computed<Bucket[]>(() => {
   const map = new Map<string, number>();
   for (const a of accounts.value) {
+    if (a.include_in_net_worth === false) continue;
     const key = a?.account_type?.type || "Other";
     const amt = toNumber(a?.balance?.total_balance);
     map.set(key, (map.get(key) ?? 0) + amt);
@@ -157,7 +169,19 @@ async function getData(page = 1) {
         </div>
       </template>
 
-      <span v-else class="opacity-70 text-sm">No accounts found.</span>
+      <span v-else-if="!excludedAccounts.length" class="opacity-70 text-sm"
+        >No accounts found.</span
+      >
+    </div>
+
+    <div
+      v-if="!loading && excludedAccounts.length"
+      class="flex items-baseline justify-between gap-2 text-sm text-muted"
+    >
+      <span>Not included in net worth</span>
+      <span class="font-medium text-ink">
+        {{ vueHelper.displayAsCurrency(excludedTotal) }}
+      </span>
     </div>
   </div>
 </template>

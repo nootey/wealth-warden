@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"wealth-warden/internal/apperr"
@@ -111,6 +112,32 @@ func CategorizeTransferDestination(accountType *models.AccountType) (isSavings, 
 	}
 
 	return false, false, false
+}
+
+func IsPersonalLoan(accountType *models.AccountType) bool {
+	return accountType.Type == "loan" && accountType.Subtype == "personal"
+}
+
+// TransfersWithinNetWorth drops transfers into accounts outside net worth, because that money is cash flow, not an allocation.
+func TransfersWithinNetWorth(transfers []models.Transfer) []models.Transfer {
+	return slices.DeleteFunc(transfers, func(tr models.Transfer) bool {
+		return !tr.TransactionInflow.Account.IncludeInNetWorth
+	})
+}
+
+// SplitExcludedFlows sums transfers between the scoped accounts and accounts outside net worth,
+// such as money lent out. Money sent there is a negative outflow, and money sent back is an inflow.
+func SplitExcludedFlows(transfers []models.Transfer, accountIDs []int64) (inflow, outflow decimal.Decimal) {
+	for _, tr := range transfers {
+		in, out := tr.TransactionInflow, tr.TransactionOutflow
+		switch {
+		case !in.Account.IncludeInNetWorth && slices.Contains(accountIDs, out.AccountID):
+			outflow = outflow.Sub(tr.Amount)
+		case !out.Account.IncludeInNetWorth && slices.Contains(accountIDs, in.AccountID):
+			inflow = inflow.Add(tr.Amount)
+		}
+	}
+	return inflow, outflow
 }
 
 func AdjustToWeekday(date time.Time) time.Time {
