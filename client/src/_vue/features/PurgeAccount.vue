@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../utils/vue_helper.ts";
 import ValidationError from "../components/validation/ValidationError.vue";
 import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useUserStore } from "../../services/stores/user_store.ts";
@@ -58,7 +59,7 @@ function accountLabel(account: AccountLookup): string {
 function confirmPurge(): void {
   confirm.require({
     header: "Confirm account purge",
-    message: `You are about to permanently delete "${selectedAccount.value?.name}" and everything hanging off it. This action is irreversible. Are you sure?`,
+    message: `You are about to permanently delete "${vueHelper.truncate(selectedAccount.value?.name)}" and everything hanging off it. This action is irreversible. Are you sure?`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Purge", severity: "danger" },
     accept: () => doPurge(),
@@ -115,6 +116,7 @@ async function doPurge(): Promise<void> {
           size="small"
           :options="accounts"
           :option-label="accountLabel"
+          overlay-class="w-0"
           :disabled="!selectedUser"
           placeholder="Select account"
         />

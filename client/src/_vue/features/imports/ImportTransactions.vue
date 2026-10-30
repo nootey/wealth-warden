@@ -452,6 +452,7 @@ defineExpose({ isDisabled, importing, importTransactions });
                 size="small"
                 :suggestions="filteredSourceAccounts"
                 option-label="name"
+                overlay-class="w-0"
                 force-selection
                 placeholder="Select checking account"
                 dropdown
@@ -608,6 +609,7 @@ defineExpose({ isDisabled, importing, importTransactions });
                           :model-value="bankRowCategories[data.row] ?? null"
                           :options="categoryOptions"
                           option-label="label"
+                          overlay-class="w-0"
                           option-value="value"
                           show-clear
                           filter
@@ -698,6 +700,7 @@ defineExpose({ isDisabled, importing, importTransactions });
                           :model-value="bankRowCategories[data.row] ?? null"
                           :options="categoryOptions"
                           option-label="label"
+                          overlay-class="w-0"
                           option-value="value"
                           show-clear
                           filter
@@ -786,6 +789,7 @@ defineExpose({ isDisabled, importing, importTransactions });
                   size="small"
                   :suggestions="filteredSourceAccounts"
                   option-label="name"
+                  overlay-class="w-0"
                   force-selection
                   placeholder="Select checking account"
                   dropdown

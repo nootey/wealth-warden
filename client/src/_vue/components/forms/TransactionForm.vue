@@ -599,6 +599,7 @@ async function deleteRecord(id: number, tx_type: string) {
             size="small"
             :suggestions="filteredAccounts"
             option-label="name"
+            overlay-class="w-0"
             force-selection
             placeholder="Select account"
             dropdown
@@ -647,6 +648,7 @@ async function deleteRecord(id: number, tx_type: string) {
             size="small"
             :suggestions="filteredCategories"
             option-label="display_name"
+            overlay-class="w-0"
             placeholder="Select category"
             dropdown
             @complete="searchCategory"

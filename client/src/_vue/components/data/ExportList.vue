@@ -7,6 +7,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../../utils/vue_helper.ts";
 import { computed, onMounted, ref } from "vue";
 import DisplayStatus from "../base/DisplayStatus.vue";
 import type { Export } from "../../../models/dataio_models.ts";
@@ -48,7 +49,7 @@ const activeColumns = computed<Column[]>(() => [
 async function deleteConfirmation(id: number, name: string) {
   confirm.require({
     header: "Delete record?",
-    message: `This will delete export: ${name}".`,
+    message: `This will delete export: "${vueHelper.truncate(name)}".`,
     icon: "pi pi-exclamation-triangle",
     acceptLabel: "Delete",
     rejectLabel: "Cancel",

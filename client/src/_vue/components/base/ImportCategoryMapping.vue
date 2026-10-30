@@ -179,6 +179,7 @@ function clearAll() {
             option-group-label="label"
             option-group-children="items"
             option-label="label"
+            overlay-class="w-0"
             option-value="value"
             show-clear
             filter

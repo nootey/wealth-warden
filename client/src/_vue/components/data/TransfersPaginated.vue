@@ -297,15 +297,27 @@ defineExpose({ refresh });
             <template v-else-if="col.field === 'from'">
               <span
                 v-if="canUpdate(data)"
-                class="hover"
+                v-tooltip.top="data[col.field]['account']['name']"
+                class="hover truncate-text"
                 @click="openUpdate(data)"
               >
                 {{ data[col.field]["account"]["name"] }}
               </span>
-              <span v-else>{{ data[col.field]["account"]["name"] }}</span>
+              <span
+                v-else
+                v-tooltip.top="data[col.field]['account']['name']"
+                class="truncate-text"
+              >
+                {{ data[col.field]["account"]["name"] }}
+              </span>
             </template>
             <template v-else-if="col.field === 'to'">
-              {{ data[col.field]["account"]["name"] }}
+              <span
+                v-tooltip.top="data[col.field]['account']['name']"
+                class="truncate-text"
+              >
+                {{ data[col.field]["account"]["name"] }}
+              </span>
             </template>
             <template v-else-if="col.field === 'notes'">
               <span v-tooltip.top="data[col.field]" class="truncate-text">

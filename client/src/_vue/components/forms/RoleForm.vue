@@ -2,7 +2,7 @@
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
-import { required } from "@regle/rules";
+import { maxLength, required } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -10,6 +10,7 @@ import BaseForm from "../base/BaseForm.vue";
 import type { Permission, Role } from "../../../models/user_models.ts";
 import { useUserStore } from "../../../services/stores/user_store.ts";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -49,7 +50,7 @@ const selectedPermissions = ref<Permission[]>([]);
 
 const rules = {
   record: {
-    name: { required },
+    name: { required, maxLength: maxLength(75) },
     description: {},
   },
   selectedPermissions: {
@@ -146,7 +147,7 @@ async function manageRecord() {
 async function deleteConfirmation(id: number, name: string) {
   confirm.require({
     header: "Confirm operation",
-    message: `You are about to delete role: "${name}". This action is irreversible!`,
+    message: `You are about to delete role: "${vueHelper.truncate(name)}". This action is irreversible!`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Continue", severity: "danger" },
     accept: () => deleteRecord(id),

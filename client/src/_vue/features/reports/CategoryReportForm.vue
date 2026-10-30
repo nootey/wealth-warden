@@ -182,6 +182,7 @@ async function generate() {
           option-group-label="label"
           option-group-children="items"
           option-label="display_name"
+          overlay-class="w-0"
           :loading="isLoadingCategories"
           :max-selected-labels="2"
           selected-items-label="{0} selected"
@@ -214,6 +215,7 @@ async function generate() {
           option-group-label="label"
           option-group-children="items"
           option-label="display_name"
+          overlay-class="w-0"
           :loading="isLoadingCategories"
           :max-selected-labels="2"
           selected-items-label="{0} selected"
@@ -275,6 +277,7 @@ async function generate() {
           v-model="form.account"
           :options="accountStore.accounts"
           option-label="name"
+          overlay-class="w-0"
           :loading="isLoadingAccounts"
           placeholder="All accounts"
           show-clear

@@ -7,6 +7,7 @@ import type {
   CategoryGroup,
 } from "../../../models/transaction_models.ts";
 import { required } from "@regle/rules";
+import { nameMaxLength } from "../../../validators/name.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -15,6 +16,7 @@ import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import searchHelper from "../../../utils/search_helper.ts";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -72,7 +74,7 @@ const classifications = ref<string[]>(["income", "expense"]);
 const filteredClassifications = ref<string[]>([]);
 
 const rules = {
-  name: { required },
+  name: { required, nameMaxLength },
   classification: { required },
   description: {},
 };
@@ -178,7 +180,7 @@ async function manageRecord() {
 function deleteConfirmation() {
   confirm.require({
     header: "Confirm operation",
-    message: `You are about to delete category group: "${record.value.name}". This action is irreversible!`,
+    message: `You are about to delete category group: "${vueHelper.truncate(record.value.name)}". This action is irreversible!`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Continue", severity: "danger" },
     accept: () => deleteRecord(),
@@ -269,6 +271,7 @@ const searchClassifications = (event: { query: string }) => {
             placeholder="Select categories"
             :options="availableCategories"
             option-label="display_name"
+            overlay-class="w-0"
           />
         </div>
       </div>

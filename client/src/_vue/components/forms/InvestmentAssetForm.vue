@@ -694,6 +694,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
             size="small"
             :suggestions="filteredAccounts"
             option-label="name"
+            overlay-class="w-0"
             option-value="id"
             data-key="id"
             force-selection

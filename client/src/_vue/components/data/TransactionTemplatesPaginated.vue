@@ -438,7 +438,9 @@ defineExpose({ refresh });
             <template
               v-else-if="col.field === 'account' || col.field === 'to_account'"
             >
-              {{ data[col.field]?.name }}
+              <span v-tooltip.top="data[col.field]?.name" class="truncate-text">
+                {{ data[col.field]?.name }}
+              </span>
             </template>
             <template v-else-if="col.field === 'amount'">
               <span

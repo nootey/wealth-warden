@@ -145,11 +145,11 @@ async function handleEmit(type: string) {
       <div
         v-for="(account, i) in accounts"
         :key="account.id ?? i"
-        class="account-row flex items-center justify-between p-2 rounded-md mt-1"
+        class="account-row flex items-center justify-between gap-4 p-2 rounded-md mt-1"
       >
-        <div class="flex items-center">
+        <div class="flex items-center min-w-0">
           <div
-            class="flex items-center justify-center font-bold"
+            class="flex items-center justify-center font-bold shrink-0"
             :style="{
               width: '32px',
               height: '32px',
@@ -163,8 +163,11 @@ async function handleEmit(type: string) {
             {{ account.name.charAt(0).toUpperCase() }}
           </div>
 
-          <div class="ml-2">
-            <div class="font-bold">
+          <div class="ml-2 min-w-0">
+            <div
+              v-tooltip.top="account.name"
+              class="font-bold min-w-0 truncate"
+            >
               {{ account.name }}
             </div>
 
@@ -174,7 +177,7 @@ async function handleEmit(type: string) {
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 shrink-0">
           <i
             class="pi pi-trash hover-icon"
             style="color: var(--p-red-300)"

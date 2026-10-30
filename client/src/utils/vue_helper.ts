@@ -55,6 +55,10 @@ const vueHelper = {
 
     return formatted;
   },
+  truncate(value: string | null | undefined, max = 40): string {
+    if (!value) return "";
+    return value.length > max ? value.slice(0, max - 1).trimEnd() + "…" : value;
+  },
   getValidationClass: (
     state: ValidationObject | null | undefined,
     errorClass: string,

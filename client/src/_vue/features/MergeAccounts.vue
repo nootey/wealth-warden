@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../utils/vue_helper.ts";
 import type { Account } from "../../models/account_models.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
@@ -43,7 +44,7 @@ async function onMergeCompleted(): Promise<void> {
 function confirmMerge() {
   confirm.require({
     header: "Confirm account merge",
-    message: `You are about to merge "${sourceAccount.value?.name}" into "${destinationAccount.value?.name}". This action is irreversible. Are you sure?`,
+    message: `You are about to merge "${vueHelper.truncate(sourceAccount.value?.name)}" into "${vueHelper.truncate(destinationAccount.value?.name)}". This action is irreversible. Are you sure?`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Merge", severity: "danger" },
     accept: () => doMerge(),
@@ -98,6 +99,7 @@ async function doMerge() {
           :options="accounts.filter((a) => a.id !== destinationAccount?.id)"
           filter
           option-label="name"
+          overlay-class="w-0"
           placeholder="Select source"
           class="w-full"
           size="small"
@@ -110,6 +112,7 @@ async function doMerge() {
           :options="accounts.filter((a) => a.id !== sourceAccount?.id)"
           filter
           option-label="name"
+          overlay-class="w-0"
           placeholder="Select destination"
           class="w-full"
           size="small"

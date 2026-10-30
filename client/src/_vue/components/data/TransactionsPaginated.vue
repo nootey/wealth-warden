@@ -475,7 +475,11 @@ defineExpose({ refresh });
             </template>
             <template v-else-if="col.field === 'account'">
               <div class="flex flex-row gap-2 items-center account-row">
-                <span class="hover" @click="$emit('rowClick', data.id)">
+                <span
+                  v-tooltip.top="data[col.field]?.['name']"
+                  class="hover truncate-text"
+                  @click="$emit('rowClick', data.id)"
+                >
                   {{ data[col.field]?.["name"] }}
                 </span>
                 <i
@@ -516,6 +520,7 @@ defineExpose({ refresh });
         class="w-full"
         :options="categoryOptions"
         option-label="label"
+        overlay-class="w-0"
         option-value="value"
         filter
         placeholder="Select a category"

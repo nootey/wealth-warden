@@ -4,6 +4,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import { required, requiredIf } from "@regle/rules";
+import { nameMaxLength } from "../../../validators/name.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -11,6 +12,7 @@ import BaseForm from "../base/BaseForm.vue";
 import RuleConditionRow from "./RuleConditionRow.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../../utils/vue_helper.ts";
 import searchHelper from "../../../utils/search_helper.ts";
 import type { Ref } from "vue";
 import type {
@@ -82,7 +84,7 @@ const conditionRules = {
 };
 
 const rules = {
-  name: { required },
+  name: { required, nameMaxLength },
   match_type: { required },
   conditions: {
     $each: (item: Ref<RuleConditionReq>) => ({
@@ -256,7 +258,7 @@ async function manageRecord() {
 function deleteConfirmation() {
   confirm.require({
     header: "Delete record?",
-    message: `This will delete rule: "${record.value.name}".`,
+    message: `This will delete rule: "${vueHelper.truncate(record.value.name)}".`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Delete", severity: "danger" },
     accept: () => deleteRecord(),
@@ -430,6 +432,7 @@ const searchCategory = (event: { query: string }) => {
             size="small"
             :suggestions="filteredCategories"
             option-label="display_name"
+            overlay-class="w-0"
             placeholder="Select category"
             dropdown
             @complete="searchCategory"

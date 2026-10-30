@@ -71,7 +71,7 @@ async function deleteConfirmation(id: number, name: string) {
   confirm.require({
     group: "delete-import",
     header: "Delete record?",
-    message: `This will delete import: ${name}".`,
+    message: `This will delete import: "${vueHelper.truncate(name)}".`,
     icon: "pi pi-exclamation-triangle",
     acceptLabel: "Delete",
     rejectLabel: "Cancel",

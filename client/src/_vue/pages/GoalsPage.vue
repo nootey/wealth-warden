@@ -298,9 +298,18 @@ const onTrackBreakdown = computed(() => {
     position="top"
   >
     <template #header>
-      <div class="flex flex-col gap-1">
-        <div class="font-bold">{{ selectedGoal?.name }}</div>
-        <div class="text-sm" style="color: var(--text-secondary)">
+      <div class="flex flex-col gap-1 min-w-0">
+        <div
+          v-tooltip.top="selectedGoal?.name"
+          class="font-bold min-w-0 truncate"
+        >
+          {{ selectedGoal?.name }}
+        </div>
+        <div
+          v-tooltip.top="accountName(selectedGoal?.account_id!)"
+          class="text-sm min-w-0 truncate"
+          style="color: var(--text-secondary)"
+        >
           {{ accountName(selectedGoal?.account_id!) }}
         </div>
       </div>
@@ -317,9 +326,13 @@ const onTrackBreakdown = computed(() => {
     position="right"
   >
     <template #header>
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1 min-w-0">
         <div class="font-bold">New contribution</div>
-        <div class="text-sm" style="color: var(--text-secondary)">
+        <div
+          v-tooltip.top="selectedGoal?.name"
+          class="text-sm min-w-0 truncate"
+          style="color: var(--text-secondary)"
+        >
           {{ selectedGoal?.name }}
         </div>
       </div>
@@ -453,7 +466,10 @@ const onTrackBreakdown = computed(() => {
             <div
               class="flex flex-row flex-wrap items-center justify-between gap-2 px-5 py-4"
             >
-              <div class="text-lg font-medium tracking-tight text-ink">
+              <div
+                v-tooltip.top="group.accountName"
+                class="text-lg font-medium tracking-tight text-ink min-w-0 truncate"
+              >
                 {{ group.accountName }}
               </div>
               <div class="flex flex-row gap-4 text-sm text-muted">
@@ -489,7 +505,8 @@ const onTrackBreakdown = computed(() => {
               <div class="flex flex-row items-center justify-between gap-2">
                 <div class="flex flex-row items-center gap-2 flex-1 min-w-0">
                   <div
-                    class="font-medium tracking-tight text-ink truncate cursor-pointer"
+                    v-tooltip.top="goal.name"
+                    class="font-medium tracking-tight text-ink min-w-0 truncate cursor-pointer"
                     @click="openContributions(goal)"
                   >
                     {{ goal.name }}

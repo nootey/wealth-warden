@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ValidationError from "../../components/validation/ValidationError.vue";
 import { required } from "@regle/rules";
+import { nameMaxLength } from "../../../validators/name.ts";
 import {
   decimalValid,
   decimalMin,
@@ -153,7 +154,7 @@ const searchSubtype = (event: { query: string }) => {
 };
 
 const rules = computed(() => ({
-  name: { required },
+  name: { required, nameMaxLength },
   account_type: {
     type: { required },
     sub_type: { required },

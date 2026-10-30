@@ -8,6 +8,7 @@ import type {
   TransactionTemplate,
 } from "../../../models/transaction_models.ts";
 import { maxValue, minValue, required } from "@regle/rules";
+import { nameMaxLength } from "../../../validators/name.ts";
 import {
   decimalValid,
   decimalMin,
@@ -126,7 +127,7 @@ const filteredToAccounts = ref<Account[]>([]);
 const filteredFrequencies = ref<string[]>([]);
 
 const rules = computed(() => ({
-  name: { required },
+  name: { required, nameMaxLength },
   account: {
     name: { required },
   },
@@ -376,6 +377,8 @@ async function manageRecord() {
 
 async function renameRecord() {
   if (submitting.value) return;
+  const { valid: isValid } = await r$.name.$validate();
+  if (!isValid) return;
   submitting.value = true;
   try {
     const response = await transactionStore.renameTemplate(
@@ -416,7 +419,7 @@ async function toggleActive(nextValue: boolean) {
 async function executeConfirmation() {
   confirm.require({
     header: "Execute template early?",
-    message: `This will run "${record.value.name}" today and advance it to its next scheduled date. Can only be done once per day.`,
+    message: `This will run "${vueHelper.truncate(record.value.name)}" today and advance it to its next scheduled date. Can only be done once per day.`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Execute" },
     accept: () => executeTemplate(),
@@ -445,7 +448,7 @@ async function executeTemplate() {
 async function deleteConfirmation() {
   confirm.require({
     header: "Delete record?",
-    message: `This will delete template: ${record.value.name}".`,
+    message: `This will delete template: "${vueHelper.truncate(record.value.name)}".`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Delete", severity: "danger" },
     accept: () => deleteRecord(),
@@ -651,6 +654,7 @@ async function startOperation() {
             size="small"
             :suggestions="filteredAccounts"
             option-label="name"
+            overlay-class="w-0"
             force-selection
             placeholder="Select account"
             dropdown
@@ -674,6 +678,7 @@ async function startOperation() {
             size="small"
             :suggestions="filteredToAccounts"
             option-label="name"
+            overlay-class="w-0"
             force-selection
             placeholder="Select destination account"
             dropdown
@@ -715,6 +720,7 @@ async function startOperation() {
             size="small"
             :suggestions="filteredCategories"
             option-label="display_name"
+            overlay-class="w-0"
             placeholder="Select category"
             dropdown
             @complete="searchCategory"

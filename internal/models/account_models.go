@@ -41,7 +41,7 @@ type AccountType struct {
 }
 
 type AccountReq struct {
-	Name              string           `json:"name" validate:"required"`
+	Name              string           `json:"name" validate:"required,max=100"`
 	AccountTypeID     int64            `json:"account_type_id" validate:"required"`
 	Type              string           `json:"type" validate:"required"`
 	Subtype           string           `json:"sub_type" validate:"required"`

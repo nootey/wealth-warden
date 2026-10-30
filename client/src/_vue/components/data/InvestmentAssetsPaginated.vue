@@ -219,7 +219,12 @@ defineExpose({ refresh });
           </template>
           <template v-else-if="col.field === 'account'">
             <div class="flex flex-row gap-2 items-center account-row">
-              {{ data[col.field]?.["name"] }}
+              <span
+                v-tooltip.top="data[col.field]?.['name']"
+                class="truncate-text"
+              >
+                {{ data[col.field]?.["name"] }}
+              </span>
             </div>
           </template>
           <template v-else-if="col.field === 'ticker'">

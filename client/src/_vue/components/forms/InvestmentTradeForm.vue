@@ -551,6 +551,7 @@ async function deleteRecord(id: number) {
             size="small"
             :suggestions="filteredAssets"
             option-label="name"
+            overlay-class="w-0"
             data-key="id"
             force-selection
             placeholder="Select asset"
