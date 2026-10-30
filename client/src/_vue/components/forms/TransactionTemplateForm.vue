@@ -201,6 +201,7 @@ function initData(): TransactionTemplate {
       total_balance: null,
       market_value: null,
     },
+    include_in_net_worth: true,
   });
 
   return {
