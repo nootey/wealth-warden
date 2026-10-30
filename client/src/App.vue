@@ -64,8 +64,16 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Toast position="top-center" group="bc" />
-  <Toast position="bottom-right" group="br" />
+  <Toast
+    position="top-center"
+    group="bc"
+    :pt="{ detail: { class: 'line-clamp-4 wrap-anywhere' } }"
+  />
+  <Toast
+    position="bottom-right"
+    group="br"
+    :pt="{ detail: { class: 'line-clamp-4 wrap-anywhere' } }"
+  />
   <ConfirmDialog unstyled>
     <template #container="{ message, acceptCallback, rejectCallback }">
       <div
@@ -78,9 +86,10 @@ onMounted(async () => {
             {{ message.header }}
           </div>
           <div
-            class="text-sm leading-relaxed text-muted"
-            v-html="message.message.replace(/\n/g, '<br>')"
-          />
+            class="text-sm leading-relaxed text-muted whitespace-pre-line wrap-anywhere"
+          >
+            {{ message.message }}
+          </div>
           <div class="flex justify-end gap-2 pt-2">
             <Button
               class="outline-button"

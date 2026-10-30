@@ -5,6 +5,7 @@ import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import { numeric, required } from "@regle/rules";
+import { nameMaxLength } from "../../../validators/name.ts";
 import { decimalMin, decimalValid } from "../../../validators/currency.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
@@ -96,7 +97,7 @@ const statusOptions: { label: string; value: SavingGoalStatus }[] = [
 
 const rules = computed(() => ({
   account_id: { required },
-  name: { required },
+  name: { required, nameMaxLength },
   target_date: {},
   target_amount: {
     required,
@@ -225,7 +226,7 @@ async function manageRecord() {
 function fundConfirmation() {
   confirm.require({
     header: "Fund goal now?",
-    message: `This will add this month's allocation to "${record.value.name}" now, ahead of the fund day. Can only be done once per month.`,
+    message: `This will add this month's allocation to "${vueHelper.truncate(record.value.name)}" now, ahead of the fund day. Can only be done once per month.`,
     rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
     acceptProps: { label: "Fund now" },
     accept: () => fundGoal(),
@@ -330,6 +331,7 @@ function confirmDelete() {
         v-model="record.account_id"
         :options="accounts"
         option-label="name"
+        overlay-class="w-0"
         option-value="id"
         placeholder="Select savings account"
         size="small"

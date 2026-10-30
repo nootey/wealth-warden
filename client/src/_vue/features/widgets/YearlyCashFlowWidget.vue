@@ -207,6 +207,7 @@ watch(
           size="small"
           style="width: 150px"
           :options="accounts"
+          overlay-class="w-0"
           option-value="id"
           placeholder="All accounts"
           show-clear

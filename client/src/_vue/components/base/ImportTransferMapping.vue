@@ -86,6 +86,7 @@ function clearAll() {
             :model-value="mapping[data.name] ?? null"
             :options="accounts"
             option-label="name"
+            overlay-class="w-0"
             option-value="id"
             show-clear
             filter

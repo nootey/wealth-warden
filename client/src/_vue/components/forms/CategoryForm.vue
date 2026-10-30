@@ -4,6 +4,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import type { Category } from "../../../models/transaction_models.ts";
 import { required, requiredIf } from "@regle/rules";
+import { nameMaxLength } from "../../../validators/name.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -57,7 +58,7 @@ const necessities = [
 const isExpense = computed(() => record.value.classification === "expense");
 
 const rules = {
-  display_name: { required },
+  display_name: { required, nameMaxLength },
   classification: { required },
   necessity: { required: requiredIf(() => isExpense.value) },
 };
@@ -179,7 +180,7 @@ function deleteConfirmation() {
   const deleted = !!record.value.deleted_at;
   confirm.require({
     header: "Confirm operation",
-    message: `You are about to ${!deleted ? "archive" : "delete"} category: "${record.value.display_name}". ${!deleted ? "" : "This action is irreversible!"}`,
+    message: `You are about to ${!deleted ? "archive" : "delete"} category: "${vueHelper.truncate(record.value.display_name)}". ${!deleted ? "" : "This action is irreversible!"}`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Continue", severity: "danger" },
     accept: () => deleteRecord(),

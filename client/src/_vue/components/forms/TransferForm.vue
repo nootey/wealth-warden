@@ -135,6 +135,7 @@ defineExpose({ r$, localTransfer });
           size="small"
           :suggestions="filteredSourceAccounts"
           option-label="name"
+          overlay-class="w-0"
           placeholder="Select source account"
           dropdown
           :disabled="mode === 'update'"
@@ -157,6 +158,7 @@ defineExpose({ r$, localTransfer });
           size="small"
           :suggestions="filteredDestinationAccounts"
           option-label="name"
+          overlay-class="w-0"
           placeholder="Select destination account"
           dropdown
           :disabled="mode === 'update'"

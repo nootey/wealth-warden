@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../utils/vue_helper.ts";
 import ValidationError from "../components/validation/ValidationError.vue";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
@@ -50,7 +51,7 @@ const destinationOptions = computed<Category[]>(() =>
 function confirmMerge() {
   confirm.require({
     header: "Confirm category merge",
-    message: `You are about to merge "${sourceCategory.value?.display_name}" into "${destinationCategory.value?.display_name}". All transactions will be moved to the destination category. This action is irreversible. Are you sure?`,
+    message: `You are about to merge "${vueHelper.truncate(sourceCategory.value?.display_name)}" into "${vueHelper.truncate(destinationCategory.value?.display_name)}". All transactions will be moved to the destination category. This action is irreversible. Are you sure?`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Merge", severity: "danger" },
     accept: () => doMerge(),
@@ -98,6 +99,7 @@ async function doMerge() {
           :options="sourceOptions"
           filter
           option-label="display_name"
+          overlay-class="w-0"
           placeholder="Select source"
           class="w-full"
           size="small"
@@ -121,6 +123,7 @@ async function doMerge() {
           :options="destinationOptions"
           filter
           option-label="display_name"
+          overlay-class="w-0"
           placeholder="Select destination"
           class="w-full"
           size="small"

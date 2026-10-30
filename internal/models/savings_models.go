@@ -60,7 +60,7 @@ type SavingGoalWithProgress struct {
 
 type SavingGoalReq struct {
 	AccountID         int64            `json:"account_id" validate:"required"`
-	Name              string           `json:"name" validate:"required,min=1,max=150"`
+	Name              string           `json:"name" validate:"required,min=1,max=100"`
 	TargetAmount      decimal.Decimal  `json:"target_amount" validate:"required"`
 	InitialAmount     *decimal.Decimal `json:"initial_amount,omitempty"`
 	TargetDate        *string          `json:"target_date,omitempty"`
@@ -70,7 +70,7 @@ type SavingGoalReq struct {
 }
 
 type SavingGoalUpdateReq struct {
-	Name              string           `json:"name" validate:"required,min=1,max=150"`
+	Name              string           `json:"name" validate:"required,min=1,max=100"`
 	TargetAmount      decimal.Decimal  `json:"target_amount" validate:"required"`
 	TargetDate        *string          `json:"target_date,omitempty"`
 	Status            SavingGoalStatus `json:"status" validate:"required"`

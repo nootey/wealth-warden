@@ -12,6 +12,7 @@ import DisplayStatus from "../base/DisplayStatus.vue";
 import type { PaginatorState } from "../../../models/shared_models.ts";
 import type { Report } from "../../../models/analytics_models.ts";
 import { useConfirm } from "primevue/useconfirm";
+import vueHelper from "../../../utils/vue_helper.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 
 const sharedStore = useSharedStore();
@@ -96,7 +97,7 @@ async function downloadReport(id: number, name: string) {
 async function deleteConfirmation(id: number, name: string) {
   confirm.require({
     header: "Delete record?",
-    message: `This will delete report: "${id} - ${name}".`,
+    message: `This will delete report: "${id} - ${vueHelper.truncate(name)}".`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Delete", severity: "danger" },
     accept: () => deleteReport(id),

@@ -316,13 +316,13 @@ defineExpose({ refresh: getData, hasAccounts });
             <div
               v-for="(account, i) in group"
               :key="account.id ?? i"
-              class="account-row flex items-center justify-between px-3 py-2.5 rounded-xl mt-2 bg-sunken"
+              class="account-row flex items-center justify-between gap-4 px-3 py-2.5 rounded-xl mt-2 bg-sunken"
               :class="{ advanced, inactive: !account.is_active }"
             >
-              <div class="flex items-center">
+              <div class="flex items-center min-w-0">
                 <!-- Avatar -->
                 <div
-                  class="flex items-center justify-center font-bold"
+                  class="flex items-center justify-center font-bold shrink-0"
                   :style="{
                     width: '32px',
                     height: '32px',
@@ -337,9 +337,10 @@ defineExpose({ refresh: getData, hasAccounts });
                 </div>
 
                 <!-- Name + subtype -->
-                <div class="ml-2">
+                <div class="ml-2 min-w-0">
                   <div
-                    class="font-medium text-ink clickable"
+                    v-tooltip.top="account.name"
+                    class="font-medium text-ink clickable min-w-0 truncate"
                     @click="openModal('details', account)"
                   >
                     {{ account.name }}
@@ -358,12 +359,12 @@ defineExpose({ refresh: getData, hasAccounts });
                 <i
                   v-if="hasPermission('manage_data') && account.is_active"
                   v-tooltip="'Edit account'"
-                  class="ml-4 pi pi-pen-to-square text-xs text-muted hover:text-ink hover-icon edit-icon"
+                  class="ml-4 shrink-0 pi pi-pen-to-square text-xs text-muted hover:text-ink hover-icon edit-icon"
                   @click="openModal('update', account.id!)"
                 />
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 shrink-0">
                 <div
                   class="font-medium tracking-tight mr-1"
                   :class="isUnderLimit(account) ? 'text-loss' : 'text-ink'"

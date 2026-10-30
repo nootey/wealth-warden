@@ -414,6 +414,7 @@ async function revertProjection() {
               v-model="record.multiplier_category_id"
               :options="categoryOptions"
               option-label="label"
+              overlay-class="w-0"
               option-value="value"
               placeholder="Select category or group"
               size="small"
@@ -465,6 +466,7 @@ async function revertProjection() {
           <Select
             v-model="effectiveAccountID"
             :options="checkingAccounts"
+            overlay-class="w-0"
             option-value="id"
             placeholder="Select account"
             size="small"
@@ -479,8 +481,10 @@ async function revertProjection() {
               <span v-else>Default account</span>
             </template>
             <template #option="slotProps">
-              <div class="flex flex-col">
-                <span class="font-semibold">{{ slotProps.option.name }}</span>
+              <div class="flex flex-col min-w-0">
+                <span class="font-semibold block min-w-0 truncate">{{
+                  slotProps.option.name
+                }}</span>
                 <span class="text-xs" style="color: var(--text-secondary)">
                   {{ slotProps.option.account_type?.sub_type }}
                 </span>

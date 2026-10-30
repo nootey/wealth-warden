@@ -154,7 +154,7 @@ async function loadAllocation(): Promise<void> {
           :labels="chartLabels"
         />
 
-        <div class="flex flex-col w-full gap-2">
+        <div class="flex flex-col w-full min-w-0 gap-2">
           <div
             v-for="(row, index) in rows"
             :key="row.key"
@@ -170,9 +170,11 @@ async function loadAllocation(): Promise<void> {
                   backgroundColor: sliceColor(index),
                 }"
               />
-              <span class="text-sm font-semibold truncate">{{
-                row.label
-              }}</span>
+              <span
+                v-tooltip.top="row.label"
+                class="text-sm font-semibold block min-w-0 truncate"
+                >{{ row.label }}</span
+              >
             </div>
             <div class="flex flex-row items-center gap-4 shrink-0">
               <span class="text-sm" style="color: var(--text-secondary)">

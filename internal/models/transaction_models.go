@@ -327,17 +327,17 @@ type TrRestoreReq struct {
 }
 
 type RenameTemplateReq struct {
-	Name string `json:"name" validate:"required"`
+	Name string `json:"name" validate:"required,max=100"`
 }
 
 type CategoryReq struct {
-	DisplayName    string             `json:"display_name" validate:"required"`
+	DisplayName    string             `json:"display_name" validate:"required,max=100"`
 	Classification string             `json:"classification" validate:"required"`
 	Necessity      *CategoryNecessity `json:"necessity" validate:"omitempty,oneof=need want"`
 }
 
 type CategoryGroupReq struct {
-	Name               string      `json:"name" validate:"required"`
+	Name               string      `json:"name" validate:"required,max=100"`
 	Classification     string      `json:"classification" validate:"required"`
 	Description        *string     `json:"description"`
 	SelectedCategories interface{} `json:"selected_categories" validate:"required"`
@@ -356,7 +356,7 @@ type TemplateTimezoneUpdate struct {
 }
 
 type TransactionTemplateReq struct {
-	Name         string                `json:"name" validate:"required"`
+	Name         string                `json:"name" validate:"required,max=100"`
 	TemplateType string                `json:"template_type" validate:"required"`
 	AccountID    int64                 `json:"account_id" validate:"required"`
 	ToAccountID  *int64                `json:"to_account_id,omitempty"`

@@ -221,6 +221,7 @@ defineExpose({ isDisabled, transferInvestments });
       style="width: 450px"
       :options="imports"
       option-label="name"
+      overlay-class="w-0"
       placeholder="Select import"
     />
     <div v-if="loadingValidation" class="flex flex-col w-full p-2">
@@ -245,6 +246,7 @@ defineExpose({ isDisabled, transferInvestments });
             size="small"
             :suggestions="filteredCheckingAccs"
             option-label="name"
+            overlay-class="w-0"
             force-selection
             placeholder="Select checking account"
             dropdown

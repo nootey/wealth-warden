@@ -28,7 +28,7 @@ type RolePermission struct {
 }
 
 type RoleReq struct {
-	Name        string       `json:"name" validate:"required"`
+	Name        string       `json:"name" validate:"required,max=75"`
 	IsDefault   bool         `json:"is_default"`
 	Description string       `json:"description"`
 	Permissions []Permission `json:"permissions"`

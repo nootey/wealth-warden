@@ -108,6 +108,7 @@ async function setAsDefault() {
           :options="accounts"
           :loading="loading"
           option-label="name"
+          overlay-class="w-0"
           size="small"
           placeholder="Select account"
           class="w-full"

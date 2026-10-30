@@ -259,6 +259,7 @@ async function deleteRecord(id: number) {
             size="small"
             :suggestions="filteredRoles"
             option-label="name"
+            overlay-class="w-0"
             force-selection
             placeholder="Select role"
             dropdown

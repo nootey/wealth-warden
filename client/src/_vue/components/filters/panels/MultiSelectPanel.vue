@@ -66,6 +66,7 @@ function remove(value: any) {
       v-model="internal"
       :options="normalizedOptions"
       option-label="label"
+      overlay-class="w-0"
       option-value="value"
       :filter="true"
       :filter-fields="['label']"
@@ -77,9 +78,9 @@ function remove(value: any) {
       class="w-full"
     >
       <template #option="{ option }">
-        <div class="flex justify-between w-full gap-2">
-          <span>{{ option.label }}</span>
-          <small v-if="option.hint" class="text-muted-color">
+        <div class="flex justify-between w-full min-w-0 gap-2">
+          <span class="block min-w-0 truncate">{{ option.label }}</span>
+          <small v-if="option.hint" class="text-muted-color shrink-0">
             {{ option.hint }}
           </small>
         </div>

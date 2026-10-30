@@ -88,3 +88,19 @@ button.p-button.accent-button:hover {
 body:has(.p-drawer-mask) {
   overflow: hidden !important;
 }
+
+// Only kicks in with overlay-class="w-0" on name dropdowns: PrimeVue sets
+// min-width inline to the input's width, and min-width beats width, so the
+// list matches the input instead of stretching to the longest name
+.p-select-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Plain-text options only (the ripple's .p-ink span aside): ellipsis needs a
+// block box, and options with a custom template keep their own layout
+.p-autocomplete-option:not(:has(> :not(.p-ink))) {
+  display: block;
+  text-overflow: ellipsis;
+}
