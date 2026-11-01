@@ -213,17 +213,17 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 
 			switch f.Operator {
 			case "equals", "=":
-				query = query.Where(f.Value+" = ?", f.Value)
+				query = query.Where("investment_trades.quantity = ?", f.Value)
 			case "not equals", "<>", "!=":
-				query = query.Where(f.Value+" <> ?", f.Value)
+				query = query.Where("investment_trades.quantity <> ?", f.Value)
 			case "more than", ">":
-				query = query.Where(f.Value+" > ?", f.Value)
+				query = query.Where("investment_trades.quantity > ?", f.Value)
 			case "less than", "<":
-				query = query.Where(f.Value+" < ?", f.Value)
+				query = query.Where("investment_trades.quantity < ?", f.Value)
 			case ">=":
-				query = query.Where(f.Value+" >= ?", f.Value)
+				query = query.Where("investment_trades.quantity >= ?", f.Value)
 			case "<=":
-				query = query.Where(f.Value+" <= ?", f.Value)
+				query = query.Where("investment_trades.quantity <= ?", f.Value)
 			}
 			continue
 		}

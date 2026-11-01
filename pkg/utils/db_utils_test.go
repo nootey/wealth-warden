@@ -5,6 +5,9 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func TestGetRequiredJoins(t *testing.T) {
@@ -283,5 +286,32 @@ func TestApplyFilters(t *testing.T) {
 		assert.NotEmpty(t, filter.Field)
 		assert.NotEmpty(t, filter.Operator)
 		assert.NotEmpty(t, filter.Value)
+	})
+
+	t.Run("trade quantity value is bound, never used as sql", func(t *testing.T) {
+		db, err := gorm.Open(postgres.New(postgres.Config{DSN: "host=localhost"}), &gorm.Config{DryRun: true, DisableAutomaticPing: true})
+		require.NoError(t, err)
+
+		payload := "1; DROP TABLE users; --"
+		operators := map[string]string{
+			"equals": "=", "=": "=",
+			"not equals": "<>", "<>": "<>", "!=": "<>",
+			"more than": ">", ">": ">",
+			"less than": "<", "<": "<",
+			">=": ">=", "<=": "<=",
+		}
+
+		for op, sqlOp := range operators {
+			filters := []utils.Filter{
+				{Source: "investment_trades", Field: "quantity", Operator: op, Value: payload},
+			}
+
+			q := utils.ApplyFilters(db.Table("investment_trades_valued AS investment_trades"), filters)
+			stmt := q.Find(&[]map[string]any{}).Statement
+
+			assert.Contains(t, stmt.SQL.String(), "WHERE investment_trades.quantity "+sqlOp+" $1", "operator %s", op)
+			assert.NotContains(t, stmt.SQL.String(), "DROP TABLE", "operator %s", op)
+			assert.Equal(t, []any{payload}, stmt.Vars, "operator %s", op)
+		}
 	})
 }
