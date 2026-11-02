@@ -47,11 +47,10 @@ func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"current_page":  paginator.CurrentPage,
 		"rows_per_page": paginator.RowsPerPage,
-		"from":          paginator.From,
-		"to":            paginator.To,
 		"total_records": paginator.TotalRecords,
+		"next_cursor":   paginator.NextCursor,
+		"prev_cursor":   paginator.PrevCursor,
 		"data":          records,
 	}
 
@@ -111,11 +110,10 @@ func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 	eventStr := qp.Get("event")
 	if eventStr == "" {
 		c.JSON(http.StatusOK, gin.H{
-			"current_page":  p.PageNumber,
 			"rows_per_page": p.RowsPerPage,
 			"total_records": 0,
-			"from":          0,
-			"to":            0,
+			"next_cursor":   nil,
+			"prev_cursor":   nil,
 			"data":          []models.ActivityLog{},
 		})
 		return
@@ -129,11 +127,10 @@ func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"current_page":  paginator.CurrentPage,
 		"rows_per_page": paginator.RowsPerPage,
 		"total_records": paginator.TotalRecords,
-		"from":          paginator.From,
-		"to":            paginator.To,
+		"next_cursor":   paginator.NextCursor,
+		"prev_cursor":   paginator.PrevCursor,
 		"data":          trail,
 	})
 }

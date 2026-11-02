@@ -12,9 +12,9 @@ import (
 
 type UserRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
-	FindUsers(ctx context.Context, tx *gorm.DB, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool) ([]models.User, error)
+	FindUsers(ctx context.Context, tx *gorm.DB, ks utils.Keyset, filters []utils.Filter, includeDeleted bool) ([]models.User, error)
 	CountUsers(ctx context.Context, tx *gorm.DB, filters []utils.Filter, includeDeleted bool) (int64, error)
-	FindInvitations(ctx context.Context, tx *gorm.DB, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Invitation, error)
+	FindInvitations(ctx context.Context, tx *gorm.DB, ks utils.Keyset, filters []utils.Filter) ([]models.Invitation, error)
 	CountInvitations(ctx context.Context, tx *gorm.DB, filters []utils.Filter) (int64, error)
 	GetPasswordByEmail(ctx context.Context, tx *gorm.DB, email string) (string, error)
 	FindUserByID(ctx context.Context, tx *gorm.DB, id int64) (*models.User, error)
@@ -69,7 +69,7 @@ func (r *UserRepository) GetAllActiveUserIDs(ctx context.Context, tx *gorm.DB) (
 	return userIDs, nil
 }
 
-func (r *UserRepository) FindUsers(ctx context.Context, tx *gorm.DB, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool) ([]models.User, error) {
+func (r *UserRepository) FindUsers(ctx context.Context, tx *gorm.DB, ks utils.Keyset, filters []utils.Filter, includeDeleted bool) ([]models.User, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -86,8 +86,7 @@ func (r *UserRepository) FindUsers(ctx context.Context, tx *gorm.DB, offset, lim
 		q = q.Where("users.deleted_at IS NULL")
 	}
 
-	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "users", sortField, sortOrder)
+	joins := utils.GetRequiredJoins(filters, ks.Joins...)
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -95,10 +94,7 @@ func (r *UserRepository) FindUsers(ctx context.Context, tx *gorm.DB, offset, lim
 
 	q = utils.ApplyFilters(q, filters)
 
-	err := q.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err
@@ -138,7 +134,7 @@ func (r *UserRepository) CountUsers(ctx context.Context, tx *gorm.DB, filters []
 	return totalRecords, nil
 }
 
-func (r *UserRepository) FindInvitations(ctx context.Context, tx *gorm.DB, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Invitation, error) {
+func (r *UserRepository) FindInvitations(ctx context.Context, tx *gorm.DB, ks utils.Keyset, filters []utils.Filter) ([]models.Invitation, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -149,8 +145,7 @@ func (r *UserRepository) FindInvitations(ctx context.Context, tx *gorm.DB, offse
 	q := db.Model(&models.Invitation{}).
 		Preload("Role")
 
-	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "invitations", sortField, sortOrder)
+	joins := utils.GetRequiredJoins(filters, ks.Joins...)
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -158,10 +153,7 @@ func (r *UserRepository) FindInvitations(ctx context.Context, tx *gorm.DB, offse
 
 	q = utils.ApplyFilters(q, filters)
 
-	err := q.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err

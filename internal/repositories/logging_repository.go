@@ -15,11 +15,11 @@ type LoggingRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	InsertActivityLog(ctx context.Context, tx *gorm.DB, event string, category string, description *string, payload *utils.Changes, causer *int64) error
 	CountLogs(ctx context.Context, filters []utils.Filter) (int64, error)
-	FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error)
+	FindLogs(ctx context.Context, ks utils.Keyset, filters []utils.Filter) ([]models.ActivityLog, error)
 	FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
 	FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error)
 	CountAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64) (int64, error)
-	FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64, offset, limit int) ([]models.ActivityLog, error)
+	FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64, ks utils.Keyset) ([]models.ActivityLog, error)
 	DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error
 }
 
@@ -58,12 +58,11 @@ func (r *LoggingRepository) CountLogs(ctx context.Context, filters []utils.Filte
 	return totalRecords, nil
 }
 
-func (r *LoggingRepository) FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
+func (r *LoggingRepository) FindLogs(ctx context.Context, ks utils.Keyset, filters []utils.Filter) ([]models.ActivityLog, error) {
 	var records []models.ActivityLog
 	query := r.db.WithContext(ctx).Table("activity_logs").Select("*")
 
-	joins := utils.GetRequiredJoins(filters)
-	orderBy := sortField + " " + sortOrder
+	joins := utils.GetRequiredJoins(filters, ks.Joins...)
 
 	for _, join := range joins {
 		query = query.Joins(join)
@@ -71,10 +70,7 @@ func (r *LoggingRepository) FindLogs(ctx context.Context, offset, limit int, sor
 
 	query = utils.ApplyFilters(query, filters)
 
-	err := query.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(query, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err
@@ -196,12 +192,9 @@ func (r *LoggingRepository) CountAuditTrailByRecordID(ctx context.Context, recor
 	return totalRecords, nil
 }
 
-func (r *LoggingRepository) FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64, offset, limit int) ([]models.ActivityLog, error) {
+func (r *LoggingRepository) FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64, ks utils.Keyset) ([]models.ActivityLog, error) {
 	var records []models.ActivityLog
-	err := r.auditTrailQuery(ctx, recordID, categories, events, causerID).
-		Order("created_at DESC").
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(r.auditTrailQuery(ctx, recordID, categories, events, causerID), ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err

@@ -21,12 +21,9 @@ const emit = defineEmits<{
     :total-records="paginator.total"
     :template="{
       '640px': 'PrevPageLink CurrentPageReport NextPageLink',
-      '960px':
-        'FirstPageLink PrevPageLink CurrentPageReport NextPageLink LastPageLink',
-      '1300px':
-        'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown',
+      '960px': 'FirstPageLink PrevPageLink CurrentPageReport NextPageLink',
       default:
-        'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown',
+        'FirstPageLink PrevPageLink CurrentPageReport NextPageLink RowsPerPageDropdown',
     }"
     @page="(e) => emit('onPage', e)"
   >

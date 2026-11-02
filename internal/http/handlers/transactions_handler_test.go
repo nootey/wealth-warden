@@ -333,12 +333,11 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_Success()
 		},
 	}
 
+	next := "next-page"
 	mockPaginator := &utils.Paginator{
-		CurrentPage:  1,
 		RowsPerPage:  10,
-		From:         1,
-		To:           1,
 		TotalRecords: 1,
+		NextCursor:   &next,
 	}
 
 	mockTotals := models.TransactionBatchTotals{
@@ -351,14 +350,14 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_Success()
 		FetchTransactionsPaginated(
 			mock.Anything,
 			int64(123),
-			mock.Anything,
+			mock.MatchedBy(func(p utils.PaginationParams) bool { return p.Cursor == "this-page" }),
 			false,
 			mock.Anything,
 		).
 		Return(mockTransactions, &mockTotals, mockPaginator, nil).
 		Once()
 
-	req := httptest.NewRequest(http.MethodGet, "/transactions?page=1&rowsPerPage=10", nil)
+	req := httptest.NewRequest(http.MethodGet, "/transactions?cursor=this-page&rowsPerPage=10", nil)
 	w := httptest.NewRecorder()
 
 	suite.router.ServeHTTP(w, req)
@@ -368,8 +367,9 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_Success()
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	suite.Require().NoError(err)
-	suite.EqualValues(1, response["current_page"])
 	suite.EqualValues(1, response["total_records"])
+	suite.Equal("next-page", response["next_cursor"])
+	suite.Nil(response["prev_cursor"])
 	suite.NotNil(response["data"])
 }
 
@@ -385,7 +385,7 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_ServiceEr
 		Return(nil, nil, nil, errors.New("database error")).
 		Once()
 
-	req := httptest.NewRequest(http.MethodGet, "/transactions?page=1&rows=10", nil)
+	req := httptest.NewRequest(http.MethodGet, "/transactions?rowsPerPage=10", nil)
 	w := httptest.NewRecorder()
 
 	suite.router.ServeHTTP(w, req)

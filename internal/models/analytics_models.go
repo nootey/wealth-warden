@@ -361,6 +361,14 @@ type Report struct {
 	CompletedAt *time.Time      `json:"completed_at,omitempty"`
 }
 
+var ReportSort = SortSpec[Report]{
+	Fields: map[string]SortKey[Report]{
+		"created_at": {Column: "reports.created_at", Value: func(r Report) any { return r.CreatedAt }},
+	},
+	ID:      SortKey[Report]{Column: "reports.id", Value: func(r Report) any { return r.ID }},
+	Default: "created_at",
+}
+
 type CategoryReportDataRow struct {
 	Year                   int
 	Month                  int

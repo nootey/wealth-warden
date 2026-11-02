@@ -41,36 +41,23 @@ func NewNotesService(
 var _ NotesServiceInterface = (*NotesService)(nil)
 
 func (s *NotesService) FetchNotesPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Note, *utils.Paginator, error) {
+	p.SortField, p.SortOrder = "created_at", "desc"
+	ks, err := utils.NewKeyset(models.NoteSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountNotes(ctx, nil, userID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindNotes(ctx, nil, userID, offset, p.RowsPerPage)
+	records, err := s.repo.FindNotes(ctx, nil, userID, ks)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.NoteSort, totalRecords)
 	return records, paginator, nil
 }
 

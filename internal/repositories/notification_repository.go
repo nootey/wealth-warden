@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
 )
 
 type NotificationRepositoryInterface interface {
 	Insert(ctx context.Context, n *models.Notification) error
-	FindByUser(ctx context.Context, userID int64, onlyUnread bool, limit, offset int) ([]models.Notification, int64, error)
+	FindByUser(ctx context.Context, userID int64, onlyUnread bool, ks utils.Keyset) ([]models.Notification, int64, error)
 	MarkAsRead(ctx context.Context, userID, notificationID int64) error
 	MarkAllAsRead(ctx context.Context, userID int64) error
 }
@@ -29,7 +30,7 @@ func (r *NotificationRepository) Insert(ctx context.Context, n *models.Notificat
 	return r.db.WithContext(ctx).Create(n).Error
 }
 
-func (r *NotificationRepository) FindByUser(ctx context.Context, userID int64, onlyUnread bool, limit, offset int) ([]models.Notification, int64, error) {
+func (r *NotificationRepository) FindByUser(ctx context.Context, userID int64, onlyUnread bool, ks utils.Keyset) ([]models.Notification, int64, error) {
 	q := r.db.WithContext(ctx).Model(&models.Notification{}).Where("user_id = ?", userID)
 	if onlyUnread {
 		q = q.Where("read_at IS NULL")
@@ -41,7 +42,7 @@ func (r *NotificationRepository) FindByUser(ctx context.Context, userID int64, o
 	}
 
 	var records []models.Notification
-	err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&records).Error
+	err := utils.ApplyKeyset(q, ks).Find(&records).Error
 	return records, total, err
 }
 

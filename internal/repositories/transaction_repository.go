@@ -20,9 +20,9 @@ type TransactionRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	baseTxQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB
 	baseTransferQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool, accountID *int64) *gorm.DB
-	FindTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error)
+	FindTransactions(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error)
 	FindAllTransactionsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transaction, error)
-	FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, includeDeleted bool, accountID *int64) ([]models.Transfer, error)
+	FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, includeDeleted bool, accountID *int64) ([]models.Transfer, error)
 	FindAllTransfersForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transfer, error)
 	GetMonthlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, checkingAccountIDs []int64, year, month int) ([]models.Transfer, error)
 	CountTransactions(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error)
@@ -58,7 +58,7 @@ type TransactionRepositoryInterface interface {
 	RetimeOpeningTransactions(ctx context.Context, tx *gorm.DB, accountID int64, when time.Time) error
 	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID int64) error
 	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID int64, name string) error
-	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error)
+	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, templateType string) ([]models.TransactionTemplate, error)
 	CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool, templateType string) (int64, error)
 	FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
 	FindTransactionTemplateByIDForUpdate(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
@@ -162,7 +162,7 @@ func (r *TransactionRepository) baseTransferQuery(ctx context.Context, db *gorm.
 	return q
 }
 
-func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error) {
+func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error) {
 	var records []models.Transaction
 	db := tx
 	if db == nil {
@@ -179,8 +179,7 @@ func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.D
 		q = q.Where("transactions.account_id = ?", *accountID)
 	}
 
-	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "transactions", sortField, sortOrder)
+	joins := utils.GetRequiredJoins(filters, ks.Joins...)
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -188,10 +187,7 @@ func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.D
 
 	q = utils.ApplyFilters(q, filters)
 
-	err := q.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err
@@ -223,7 +219,7 @@ func (r *TransactionRepository) FindAllTransactionsForUser(ctx context.Context, 
 	return records, nil
 }
 
-func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, includeDeleted bool, accountID *int64) ([]models.Transfer, error) {
+func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, includeDeleted bool, accountID *int64) ([]models.Transfer, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -245,17 +241,11 @@ func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, 
 			Preload("TransactionOutflow.Account")
 	}
 
-	joins := utils.GetRequiredJoins(nil)
-	orderBy := utils.ConstructOrderByClause(&joins, "transfers", sortField, sortOrder)
-
-	for _, join := range joins {
+	for _, join := range ks.Joins {
 		q = q.Joins(join)
 	}
 
-	err := q.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err
@@ -930,15 +920,12 @@ func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gor
 	return res.Error
 }
 
-func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error) {
+func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, templateType string) ([]models.TransactionTemplate, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
-
-	joins := []string{}
-	orderBy := utils.ConstructOrderByClause(&joins, "transaction_templates", sortField, sortOrder)
 
 	var records []models.TransactionTemplate
 	q := db.Model(&models.TransactionTemplate{}).
@@ -951,14 +938,11 @@ func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx
 		q = q.Where("template_type = ?", templateType)
 	}
 
-	for _, join := range joins {
+	for _, join := range ks.Joins {
 		q = q.Joins(join)
 	}
 
-	err := q.
-		Order("transaction_templates.is_active desc, " + orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err

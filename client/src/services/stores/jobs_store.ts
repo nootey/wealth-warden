@@ -14,9 +14,9 @@ export const useJobsStore = defineStore("jobs", {
     userApiPrefix: "jobs/user",
   }),
   actions: {
-    async getJobsPaginated(params: JobListParams, page: number) {
+    async getJobsPaginated(params: JobListParams, cursor: string | null) {
       const queryParams: Record<string, unknown> = {
-        page,
+        cursor: cursor ?? undefined,
         rowsPerPage: params.rowsPerPage,
         sort: params.sort,
       };
@@ -74,9 +74,9 @@ export const useJobsStore = defineStore("jobs", {
       );
       return response.data;
     },
-    async listJobs(kind: string, rowsPerPage: number, page: number) {
+    async listJobs(kind: string, rowsPerPage: number, cursor: string | null) {
       const response = await apiClient.get(this.userApiPrefix, {
-        params: { kind, rowsPerPage, page },
+        params: { kind, rowsPerPage, cursor: cursor ?? undefined },
       });
       return response.data;
     },

@@ -110,10 +110,10 @@
           />
 
           <SimplePaginator
-            :current-page="page"
+            :current-page="page + 1"
             :total-records="paginator.total"
             :rows-per-page="paginator.rowsPerPage"
-            @page-change="loadNotifications"
+            @page-change="onPageChange"
           />
         </div>
       </div>
@@ -128,6 +128,7 @@ import { useSharedStore } from "../../services/stores/shared_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useWsStore } from "../../services/stores/ws_store.ts";
 import dateHelper from "../../utils/date_helper.ts";
+import { useCursorPager } from "../../utils/use_cursor_pager.ts";
 import SimplePaginator from "../components/base/SimplePaginator.vue";
 import EmptyState from "../components/base/EmptyState.vue";
 import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
@@ -135,7 +136,6 @@ import type {
   Notification,
   NotificationType,
 } from "../../models/notification_models.ts";
-import type { PaginatorState } from "../../models/shared_models.ts";
 
 const notificationStore = useNotificationStore();
 const sharedStore = useSharedStore();
@@ -145,22 +145,19 @@ const wsStore = useWsStore();
 const open = ref(false);
 const notifications = ref<Notification[]>([]);
 const onlyUnread = ref(false);
-const page = ref(1);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: 5,
-});
+const pager = useCursorPager(5);
+const paginator = pager.paginator;
+const page = pager.page;
 
 const toggle = async () => {
   open.value = !open.value;
   if (open.value) {
+    pager.reset();
     await loadNotifications();
   }
 };
 
-const loadNotifications = async (page_num = 1) => {
+const loadNotifications = async () => {
   try {
     const response = await sharedStore.getRecordsPaginated(
       notificationStore.apiPrefix,
@@ -168,17 +165,18 @@ const loadNotifications = async (page_num = 1) => {
         rowsPerPage: paginator.value.rowsPerPage,
         unread: onlyUnread.value || undefined,
       },
-      page_num,
+      pager.cursor.value,
     );
     notifications.value = response.data || [];
-    paginator.value.total = response.total_records ?? 0;
-    paginator.value.from = response.from ?? 0;
-    paginator.value.to = response.to ?? 0;
-    page.value = page_num;
+    pager.update(response, notifications.value.length);
     notificationStore.hasUnread = notifications.value.some((n) => !n.read_at);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
+};
+
+const onPageChange = async (target: number) => {
+  if (pager.goTo(target - 1)) await loadNotifications();
 };
 
 const filterOptions = [
@@ -190,14 +188,15 @@ const filter = computed({
   get: () => (onlyUnread.value ? "unread" : "all"),
   set: (value) => {
     onlyUnread.value = value === "unread";
-    loadNotifications(1);
+    pager.reset();
+    loadNotifications();
   },
 });
 
 const markAsRead = async (id: number) => {
   try {
     await notificationStore.markAsRead(id);
-    await loadNotifications(page.value);
+    await loadNotifications();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -206,7 +205,7 @@ const markAsRead = async (id: number) => {
 const markAllAsRead = async () => {
   try {
     await notificationStore.markAllAsRead();
-    await loadNotifications(page.value);
+    await loadNotifications();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -238,7 +237,7 @@ onMounted(() => {
   notificationStore.checkUnread();
   unsubscribe = wsStore.on("notification.created", () => {
     notificationStore.checkUnread();
-    if (open.value) loadNotifications(page.value);
+    if (open.value) loadNotifications();
   });
 });
 

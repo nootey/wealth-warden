@@ -11,6 +11,18 @@ type Note struct {
 	UpdatedAt  time.Time  `gorm:"autoUpdateTime;not null" json:"updated_at"`
 }
 
+var NoteSort = SortSpec[Note]{
+	// Unresolved notes list first.
+	Fixed: []SortKey[Note]{
+		{Column: "notes.resolved_at IS NOT NULL", Value: func(n Note) any { return n.ResolvedAt != nil }},
+	},
+	Fields: map[string]SortKey[Note]{
+		"created_at": {Column: "notes.created_at", Value: func(n Note) any { return n.CreatedAt }},
+	},
+	ID:      SortKey[Note]{Column: "notes.id", Value: func(n Note) any { return n.ID }},
+	Default: "created_at",
+}
+
 type NoteReq struct {
 	Content string `json:"content" validate:"required,min=1,max=5000"`
 }

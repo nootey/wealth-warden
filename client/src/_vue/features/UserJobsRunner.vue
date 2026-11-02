@@ -5,10 +5,10 @@ import { useJobsStore } from "../../services/stores/jobs_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useWsStore } from "../../services/stores/ws_store.ts";
 import dateHelper from "../../utils/date_helper.ts";
+import { useCursorPager } from "../../utils/use_cursor_pager.ts";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import type { Column } from "../../services/filter_registry.ts";
 import type { JobState, RiverJob } from "../../models/job_models.ts";
-import type { PaginatorState } from "../../models/shared_models.ts";
 import type { UserJobPayload } from "../../models/ws_models.ts";
 
 const props = defineProps<{
@@ -30,13 +30,8 @@ const jobs = ref<RiverJob[]>([]);
 const loading = ref(false);
 
 const rows = ref([5, 10, 25]);
-const page = ref(1);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: rows.value[0]!,
-});
+const pager = useCursorPager(rows.value[0]!);
+const paginator = pager.paginator;
 
 // Job args are keyed by field names. UserID and anything named Internal* is excluded - worker only.
 const INTERNAL_ARG_PREFIX = "Internal";
@@ -130,12 +125,10 @@ async function refresh(silent = false) {
     const response = await jobsStore.listJobs(
       props.kind,
       paginator.value.rowsPerPage,
-      page.value,
+      pager.cursor.value,
     );
     jobs.value = response.data ?? [];
-    paginator.value.total = response.total_records;
-    paginator.value.from = response.from;
-    paginator.value.to = response.to;
+    pager.update(response, jobs.value.length);
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -144,9 +137,7 @@ async function refresh(silent = false) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await refresh();
+  if (pager.goTo(event.page, event.rows)) await refresh();
 }
 
 function retry(job: RiverJob) {

@@ -115,17 +115,22 @@ func NewTransactionService(
 var _ TransactionServiceInterface = (*TransactionService)(nil)
 
 func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.TransactionSort, p)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountTransactions(ctx, nil, userID, p.Filters, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindTransactions(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeDeleted, accountID)
+	records, err := s.repo.FindTransactions(ctx, nil, userID, ks, p.Filters, includeDeleted, accountID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, utils.KeysetError(ks, err)
 	}
+
+	records, paginator := utils.Paginate(records, ks, models.TransactionSort, totalRecords)
 
 	totals := &models.TransactionBatchTotals{}
 	for _, r := range records {
@@ -137,57 +142,26 @@ func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, use
 		}
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
 	return records, totals, paginator, nil
 }
 
 func (s *TransactionService) FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transfer, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.TransferSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountTransfers(ctx, nil, userID, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindTransfers(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, includeDeleted, accountID)
+	records, err := s.repo.FindTransfers(ctx, nil, userID, ks, includeDeleted, accountID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
+	records, paginator := utils.Paginate(records, ks, models.TransferSort, totalRecords)
 
 	return records, paginator, nil
 }
@@ -2390,36 +2364,22 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 }
 
 func (s *TransactionService) FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, templateType string) ([]models.TransactionTemplate, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.TransactionTemplateSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountTransactionTemplates(ctx, nil, userID, false, templateType)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindTransactionTemplates(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, templateType)
+	records, err := s.repo.FindTransactionTemplates(ctx, nil, userID, ks, templateType)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.TransactionTemplateSort, totalRecords)
 	return records, paginator, nil
 }
 

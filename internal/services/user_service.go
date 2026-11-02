@@ -87,70 +87,42 @@ func (s *UserService) SearchUsersByEmail(ctx context.Context, q string) ([]model
 }
 
 func (s *UserService) FetchUsersPaginated(ctx context.Context, p utils.PaginationParams, includeDeleted bool) ([]models.User, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.UserSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountUsers(ctx, nil, p.Filters, includeDeleted)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindUsers(ctx, nil, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeDeleted)
+	records, err := s.repo.FindUsers(ctx, nil, ks, p.Filters, includeDeleted)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.UserSort, totalRecords)
 	return records, paginator, nil
 }
 
 func (s *UserService) FetchInvitationsPaginated(ctx context.Context, p utils.PaginationParams) ([]models.Invitation, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.InvitationSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountInvitations(ctx, nil, p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindInvitations(ctx, nil, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
+	records, err := s.repo.FindInvitations(ctx, nil, ks, p.Filters)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.InvitationSort, totalRecords)
 	return records, paginator, nil
 }
 

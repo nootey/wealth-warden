@@ -5,8 +5,8 @@ import { useLoggingStore } from "../../../services/stores/logging_store.ts";
 import { onMounted, ref } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import SimplePaginator from "./SimplePaginator.vue";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import type { ActivityLog } from "../../../models/logging_models.ts";
-import type { PaginatorState } from "../../../models/shared_models.ts";
 
 const props = defineProps<{
   recordId: number | string;
@@ -19,13 +19,9 @@ const toastStore = useToastStore();
 
 const trail = ref<ActivityLog[]>([]);
 const loading = ref(false);
-const page = ref(1);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: 3,
-});
+const pager = useCursorPager(3);
+const paginator = pager.paginator;
+const page = pager.page;
 
 function formatAuditValue(item: { newVal: unknown; oldVal: unknown }): string {
   const fmt = (v: unknown): string => {
@@ -46,7 +42,7 @@ function formatAuditValue(item: { newVal: unknown; oldVal: unknown }): string {
   return fmt(hasNew ? item.newVal : hasOld ? item.oldVal : "");
 }
 
-async function loadTrail(page_num: number) {
+async function loadTrail() {
   if (loading.value) return;
 
   loading.value = true;
@@ -55,15 +51,12 @@ async function loadTrail(page_num: number) {
       props.recordId,
       props.events,
       props.categories,
-      page_num,
+      pager.cursor.value,
       paginator.value.rowsPerPage,
     );
 
     trail.value = response.data || [];
-    paginator.value.total = response.total_records;
-    paginator.value.from = response.from;
-    paginator.value.to = response.to;
-    page.value = page_num;
+    pager.update(response, trail.value.length);
   } catch (error) {
     toastStore.errorResponseToast(error);
     trail.value = [];
@@ -72,8 +65,12 @@ async function loadTrail(page_num: number) {
   }
 }
 
+async function onPageChange(target: number) {
+  if (pager.goTo(target - 1)) await loadTrail();
+}
+
 onMounted(async () => {
-  await loadTrail(1);
+  await loadTrail();
 });
 </script>
 
@@ -144,10 +141,10 @@ onMounted(async () => {
         </div>
       </div>
       <SimplePaginator
-        :current-page="page"
+        :current-page="page + 1"
         :total-records="paginator.total"
         :rows-per-page="paginator.rowsPerPage"
-        @page-change="loadTrail"
+        @page-change="onPageChange"
       />
     </div>
   </Panel>

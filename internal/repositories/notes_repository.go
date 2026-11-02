@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
 )
 
 type NotesRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
-	FindNotes(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.Note, error)
+	FindNotes(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset) ([]models.Note, error)
 	CountNotes(ctx context.Context, tx *gorm.DB, userID int64) (int64, error)
 	FindNoteByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.Note, error)
 	InsertNote(ctx context.Context, tx *gorm.DB, newRecord *models.Note) (int64, error)
@@ -34,7 +35,7 @@ func (r *NotesRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	return tx, tx.Error
 }
 
-func (r *NotesRepository) FindNotes(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.Note, error) {
+func (r *NotesRepository) FindNotes(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset) ([]models.Note, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -42,11 +43,9 @@ func (r *NotesRepository) FindNotes(ctx context.Context, tx *gorm.DB, userID int
 	db = db.WithContext(ctx)
 
 	var records []models.Note
-	err := db.Model(&models.Note{}).
-		Where("user_id = ?", userID).
-		Order("resolved_at IS NULL DESC, created_at DESC").
-		Limit(limit).
-		Offset(offset).
+	q := db.Model(&models.Note{}).
+		Where("user_id = ?", userID)
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err

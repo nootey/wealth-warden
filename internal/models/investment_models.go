@@ -168,6 +168,55 @@ type InvestmentIncome struct {
 	UpdatedAt           time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
+var InvestmentAssetSort = SortSpec[InvestmentAsset]{
+	Source: "investment_assets",
+	Fields: map[string]SortKey[InvestmentAsset]{
+		"name":              {Column: "investment_assets.name", Value: func(a InvestmentAsset) any { return a.Name }},
+		"ticker":            {Column: "investment_assets.ticker", Value: func(a InvestmentAsset) any { return a.Ticker }},
+		"quantity":          {Column: "investment_assets.quantity", Value: func(a InvestmentAsset) any { return a.Quantity }},
+		"average_buy_price": {Column: "investment_assets.average_buy_price", Value: func(a InvestmentAsset) any { return a.AverageBuyPrice }},
+		"value_at_buy":      {Column: "investment_assets.value_at_buy", Value: func(a InvestmentAsset) any { return a.ValueAtBuy }},
+		"current_value":     {Column: "investment_assets.current_value", Value: func(a InvestmentAsset) any { return a.CurrentValue }},
+		"profit_loss":       {Column: "investment_assets.profit_loss", Value: func(a InvestmentAsset) any { return a.ProfitLoss }},
+		"created_at":        {Column: "investment_assets.created_at", Value: func(a InvestmentAsset) any { return a.CreatedAt }},
+		"account":           {Column: "accounts.name", Value: func(a InvestmentAsset) any { return a.Account.Name }},
+	},
+	ID:      SortKey[InvestmentAsset]{Column: "investment_assets.id", Value: func(a InvestmentAsset) any { return a.ID }},
+	Default: "created_at",
+}
+
+var InvestmentTradeSort = SortSpec[InvestmentTrade]{
+	Source: "investment_trades",
+	Fields: map[string]SortKey[InvestmentTrade]{
+		"txn_date":       {Column: "investment_trades.txn_date", Value: func(t InvestmentTrade) any { return t.TxnDate }},
+		"trade_type":     {Column: "investment_trades.trade_type", Value: func(t InvestmentTrade) any { return t.TradeType }},
+		"quantity":       {Column: "investment_trades.quantity", Value: func(t InvestmentTrade) any { return t.Quantity }},
+		"price_per_unit": {Column: "investment_trades.price_per_unit", Value: func(t InvestmentTrade) any { return t.PricePerUnit }},
+		"value_at_buy":   {Column: "investment_trades.value_at_buy", Value: func(t InvestmentTrade) any { return t.ValueAtBuy }},
+		"current_value":  {Column: "investment_trades.current_value", Value: func(t InvestmentTrade) any { return t.CurrentValue }},
+		"profit_loss":    {Column: "investment_trades.profit_loss", Value: func(t InvestmentTrade) any { return t.ProfitLoss }},
+		"created_at":     {Column: "investment_trades.created_at", Value: func(t InvestmentTrade) any { return t.CreatedAt }},
+		"asset.name":     {Column: "investment_assets.name", Value: func(t InvestmentTrade) any { return t.Asset.Name }},
+		"asset.ticker":   {Column: "investment_assets.ticker", Value: func(t InvestmentTrade) any { return t.Asset.Ticker }},
+	},
+	ID:      SortKey[InvestmentTrade]{Column: "investment_trades.id", Value: func(t InvestmentTrade) any { return t.ID }},
+	Default: "txn_date",
+}
+
+var InvestmentIncomeSort = SortSpec[InvestmentIncome]{
+	Fields: map[string]SortKey[InvestmentIncome]{
+		"txn_date":     {Column: "investment_income.txn_date", Value: func(i InvestmentIncome) any { return i.TxnDate }},
+		"income_type":  {Column: "investment_income.income_type", Value: func(i InvestmentIncome) any { return i.IncomeType }},
+		"quantity":     {Column: "investment_income.quantity", Value: func(i InvestmentIncome) any { return i.Quantity }},
+		"amount":       {Column: "investment_income.amount", Value: func(i InvestmentIncome) any { return i.Amount }},
+		"tax_withheld": {Column: "investment_income.tax_withheld", Value: func(i InvestmentIncome) any { return i.TaxWithheld }},
+		"notes":        {Column: "investment_income.notes", Value: func(i InvestmentIncome) any { return i.Notes }},
+		"created_at":   {Column: "investment_income.created_at", Value: func(i InvestmentIncome) any { return i.CreatedAt }},
+	},
+	ID:      SortKey[InvestmentIncome]{Column: "investment_income.id", Value: func(i InvestmentIncome) any { return i.ID }},
+	Default: "txn_date",
+}
+
 type TradeTaxInfo struct {
 	DaysHeld             int              `json:"days_held"`
 	TaxablePercent       *decimal.Decimal `json:"taxable_percent"`

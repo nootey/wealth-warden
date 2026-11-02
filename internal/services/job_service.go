@@ -13,6 +13,7 @@ import (
 
 	"github.com/riverqueue/river/rivertype"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 var (
@@ -86,16 +87,10 @@ func (s *JobService) FetchJobs(ctx context.Context, p JobQueryParams) ([]models.
 		}
 	}
 
-	sortExpr := models.RiverJobSortFields["id"]
-	if expr, ok := models.RiverJobSortFields[p.Pagination.SortField]; ok {
-		sortExpr = expr
+	ks, err := utils.NewKeyset(models.RiverJobSort, p.Pagination)
+	if err != nil {
+		return nil, nil, err
 	}
-	sortOrder := "desc"
-	if p.Pagination.SortOrder == "asc" {
-		sortOrder = "asc"
-	}
-
-	pageNumber, rowsPerPage := normalizeJobPagination(p.Pagination)
 
 	filter := repositories.JobListFilter{
 		States:  p.States,
@@ -107,49 +102,13 @@ func (s *JobService) FetchJobs(ctx context.Context, p JobQueryParams) ([]models.
 		return nil, nil, err
 	}
 
-	offset := (pageNumber - 1) * rowsPerPage
-	rows, err := s.repo.ListJobs(ctx, filter, offset, rowsPerPage, sortExpr, sortOrder)
+	rows, err := s.repo.ListJobs(ctx, filter, ks)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	return rows, jobPaginator(pageNumber, rowsPerPage, int(total), len(rows)), nil
-}
-
-func normalizeJobPagination(p utils.PaginationParams) (pageNumber, rowsPerPage int) {
-	rowsPerPage = p.RowsPerPage
-	if rowsPerPage <= 0 {
-		rowsPerPage = 10
-	}
-	if rowsPerPage > 200 {
-		rowsPerPage = 200
-	}
-	pageNumber = p.PageNumber
-	if pageNumber < 1 {
-		pageNumber = 1
-	}
-	return pageNumber, rowsPerPage
-}
-
-func jobPaginator(pageNumber, rowsPerPage, total, rowCount int) *utils.Paginator {
-	offset := (pageNumber - 1) * rowsPerPage
-
-	from := offset + 1
-	if from > total {
-		from = total
-	}
-	to := offset + rowCount
-	if to > total {
-		to = total
-	}
-
-	return &utils.Paginator{
-		CurrentPage:  pageNumber,
-		RowsPerPage:  rowsPerPage,
-		TotalRecords: total,
-		From:         from,
-		To:           to,
-	}
+	rows, paginator := utils.Paginate(rows, ks, models.RiverJobSort, total)
+	return rows, paginator, nil
 }
 
 func (s *JobService) FetchJobCounts(ctx context.Context) (map[string]int64, error) {
@@ -328,7 +287,11 @@ func (s *JobService) ListUserJobs(ctx context.Context, userID int64, kind string
 		return nil, nil, ErrJobKindNotAllowed
 	}
 
-	pageNumber, rowsPerPage := normalizeJobPagination(p)
+	p.SortField, p.SortOrder = "created_at", "desc"
+	ks, err := utils.NewKeyset(models.RiverJobSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
 	kinds := []string{kind}
 
 	total, err := s.repo.CountUserJobs(ctx, kinds, userID)
@@ -336,12 +299,13 @@ func (s *JobService) ListUserJobs(ctx context.Context, userID int64, kind string
 		return nil, nil, err
 	}
 
-	rows, err := s.repo.FindUserJobs(ctx, kinds, userID, nil, (pageNumber-1)*rowsPerPage, rowsPerPage)
+	rows, err := s.repo.FindUserJobs(ctx, kinds, userID, ks)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	return rows, jobPaginator(pageNumber, rowsPerPage, int(total), len(rows)), nil
+	rows, paginator := utils.Paginate(rows, ks, models.RiverJobSort, total)
+	return rows, paginator, nil
 }
 
 func (s *JobService) RetryUserJob(ctx context.Context, userID, id int64) error {
@@ -381,12 +345,12 @@ func (s *JobService) findUserJob(ctx context.Context, userID, id int64) (*models
 		kinds = append(kinds, k)
 	}
 
-	jobs, err := s.repo.FindUserJobs(ctx, kinds, userID, &id, 0, 1)
+	job, err := s.repo.FindUserJob(ctx, kinds, userID, id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apperr.Wrap(apperr.NotFound, "job not found", rivertype.ErrNotFound)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if len(jobs) == 0 {
-		return nil, apperr.Wrap(apperr.NotFound, "job not found", rivertype.ErrNotFound)
-	}
-	return &jobs[0], nil
+	return &job, nil
 }

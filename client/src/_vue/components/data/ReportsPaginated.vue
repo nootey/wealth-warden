@@ -6,10 +6,10 @@ import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import { useWsStore } from "../../../services/stores/ws_store.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import DisplayStatus from "../base/DisplayStatus.vue";
-import type { PaginatorState } from "../../../models/shared_models.ts";
 import type { Report } from "../../../models/analytics_models.ts";
 import { useConfirm } from "primevue/useconfirm";
 import vueHelper from "../../../utils/vue_helper.ts";
@@ -29,13 +29,8 @@ const loading = ref(false);
 const records = ref<Report[]>([]);
 
 const rows = ref([10, 25, 50]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: rows.value[0]!,
-});
-const page = ref(1);
+const pager = useCursorPager(rows.value[0]!);
+const paginator = pager.paginator;
 const sort = ref(filterHelper.initSort("created_at"));
 
 const params = computed(() => ({
@@ -59,20 +54,17 @@ onMounted(async () => {
 
 onUnmounted(() => unsubscribers.forEach((unsubscribe) => unsubscribe()));
 
-async function getData(newPage: number | null = null) {
+async function getData() {
   loading.value = true;
-  if (newPage) page.value = newPage;
 
   try {
     const res = await sharedStore.getRecordsPaginated(
       apiPrefix,
       { ...params.value },
-      page.value,
+      pager.cursor.value,
     );
     records.value = res.data.records;
-    paginator.value.total = res.total_records;
-    paginator.value.from = res.from;
-    paginator.value.to = res.to;
+    pager.update(res, records.value.length);
   } catch (e) {
     toastStore.errorResponseToast(e);
   } finally {
@@ -81,9 +73,7 @@ async function getData(newPage: number | null = null) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 async function downloadReport(id: number, name: string) {
@@ -123,7 +113,8 @@ async function deleteReport(id: number) {
 }
 
 function refresh() {
-  getData(1);
+  pager.reset();
+  getData();
 }
 
 defineExpose({ refresh });

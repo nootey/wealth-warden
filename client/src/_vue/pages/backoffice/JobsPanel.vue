@@ -6,6 +6,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import LoadingSpinner from "../../components/base/LoadingSpinner.vue";
 import CustomPaginator from "../../components/base/CustomPaginator.vue";
 import ColumnHeader from "../../components/base/ColumnHeader.vue";
@@ -20,10 +21,7 @@ import type {
   RiverJob,
   RiverJobDetail,
 } from "../../../models/job_models.ts";
-import type {
-  FilterObj,
-  PaginatorState,
-} from "../../../models/shared_models.ts";
+import type { FilterObj } from "../../../models/shared_models.ts";
 import ActionRow from "../../components/layout/ActionRow.vue";
 
 const jobsStore = useJobsStore();
@@ -111,13 +109,8 @@ const columns = computed<Column[]>(() => [
 ]);
 
 const rows = ref([10, 25, 50, 100]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: rows.value[0]!,
-});
-const page = ref(1);
+const pager = useCursorPager(rows.value[0]!);
+const paginator = pager.paginator;
 const sort = ref({ field: "id", order: -1 });
 
 const detail = ref<RiverJobDetail | null>(null);
@@ -176,7 +169,7 @@ function startPolling() {
   pollTimer = window.setInterval(() => {
     if (document.hidden) return;
     void getCounts();
-    void getData(null, true);
+    void getData(true);
   }, POLL_MS);
 }
 
@@ -188,20 +181,20 @@ function stopPolling() {
 function onVisibilityChange() {
   if (!document.hidden) {
     void getCounts();
-    void getData(null, true);
+    void getData(true);
   }
 }
 
-async function getData(newPage: number | null = null, silent = false) {
-  if (newPage) page.value = newPage;
+async function getData(silent = false) {
   if (!silent) loading.value = true;
 
   try {
-    const response = await jobsStore.getJobsPaginated(params.value, page.value);
+    const response = await jobsStore.getJobsPaginated(
+      params.value,
+      pager.cursor.value,
+    );
     records.value = response.data ?? [];
-    paginator.value.total = response.total_records;
-    paginator.value.to = response.to;
-    paginator.value.from = response.from;
+    pager.update(response, records.value.length);
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -230,21 +223,24 @@ function toggleState(state: JobState) {
   const idx = selectedStates.value.indexOf(state);
   if (idx === -1) selectedStates.value.push(state);
   else selectedStates.value.splice(idx, 1);
-  getData(1);
+  pager.reset();
+  getData();
 }
 
 function applyFilters(list: FilterObj[]) {
   filters.value = filterHelper.mergeFilters(filters.value, list);
   persistFilters();
   filterOverlayRef.value?.hide();
-  getData(1);
+  pager.reset();
+  getData();
 }
 
 function clearFilters() {
   filters.value = [];
   persistFilters();
   filterOverlayRef.value?.hide();
-  getData(1);
+  pager.reset();
+  getData();
 }
 
 function removeFilter(index: number) {
@@ -253,7 +249,8 @@ function removeFilter(index: number) {
   next.splice(index, 1);
   filters.value = next;
   persistFilters();
-  getData(1);
+  pager.reset();
+  getData();
 }
 
 function persistFilters() {
@@ -271,9 +268,7 @@ function toggleFilterOverlay(event: Event) {
 provide("removeFilter", removeFilter);
 
 async function onPage(event: { rows: number; page: number }) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 function switchSort(field: string) {
@@ -283,6 +278,7 @@ function switchSort(field: string) {
     sort.value.field = field;
     sort.value.order = -1;
   }
+  pager.reset();
   getData();
 }
 
@@ -319,7 +315,7 @@ function confirmAction(
       try {
         const res = await action([id]);
         toastStore.successResponseToast(res!);
-        await Promise.all([getData(null, true), getCounts()]);
+        await Promise.all([getData(true), getCounts()]);
       } catch (error) {
         toastStore.errorResponseToast(error);
       }

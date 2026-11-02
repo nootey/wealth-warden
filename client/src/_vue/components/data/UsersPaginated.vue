@@ -5,11 +5,9 @@ import type { Column } from "../../../services/filter_registry.ts";
 import ActionRow from "../layout/ActionRow.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import CustomPaginator from "../base/CustomPaginator.vue";
-import type {
-  FilterObj,
-  PaginatorState,
-} from "../../../models/shared_models.ts";
+import type { FilterObj } from "../../../models/shared_models.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import { computed, onMounted, provide, ref } from "vue";
 import type { Role, User } from "../../../models/user_models.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
@@ -47,13 +45,8 @@ const params = computed(() => {
 
 const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value!,
-});
-const page = ref(1);
+const pager = useCursorPager(default_rows.value!);
+const paginator = pager.paginator;
 const sort = ref(filterHelper.initSort());
 const filterStorageIndex = ref(apiPrefix + "-filters");
 const filters = ref(
@@ -88,9 +81,8 @@ async function init() {
   await getData();
 }
 
-async function getData(new_page: number | null = null) {
+async function getData() {
   loading.value = true;
-  if (new_page) page.value = new_page;
 
   try {
     let payload = {
@@ -100,13 +92,11 @@ async function getData(new_page: number | null = null) {
     let paginationResponse = await sharedStore.getRecordsPaginated(
       apiPrefix,
       payload,
-      page.value,
+      pager.cursor.value,
     );
 
     records.value = paginationResponse.data;
-    paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
+    pager.update(paginationResponse, records.value.length);
     loading.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -114,14 +104,13 @@ async function getData(new_page: number | null = null) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 function applyFilters(list: FilterObj[]) {
   filters.value = filterHelper.mergeFilters(filters.value, list);
   localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
+  pager.reset();
   getData();
   filterOverlayRef.value.hide();
 }
@@ -130,6 +119,7 @@ function clearFilters() {
   filters.value = [];
   localStorage.removeItem(filterStorageIndex.value);
   cancelFilters();
+  pager.reset();
   getData();
 }
 
@@ -153,6 +143,7 @@ function removeFilter(index: number) {
     localStorage.removeItem(filterStorageIndex.value);
   }
 
+  pager.reset();
   getData();
 }
 
@@ -163,6 +154,7 @@ function switchSort(column: string) {
     sort.value.order = 1;
   }
   sort.value.field = column;
+  pager.reset();
   getData();
 }
 

@@ -5,6 +5,7 @@ package services_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -3796,7 +3797,7 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyClientV
 	})
 	s.Require().NoError(err)
 
-	p := utils.PaginationParams{PageNumber: 1, RowsPerPage: 50, SortField: "id", SortOrder: "asc"}
+	p := utils.PaginationParams{RowsPerPage: 50, SortField: "id", SortOrder: "asc"}
 
 	// Three accounts, so three opening rows, plus the ledger and the adjustment.
 	records, totals, paginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
@@ -3820,6 +3821,113 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyClientV
 	s.Require().Len(invRecords, 1, "the trade cash leg must stay hidden")
 	s.Equal(models.TxnTypeOpening, invRecords[0].TransactionType)
 	s.Equal(1, invPaginator.TotalRecords)
+}
+
+// Every sort must page through the list without skipping or repeating a row, and walking
+// back must rebuild the same pages. Ties, a nullable column and joined columns are the
+// cases a keyset gets wrong first.
+func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_CursorWalk() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	var accountIDs []int64
+	for _, name := range []string{"Cursor Cash", "Cursor Savings"} {
+		balance := decimal.NewFromInt(10000)
+		id, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+			Name:           name,
+			AccountTypeID:  1,
+			Type:           "asset",
+			Subtype:        "cash",
+			Classification: "current",
+			Balance:        &balance,
+			OpenedAt:       today.AddDate(0, 0, -30),
+		})
+		s.Require().NoError(err)
+		accountIDs = append(accountIDs, id)
+	}
+
+	var categoryIDs []int64
+	for _, name := range []string{"Cursor Alpha", "Cursor Beta"} {
+		id, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: name, Classification: "expense"})
+		s.Require().NoError(err)
+		categoryIDs = append(categoryIDs, id)
+	}
+
+	desc := "Shared description"
+	for i := range 13 {
+		req := &models.TransactionReq{
+			AccountID: accountIDs[i%2],
+			Direction: "expense",
+			Amount:    decimal.NewFromInt(int64(10 + i%3)),
+			TxnDate:   today.AddDate(0, 0, -(i % 4)),
+		}
+		if i%2 == 0 {
+			req.Description = &desc
+		}
+		if i%3 != 0 {
+			req.CategoryID = &categoryIDs[i%2]
+		}
+		_, err := svc.InsertTransaction(s.Ctx, userID, req)
+		s.Require().NoError(err)
+	}
+
+	ids := func(records []models.Transaction) []int64 {
+		out := make([]int64, len(records))
+		for i, r := range records {
+			out[i] = r.ID
+		}
+		return out
+	}
+	byCategory := []utils.Filter{{Source: "transactions", Field: "category", Operator: "=", Value: strconv.FormatInt(categoryIDs[0], 10)}}
+
+	cases := []struct {
+		field, order string
+		filters      []utils.Filter
+	}{
+		{field: "txn_date", order: "desc"},
+		{field: "amount", order: "asc"},
+		{field: "description", order: "asc"},
+		{field: "description", order: "desc"},
+		{field: "category", order: "asc"},
+		{field: "category", order: "desc", filters: byCategory},
+		{field: "account", order: "desc"},
+	}
+	for _, tc := range cases {
+		name := tc.field + " " + tc.order
+		p := utils.PaginationParams{RowsPerPage: 200, SortField: tc.field, SortOrder: tc.order, Filters: tc.filters}
+		all, _, _, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
+		s.Require().NoError(err, name)
+		s.Require().Greater(len(all), 3, name)
+
+		p.RowsPerPage = 3
+		var pages [][]int64
+		var paginator *utils.Paginator
+		for {
+			var records []models.Transaction
+			records, _, paginator, err = svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
+			s.Require().NoError(err, name)
+			pages = append(pages, ids(records))
+			if paginator.NextCursor == nil {
+				break
+			}
+			p.Cursor = *paginator.NextCursor
+		}
+		s.Equal(ids(all), slices.Concat(pages...), name)
+		s.Equal(len(all), paginator.TotalRecords, name)
+
+		for i := len(pages) - 2; i >= 0; i-- {
+			s.Require().NotNil(paginator.PrevCursor, name)
+			p.Cursor = *paginator.PrevCursor
+
+			var records []models.Transaction
+			records, _, paginator, err = svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
+			s.Require().NoError(err, name)
+			s.Equal(pages[i], ids(records), name)
+		}
+		s.Nil(paginator.PrevCursor, name)
+	}
 }
 
 func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {
@@ -4250,7 +4358,6 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_AmountFilte
 	insert(models.TxnDirectionExpense, other)
 
 	params := utils.PaginationParams{
-		PageNumber:  1,
 		RowsPerPage: 10,
 		SortField:   "created_at",
 		SortOrder:   "desc",

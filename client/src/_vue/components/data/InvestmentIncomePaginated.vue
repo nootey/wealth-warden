@@ -8,6 +8,7 @@ import { usePermissions } from "../../../utils/use_permissions.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import ColumnHeader from "../base/ColumnHeader.vue";
@@ -15,7 +16,6 @@ import type {
   InvestmentIncome,
   InvestmentType,
 } from "../../../models/investment_models.ts";
-import type { PaginatorState } from "../../../models/shared_models.ts";
 import type { Column } from "../../../services/filter_registry.ts";
 
 const props = defineProps<{
@@ -32,14 +32,9 @@ const { hasPermission } = usePermissions();
 
 const records = ref<InvestmentIncome[]>([]);
 const loading = ref(false);
-const page = ref(1);
 const rows = ref([10, 25, 50]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: rows.value[0]!,
-});
+const pager = useCursorPager(rows.value[0]!);
+const paginator = pager.paginator;
 const sort = ref(filterHelper.initSort("txn_date"));
 
 const apiPrefix = computed(() => `investments/assets/${props.assetId}/income`);
@@ -67,12 +62,10 @@ async function load(): Promise<void> {
     const res = await sharedStore.getRecordsPaginated(
       apiPrefix.value,
       { rowsPerPage: paginator.value.rowsPerPage, sort: sort.value },
-      page.value,
+      pager.cursor.value,
     );
     records.value = res.data;
-    paginator.value.total = res.total_records;
-    paginator.value.from = res.from;
-    paginator.value.to = res.to;
+    pager.update(res, records.value.length);
   } catch (e) {
     toastStore.errorResponseToast(e);
   } finally {
@@ -81,9 +74,7 @@ async function load(): Promise<void> {
 }
 
 async function onPage(event: any): Promise<void> {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await load();
+  if (pager.goTo(event.page, event.rows)) await load();
 }
 
 async function switchSort(column: string): Promise<void> {
@@ -93,6 +84,7 @@ async function switchSort(column: string): Promise<void> {
     sort.value.order = 1;
   }
   sort.value.field = column;
+  pager.reset();
   await load();
 }
 

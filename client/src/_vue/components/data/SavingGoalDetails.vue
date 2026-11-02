@@ -17,7 +17,7 @@ import Decimal from "decimal.js";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { computed, onMounted, provide, ref } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
-import type { PaginatorState } from "../../../models/shared_models.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import type { Column } from "../../../services/filter_registry.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 
@@ -39,13 +39,8 @@ const loading = ref(false);
 const contributions = ref<SavingContribution[]>([]);
 
 const rows = [5, 10, 25];
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: rows[0]!,
-});
-const page = ref(1);
+const pager = useCursorPager(rows[0]!);
+const paginator = pager.paginator;
 const sort = ref(filterHelper.initSort("month"));
 
 const columns: Column[] = [
@@ -98,19 +93,16 @@ onMounted(async () => {
   await getData();
 });
 
-async function getData(new_page: number | null = null) {
+async function getData() {
   loading.value = true;
-  if (new_page) page.value = new_page;
   try {
     const res = await sharedStore.getRecordsPaginated(
       apiPrefix.value,
       params.value,
-      page.value,
+      pager.cursor.value,
     );
     contributions.value = res.data;
-    paginator.value.total = res.total_records;
-    paginator.value.from = res.from;
-    paginator.value.to = res.to;
+    pager.update(res, contributions.value.length);
   } catch (err) {
     toastStore.errorResponseToast(err);
   } finally {
@@ -119,8 +111,7 @@ async function getData(new_page: number | null = null) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  await getData(event.page + 1);
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 async function switchSort(column: string) {
@@ -130,6 +121,7 @@ async function switchSort(column: string) {
     sort.value.order = 1;
   }
   sort.value.field = column;
+  pager.reset();
   await getData();
 }
 

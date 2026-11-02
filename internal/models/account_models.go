@@ -26,6 +26,15 @@ type Account struct {
 	ClosedAt          *time.Time       `gorm:"column:closed_at;index" json:"closed_at"`
 }
 
+var AccountSort = SortSpec[Account]{
+	Fields: map[string]SortKey[Account]{
+		"name":      {Column: "accounts.name", Value: func(a Account) any { return a.Name }},
+		"opened_at": {Column: "accounts.opened_at", Value: func(a Account) any { return a.OpenedAt }},
+	},
+	ID:      SortKey[Account]{Column: "accounts.id", Value: func(a Account) any { return a.ID }},
+	Default: "opened_at",
+}
+
 type AccountWithOpening struct {
 	Account
 	StartBalance decimal.Decimal `json:"start_balance"`

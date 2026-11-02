@@ -11,8 +11,8 @@ import type { Column } from "../../../services/filter_registry.ts";
 import { useConfirm } from "primevue/useconfirm";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import ColumnHeader from "../base/ColumnHeader.vue";
-import type { PaginatorState } from "../../../models/shared_models.ts";
 import TransferForm from "../forms/TransferForm.vue";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import AuditTrail from "../base/AuditTrail.vue";
@@ -49,13 +49,8 @@ const params = computed(() => {
 });
 const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value!,
-});
-const page = ref(1);
+const pager = useCursorPager(default_rows.value!);
+const paginator = pager.paginator;
 const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed<Column[]>(() => [
@@ -70,20 +65,17 @@ onMounted(async () => {
   await getData();
 });
 
-async function getData(new_page = null) {
+async function getData() {
   loadingRecords.value = true;
-  if (new_page) page.value = new_page;
 
   try {
     let paginationResponse = await sharedStore.getRecordsPaginated(
       apiPrefix,
       { ...params.value },
-      page.value,
+      pager.cursor.value,
     );
     records.value = paginationResponse.data;
-    paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
+    pager.update(paginationResponse, records.value.length);
     loadingRecords.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -91,9 +83,7 @@ async function getData(new_page = null) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 function deleteConfirmation(id: number) {
@@ -181,6 +171,7 @@ async function switchSort(column: string) {
     sort.value.order = 1;
   }
   sort.value.field = column;
+  pager.reset();
   await getData();
 }
 

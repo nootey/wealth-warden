@@ -150,10 +150,10 @@
 
           <SimplePaginator
             v-if="paginator.total > paginator.rowsPerPage"
-            :current-page="page"
+            :current-page="page + 1"
             :total-records="paginator.total"
-            :rows-per-page="paginator.rowsPerPage!"
-            @page-change="loadNotes"
+            :rows-per-page="paginator.rowsPerPage"
+            @page-change="onPageChange"
           />
         </div>
       </div>
@@ -168,9 +168,9 @@ import { useSharedStore } from "../../services/stores/shared_store.ts";
 import type { Note } from "../../models/notes_models.ts";
 import dateHelper from "../../utils/date_helper.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
+import { useCursorPager } from "../../utils/use_cursor_pager.ts";
 import SimplePaginator from "../components/base/SimplePaginator.vue";
 import EmptyState from "../components/base/EmptyState.vue";
-import type { PaginatorState } from "../../models/shared_models.ts";
 
 const notesStore = useNotesStore();
 const sharedStore = useSharedStore();
@@ -180,40 +180,36 @@ const open = ref(false);
 const notes = ref<Note[]>([]);
 const newNoteContent = ref("");
 
-const rows = ref([5]);
-const default_rows = ref(rows.value[0]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value!,
-});
-const page = ref(1);
+const pager = useCursorPager(5);
+const paginator = pager.paginator;
+const page = pager.page;
 const originalContent = ref<string>("");
 
 const toggle = async () => {
   open.value = !open.value;
   if (open.value) {
+    pager.reset();
     await loadNotes();
   }
 };
 
-const loadNotes = async (page_num = 1) => {
+const loadNotes = async () => {
   try {
     const response = await sharedStore.getRecordsPaginated(
       notesStore.apiPrefix,
       { rowsPerPage: paginator.value.rowsPerPage },
-      page_num,
+      pager.cursor.value,
     );
 
     notes.value = response.data || [];
-    paginator.value.total = response.total_records;
-    paginator.value.to = response.to;
-    paginator.value.from = response.from;
-    page.value = page_num;
+    pager.update(response, notes.value.length);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
+};
+
+const onPageChange = async (target: number) => {
+  if (pager.goTo(target - 1)) await loadNotes();
 };
 
 const createNote = async () => {
@@ -224,6 +220,7 @@ const createNote = async () => {
       content: newNoteContent.value.trim(),
     });
     newNoteContent.value = "";
+    pager.reset();
     await loadNotes();
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -241,7 +238,7 @@ const updateNoteIfChanged = async (note: Note) => {
     await sharedStore.updateRecord(notesStore.apiPrefix, note.id!, {
       content: note.content.trim(),
     });
-    await loadNotes(page.value);
+    await loadNotes();
     toastStore.successResponseToast({
       title: "Success",
       message: "Note updated successfully.",
@@ -254,7 +251,7 @@ const updateNoteIfChanged = async (note: Note) => {
 const toggleResolve = async (id: number) => {
   try {
     await notesStore.toggleResolveState(id);
-    await loadNotes(page.value);
+    await loadNotes();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -263,7 +260,7 @@ const toggleResolve = async (id: number) => {
 const deleteNote = async (id: number) => {
   try {
     await sharedStore.deleteRecord("notes", id);
-    await loadNotes(page.value);
+    await loadNotes();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }

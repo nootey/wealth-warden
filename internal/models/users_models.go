@@ -36,6 +36,31 @@ type Invitation struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// The user list query already joins roles, so the role sort needs no join of its own.
+var UserSort = SortSpec[User]{
+	Source: "users",
+	Fields: map[string]SortKey[User]{
+		"email":           {Column: "users.email", Value: func(u User) any { return u.Email }},
+		"display_name":    {Column: "users.display_name", Value: func(u User) any { return u.DisplayName }},
+		"email_confirmed": {Column: "users.email_confirmed", Value: func(u User) any { return u.EmailConfirmed }},
+		"created_at":      {Column: "users.created_at", Value: func(u User) any { return u.CreatedAt }},
+		"role":            {Column: "roles.name", Value: func(u User) any { return u.Role.Name }},
+	},
+	ID:      SortKey[User]{Column: "users.id", Value: func(u User) any { return u.ID }},
+	Default: "created_at",
+}
+
+var InvitationSort = SortSpec[Invitation]{
+	Source: "invitations",
+	Fields: map[string]SortKey[Invitation]{
+		"email":      {Column: "invitations.email", Value: func(i Invitation) any { return i.Email }},
+		"created_at": {Column: "invitations.created_at", Value: func(i Invitation) any { return i.CreatedAt }},
+		"role":       {Column: "roles.name", Value: func(i Invitation) any { return i.Role.Name }},
+	},
+	ID:      SortKey[Invitation]{Column: "invitations.id", Value: func(i Invitation) any { return i.ID }},
+	Default: "created_at",
+}
+
 type Token struct {
 	ID         int64             `gorm:"primaryKey;autoIncrement" json:"id"`
 	TokenType  string            `gorm:"not null" json:"token_type"`

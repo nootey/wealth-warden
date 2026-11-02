@@ -15,7 +15,7 @@ import (
 
 type AccountRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
-	FindAccounts(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error)
+	FindAccounts(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error)
 	CountAccounts(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error)
 	FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool, includeAccountTypes bool) ([]models.Account, error)
 	FindAllAccountTypes(ctx context.Context, tx *gorm.DB, userID *int64) ([]models.AccountType, error)
@@ -65,7 +65,7 @@ func (r *AccountRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	return tx, tx.Error
 }
 
-func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error) {
+func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -87,19 +87,14 @@ func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userI
 	}
 
 	// Apply filters
-	joins := utils.GetRequiredJoins(filters)
+	joins := utils.GetRequiredJoins(filters, ks.Joins...)
 	for _, j := range joins {
 		q = q.Joins(j)
 	}
 	q = utils.ApplyFilters(q, filters)
 
-	orderBy := utils.ConstructOrderByClause(&joins, "accounts", sortField, sortOrder)
-
 	// fetch accounts
-	if err := q.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	if err := utils.ApplyKeyset(q, ks).
 		Find(&accounts).Error; err != nil {
 		return nil, err
 	}
