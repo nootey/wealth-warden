@@ -53,11 +53,8 @@ const rows = ref([25]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
   total: 0,
-  from: 0,
-  to: 0,
   rowsPerPage: default_rows.value,
 });
-const page = ref(1);
 const sort = ref({
   order: -1,
   field: "opened_at",
@@ -74,20 +71,16 @@ onMounted(async () => {
   await getData();
 });
 
-async function getData(new_page: number | null = null) {
+async function getData() {
   loading.value = true;
-  if (new_page) page.value = new_page;
 
   try {
     const paginationResponse = await sharedStore.getRecordsPaginated(
       apiPrefix,
       { ...params.value, inactive: true }, // props.advanced
-      page.value,
     );
     accounts.value = paginationResponse.data;
     paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {

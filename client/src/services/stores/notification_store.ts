@@ -16,7 +16,7 @@ export const useNotificationStore = defineStore("notifications", {
     async checkUnread() {
       try {
         const response = await apiClient.get("notifications", {
-          params: { rowsPerPage: 1, unread: true, page: 1 },
+          params: { rowsPerPage: 1, unread: true },
         });
         this.hasUnread = (response.data?.total_records ?? 0) > 0;
       } catch {

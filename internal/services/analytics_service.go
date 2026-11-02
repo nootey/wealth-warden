@@ -1402,34 +1402,23 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 }
 
 func (s *AnalyticsService) ListReportsPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Report, *utils.Paginator, error) {
+	p.SortField, p.SortOrder = "created_at", "desc"
+	ks, err := utils.NewKeyset(models.ReportSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	total, err := s.repo.CountReports(ctx, nil, userID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-	records, err := s.repo.FindReports(ctx, nil, userID, offset, p.RowsPerPage)
+	records, err := s.repo.FindReports(ctx, nil, userID, ks)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(total) {
-		from = int(total)
-	}
-	to := offset + len(records)
-	if to > int(total) {
-		to = int(total)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(total),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.ReportSort, total)
 	return records, paginator, nil
 }
 

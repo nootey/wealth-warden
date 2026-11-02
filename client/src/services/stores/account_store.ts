@@ -30,7 +30,6 @@ export const useAccountStore = defineStore("account", {
       const response = await apiClient.get(this.apiPrefix, {
         params: {
           rowsPerPage: 25,
-          page: 1,
           inactive: false,
           sort: { order: -1, field: "opened_at" },
         },

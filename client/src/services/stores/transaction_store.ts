@@ -16,12 +16,12 @@ export const useTransactionStore = defineStore("transaction", {
   actions: {
     async getPaginatedTransactionsForAccount(
       params: object,
-      page: number,
+      cursor: string | null,
       accID: number,
     ) {
       const queryParams = {
         ...params,
-        page: page,
+        cursor: cursor ?? undefined,
         account: accID,
       };
 
@@ -71,13 +71,13 @@ export const useTransactionStore = defineStore("transaction", {
     },
     async getTransactionCount(): Promise<number> {
       const response = await apiClient.get(`${this.apiPrefix}`, {
-        params: { page: 1, rowsPerPage: 1 },
+        params: { rowsPerPage: 1 },
       });
       return response.data?.total_records ?? 0;
     },
     async getTransferCount(): Promise<number> {
       const response = await apiClient.get(`${this.apiPrefix}/transfers`, {
-        params: { page: 1, rowsPerPage: 1 },
+        params: { rowsPerPage: 1 },
       });
       return response.data?.total_records ?? 0;
     },

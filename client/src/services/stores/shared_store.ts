@@ -6,11 +6,11 @@ export const useSharedStore = defineStore("shared", {
     async getRecordsPaginated(
       prefix: string,
       params: Record<string, unknown>,
-      page: number,
+      cursor: string | null = null,
     ) {
       const queryParams = {
         ...params,
-        page: page,
+        cursor: cursor ?? undefined,
       };
 
       const response = await apiClient.get(`${prefix}`, {

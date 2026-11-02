@@ -19,12 +19,13 @@ type JobListFilter struct {
 type JobRepositoryInterface interface {
 	OldestPendingAgeSeconds(ctx context.Context) (int64, error)
 	CountJobs(ctx context.Context, filter JobListFilter) (int64, error)
-	ListJobs(ctx context.Context, filter JobListFilter, offset, limit int, sortExpr, sortOrder string) ([]models.RiverJobRow, error)
+	ListJobs(ctx context.Context, filter JobListFilter, ks utils.Keyset) ([]models.RiverJobRow, error)
 	CountJobsByState(ctx context.Context) ([]models.RiverJobStateCount, error)
 	CountJobsByQueueState(ctx context.Context) ([]models.RiverQueueStateCount, error)
 	LastRunByKind(ctx context.Context, kinds []string) ([]models.RiverKindLastRun, error)
 	CountUserJobs(ctx context.Context, kinds []string, userID int64) (int64, error)
-	FindUserJobs(ctx context.Context, kinds []string, userID int64, id *int64, offset, limit int) ([]models.RiverJobRow, error)
+	FindUserJobs(ctx context.Context, kinds []string, userID int64, ks utils.Keyset) ([]models.RiverJobRow, error)
+	FindUserJob(ctx context.Context, kinds []string, userID, id int64) (models.RiverJobRow, error)
 }
 
 type JobRepository struct {
@@ -60,15 +61,12 @@ func (r *JobRepository) CountJobs(ctx context.Context, f JobListFilter) (int64, 
 	return total, err
 }
 
-func (r *JobRepository) ListJobs(ctx context.Context, f JobListFilter, offset, limit int, sortExpr, sortOrder string) ([]models.RiverJobRow, error) {
+func (r *JobRepository) ListJobs(ctx context.Context, f JobListFilter, ks utils.Keyset) ([]models.RiverJobRow, error) {
 	var rows []models.RiverJobRow
 	query := r.db.WithContext(ctx).Table("river_job").Select(jobListColumns)
 	query = r.applyJobFilter(query, f)
 
-	err := query.
-		Order(sortExpr + " " + sortOrder).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(query, ks).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -122,20 +120,22 @@ func (r *JobRepository) CountUserJobs(ctx context.Context, kinds []string, userI
 	return total, err
 }
 
-func (r *JobRepository) FindUserJobs(ctx context.Context, kinds []string, userID int64, id *int64, offset, limit int) ([]models.RiverJobRow, error) {
+func (r *JobRepository) FindUserJobs(ctx context.Context, kinds []string, userID int64, ks utils.Keyset) ([]models.RiverJobRow, error) {
 	var rows []models.RiverJobRow
 	query := r.userJobsQuery(ctx, kinds, userID).Select(jobListColumns)
-	if id != nil {
-		query = query.Where("id = ?", *id)
-	}
-	err := query.
-		// id breaks ties so paging stays stable across jobs created in the same instant
-		Order("created_at DESC, id DESC").
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(query, ks).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (r *JobRepository) FindUserJob(ctx context.Context, kinds []string, userID, id int64) (models.RiverJobRow, error) {
+	var row models.RiverJobRow
+	err := r.userJobsQuery(ctx, kinds, userID).
+		Select(jobListColumns).
+		Where("id = ?", id).
+		Take(&row).Error
+	return row, err
 }

@@ -16,3 +16,14 @@ type ActivityLog struct {
 	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }
+
+var ActivityLogSort = SortSpec[ActivityLog]{
+	Fields: map[string]SortKey[ActivityLog]{
+		"created_at": {Column: "activity_logs.created_at", Value: func(l ActivityLog) any { return l.CreatedAt }},
+		"event":      {Column: "activity_logs.event", Value: func(l ActivityLog) any { return l.Event }},
+		"category":   {Column: "activity_logs.category", Value: func(l ActivityLog) any { return l.Category }},
+		"causer_id":  {Column: "activity_logs.causer_id", Value: func(l ActivityLog) any { return l.CauserID }},
+	},
+	ID:      SortKey[ActivityLog]{Column: "activity_logs.id", Value: func(l ActivityLog) any { return l.ID }},
+	Default: "created_at",
+}

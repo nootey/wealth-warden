@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 	"wealth-warden/internal/jobqueue"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type JobServiceTestSuite struct {
@@ -36,6 +38,12 @@ func (s *JobServiceTestSuite) svc() *services.JobService {
 
 func (s *JobServiceTestSuite) repo() repositories.JobRepositoryInterface {
 	return repositories.NewJobRepository(s.TC.DB)
+}
+
+func (s *JobServiceTestSuite) newestFirst() utils.Keyset {
+	ks, err := utils.NewKeyset(models.RiverJobSort, utils.PaginationParams{RowsPerPage: 20, SortField: "created_at", SortOrder: "desc"})
+	s.Require().NoError(err)
+	return ks
 }
 
 func (s *JobServiceTestSuite) clearJobs() {
@@ -83,7 +91,6 @@ func (s *JobServiceTestSuite) TestFetchJobsFiltersByStateAndKind() {
 
 	rows, paginator, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
 		Pagination: utils.PaginationParams{
-			PageNumber:  1,
 			RowsPerPage: 10,
 			Filters: []utils.Filter{
 				{Source: "jobs", Field: "kind", Operator: "=", Value: "notification"},
@@ -108,7 +115,6 @@ func (s *JobServiceTestSuite) TestFetchJobsFiltersByMultipleKinds() {
 
 	rows, _, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
 		Pagination: utils.PaginationParams{
-			PageNumber:  1,
 			RowsPerPage: 10,
 			Filters: []utils.Filter{
 				{Source: "jobs", Field: "kind", Operator: "=", Value: "notification"},
@@ -130,7 +136,7 @@ func (s *JobServiceTestSuite) TestFetchJobsFiltersByID() {
 	s.insertJob("asset_price_sync", "scheduler", "available")
 
 	all, _, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
-		Pagination: utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "id", SortOrder: "asc"},
+		Pagination: utils.PaginationParams{RowsPerPage: 10, SortField: "id", SortOrder: "asc"},
 	})
 	s.Require().NoError(err)
 	s.Require().Len(all, 2)
@@ -138,7 +144,6 @@ func (s *JobServiceTestSuite) TestFetchJobsFiltersByID() {
 
 	rows, _, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
 		Pagination: utils.PaginationParams{
-			PageNumber:  1,
 			RowsPerPage: 10,
 			Filters: []utils.Filter{
 				{Source: "jobs", Field: "id", Operator: "=", Value: strconv.FormatInt(want.ID, 10)},
@@ -152,7 +157,7 @@ func (s *JobServiceTestSuite) TestFetchJobsFiltersByID() {
 
 func (s *JobServiceTestSuite) TestFetchJobsRejectsUnknownState() {
 	_, _, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
-		Pagination: utils.PaginationParams{PageNumber: 1, RowsPerPage: 10},
+		Pagination: utils.PaginationParams{RowsPerPage: 10},
 		States:     []string{"available", "bogus"},
 	})
 	s.Require().ErrorIs(err, services.ErrInvalidJobState)
@@ -164,14 +169,65 @@ func (s *JobServiceTestSuite) TestFetchJobsPaginates() {
 		s.insertJob("notification", "default", "available")
 	}
 
-	rows, paginator, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
-		Pagination: utils.PaginationParams{PageNumber: 2, RowsPerPage: 2, SortField: "id", SortOrder: "asc"},
-	})
+	page := utils.PaginationParams{RowsPerPage: 2, SortField: "id", SortOrder: "asc"}
+	first, paginator, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{Pagination: page})
+	s.Require().NoError(err)
+	s.Require().Len(first, 2)
+	s.Require().NotNil(paginator.NextCursor)
+
+	page.Cursor = *paginator.NextCursor
+	rows, paginator, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{Pagination: page})
 	s.Require().NoError(err)
 	s.Len(rows, 2)
 	s.Equal(5, paginator.TotalRecords)
-	s.Equal(3, paginator.From)
-	s.Equal(4, paginator.To)
+	s.Greater(rows[0].ID, first[1].ID, "the second page starts after the first")
+	s.NotNil(paginator.NextCursor)
+	s.NotNil(paginator.PrevCursor)
+}
+
+// A finished job's duration is fixed, so paging by it must neither skip nor repeat a job,
+// including ties and never-attempted jobs whose duration is NULL.
+func (s *JobServiceTestSuite) TestFetchJobsPagesByDuration() {
+	s.clearJobs()
+	s.insertJob("notification", "default", "available")
+	for _, d := range []string{"1.5 seconds", "3.125 seconds", "1 microsecond", "2 minutes", "1.5 seconds"} {
+		s.Require().NoError(s.TC.DB.Exec(`INSERT INTO river_job (kind, queue, state, max_attempts, args, metadata, attempted_at, finalized_at)
+			VALUES ('notification', 'default', 'completed'::river_job_state, 25, '{}'::jsonb, '{}'::jsonb,
+			        now() - interval '1 hour', now() - interval '1 hour' + ?::interval)`, d).Error)
+	}
+
+	var want []int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM river_job
+		ORDER BY EXTRACT(EPOCH FROM (COALESCE(finalized_at, now()) - attempted_at)) DESC, id DESC`).Scan(&want).Error)
+
+	page := utils.PaginationParams{RowsPerPage: 2, SortField: "duration", SortOrder: "desc"}
+	var got []int64
+	var pages [][]int64
+	var prev *string
+	for {
+		rows, paginator, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{Pagination: page})
+		s.Require().NoError(err)
+		var ids []int64
+		for _, r := range rows {
+			ids = append(ids, r.ID)
+		}
+		got = append(got, ids...)
+		pages = append(pages, ids)
+		prev = paginator.PrevCursor
+		if paginator.NextCursor == nil {
+			break
+		}
+		page.Cursor = *paginator.NextCursor
+	}
+	s.Equal(want, got)
+
+	s.Require().NotNil(prev)
+	page.Cursor = *prev
+	rows, _, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{Pagination: page})
+	s.Require().NoError(err)
+	s.Require().Len(rows, 2)
+	back := []int64{rows[0].ID, rows[1].ID}
+	s.Equal(pages[len(pages)-2], back, "walking back returns the page before the last")
 }
 
 func (s *JobServiceTestSuite) TestFetchJobsSortsByNewlyWhitelistedFields() {
@@ -182,8 +238,8 @@ func (s *JobServiceTestSuite) TestFetchJobsSortsByNewlyWhitelistedFields() {
 
 	rows, _, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
 		Pagination: utils.PaginationParams{
-			PageNumber: 1, RowsPerPage: 10,
-			SortField: "queue", SortOrder: "asc",
+			RowsPerPage: 10,
+			SortField:   "queue", SortOrder: "asc",
 		},
 	})
 	s.Require().NoError(err)
@@ -194,8 +250,8 @@ func (s *JobServiceTestSuite) TestFetchJobsSortsByNewlyWhitelistedFields() {
 	// duration maps to a SQL expression, not a column; it must order without error.
 	_, _, err = s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
 		Pagination: utils.PaginationParams{
-			PageNumber: 1, RowsPerPage: 10,
-			SortField: "duration", SortOrder: "desc",
+			RowsPerPage: 10,
+			SortField:   "duration", SortOrder: "desc",
 		},
 	})
 	s.Require().NoError(err)
@@ -207,7 +263,7 @@ func (s *JobServiceTestSuite) TestFetchJobsIgnoresUnknownSortField() {
 
 	// A non-whitelisted sort field must not reach the query; it falls back to id.
 	_, _, err := s.svc().FetchJobs(s.Ctx, services.JobQueryParams{
-		Pagination: utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "id; DROP TABLE river_job"},
+		Pagination: utils.PaginationParams{RowsPerPage: 10, SortField: "id; DROP TABLE river_job"},
 	})
 	s.Require().NoError(err)
 
@@ -231,21 +287,19 @@ func (s *JobServiceTestSuite) TestListUserJobsPagesOwnJobsOnly() {
 	s.insertUserJob(jobqueue.TypeMergeCategories, "completed", 2)
 
 	first, paginator, err := s.svc().ListUserJobs(s.Ctx, 1, jobqueue.TypeMergeCategories,
-		utils.PaginationParams{PageNumber: 1, RowsPerPage: 2})
+		utils.PaginationParams{RowsPerPage: 2})
 	s.Require().NoError(err)
 	s.Require().Len(first, 2)
 	s.Equal(own[2], first[0].ID)
 	s.Equal(3, paginator.TotalRecords)
-	s.Equal(1, paginator.From)
-	s.Equal(2, paginator.To)
+	s.Require().NotNil(paginator.NextCursor)
 
 	second, paginator, err := s.svc().ListUserJobs(s.Ctx, 1, jobqueue.TypeMergeCategories,
-		utils.PaginationParams{PageNumber: 2, RowsPerPage: 2})
+		utils.PaginationParams{RowsPerPage: 2, Cursor: *paginator.NextCursor})
 	s.Require().NoError(err)
 	s.Require().Len(second, 1)
 	s.Equal(own[0], second[0].ID)
-	s.Equal(3, paginator.From)
-	s.Equal(3, paginator.To)
+	s.Nil(paginator.NextCursor)
 }
 
 func (s *JobServiceTestSuite) TestFindUserJobsScopesToOwnerNewestFirst() {
@@ -254,7 +308,7 @@ func (s *JobServiceTestSuite) TestFindUserJobsScopesToOwnerNewestFirst() {
 	second := s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 1)
 	s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 2)
 
-	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, nil, 0, 20)
+	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, s.newestFirst())
 	s.Require().NoError(err)
 	s.Require().Len(rows, 2)
 	s.Equal(second, rows[0].ID)
@@ -266,23 +320,21 @@ func (s *JobServiceTestSuite) TestFindUserJobsExcludesOtherKinds() {
 	s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 1)
 	s.insertUserJob(jobqueue.TypeRecalculateAssetPnL, "running", 1)
 
-	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, nil, 0, 20)
+	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, s.newestFirst())
 	s.Require().NoError(err)
 	s.Require().Len(rows, 1)
 	s.Equal(jobqueue.TypeGenerateCategoryReport, rows[0].Kind)
 }
 
 // Lookup by id is how RetryUserJob/CancelUserJob prove ownership before acting.
-func (s *JobServiceTestSuite) TestFindUserJobsByIDRejectsOtherUsersJob() {
+func (s *JobServiceTestSuite) TestFindUserJobRejectsOtherUsersJob() {
 	s.clearJobs()
 	id := s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 2)
 
-	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, &id, 0, 1)
-	s.Require().NoError(err)
-	s.Empty(rows)
+	_, err := s.repo().FindUserJob(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, id)
+	s.Require().ErrorIs(err, gorm.ErrRecordNotFound)
 
-	rows, err = s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 2, &id, 0, 1)
+	row, err := s.repo().FindUserJob(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 2, id)
 	s.Require().NoError(err)
-	s.Require().Len(rows, 1)
-	s.Equal(id, rows[0].ID)
+	s.Equal(id, row.ID)
 }

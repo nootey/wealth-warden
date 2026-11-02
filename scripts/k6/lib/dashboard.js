@@ -70,7 +70,7 @@ export function loadDashboard() {
   const [, , , , years, checking] = getAll([
     ["transactions/categories?deleted=false", N.categories],
     ["accounts/all", N.accountsAll],
-    ["transactions?page=1&rowsPerPage=1", N.txnCount],
+    ["transactions?rowsPerPage=1", N.txnCount],
     ["accounts/types", N.accountTypes],
     ["analytics/years", N.years],
     ["accounts/subtype/checking", N.subtype],
@@ -85,7 +85,7 @@ export function loadDashboard() {
   const sync = http.post(api("accounts/sync/balances"), null, { tags: { name: N.sync } });
   check(sync, { [`${N.sync} 200`]: (r) => r.status === 200 });
 
-  const page = "page=1&rowsPerPage=25&sort%5Bfield%5D=id&sort%5Border%5D=asc";
+  const page = "rowsPerPage=25&sort%5Bfield%5D=id&sort%5Border%5D=asc";
   getAll([
     ["analytics/networth?range=ytd", N.networth],
     [`accounts?${page}&classification=asset`, N.accountsPage],

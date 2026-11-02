@@ -18,4 +18,11 @@ export type PaginatorState = {
   rowsPerPage: number;
 };
 
+export interface CursorPage {
+  rows_per_page: number;
+  total_records: number;
+  next_cursor: string | null;
+  prev_cursor: string | null;
+}
+
 export const NAV_WIDTH = { collapsed: "76px", expanded: "248px" };

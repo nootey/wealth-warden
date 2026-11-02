@@ -116,7 +116,6 @@ func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_NameFromYears() {
 func (s *AnalyticsServiceTestSuite) TestListReportsPaginated_EmptyForUnknownUser() {
 	svc := s.TC.App.AnalyticsService
 	reports, paginator, err := svc.ListReportsPaginated(s.Ctx, 99999, utils.PaginationParams{
-		PageNumber:  1,
 		RowsPerPage: 10,
 	})
 	s.Require().NoError(err)
@@ -137,16 +136,23 @@ func (s *AnalyticsServiceTestSuite) TestListReportsPaginated_PaginatorFields() {
 	}
 
 	reports, paginator, err := svc.ListReportsPaginated(s.Ctx, userID, utils.PaginationParams{
-		PageNumber:  1,
 		RowsPerPage: 2,
 	})
 	s.Require().NoError(err)
 	s.Len(reports, 2)
-	s.Equal(1, paginator.CurrentPage)
 	s.Equal(2, paginator.RowsPerPage)
-	s.Equal(1, paginator.From)
-	s.Equal(2, paginator.To)
 	s.GreaterOrEqual(paginator.TotalRecords, 3)
+	s.Nil(paginator.PrevCursor)
+	s.Require().NotNil(paginator.NextCursor)
+
+	next, paginator, err := svc.ListReportsPaginated(s.Ctx, userID, utils.PaginationParams{
+		RowsPerPage: 2,
+		Cursor:      *paginator.NextCursor,
+	})
+	s.Require().NoError(err)
+	s.NotEmpty(next)
+	s.NotNil(paginator.PrevCursor)
+	s.Less(next[0].ID, reports[1].ID, "the next page continues below the newest reports")
 }
 
 func (s *AnalyticsServiceTestSuite) TestDeleteReport_RemovesRecord() {

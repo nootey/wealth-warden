@@ -11,7 +11,7 @@ import CustomPaginator from "../base/CustomPaginator.vue";
 import type { Invitation } from "../../../models/user_models.ts";
 import { useUserStore } from "../../../services/stores/user_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
-import type { PaginatorState } from "../../../models/shared_models.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -38,13 +38,8 @@ const params = computed(() => {
 });
 const rows = ref([5, 10, 25]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value!,
-});
-const page = ref(1);
+const pager = useCursorPager(default_rows.value!);
+const paginator = pager.paginator;
 const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed((): Column[] => [
@@ -54,20 +49,17 @@ const activeColumns = computed((): Column[] => [
   { field: "created_at", header: "Created", type: "date", hideOnMobile: true },
 ]);
 
-async function getData(new_page = null) {
+async function getData() {
   loading.value = true;
-  if (new_page) page.value = new_page;
 
   try {
     let paginationResponse = await sharedStore.getRecordsPaginated(
       apiPrefix,
       { ...params.value },
-      page.value,
+      pager.cursor.value,
     );
     records.value = paginationResponse.data;
-    paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
+    pager.update(paginationResponse, records.value.length);
     loading.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -75,9 +67,7 @@ async function getData(new_page = null) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 async function deleteConfirmation(id: number) {

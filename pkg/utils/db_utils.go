@@ -83,6 +83,16 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			Join:         "LEFT JOIN accounts ON accounts.id = transaction_templates.account_id",
 			OrEquals:     true,
 		},
+		"to_account": {
+			Column: "to_accounts.name",
+			Join:   "LEFT JOIN accounts AS to_accounts ON to_accounts.id = transaction_templates.to_account_id",
+		},
+	},
+	"invitations": {
+		"role": {
+			Column: "roles.name",
+			Join:   "LEFT JOIN roles ON roles.id = invitations.role_id",
+		},
 	},
 	"investment_trades": {
 		"asset.name": {
@@ -124,7 +134,7 @@ func isString(v any) bool { _, ok := v.(string); return ok }
 
 func asText(col string) string { return col + "::text" }
 
-func GetRequiredJoins(filters []Filter) []string {
+func GetRequiredJoins(filters []Filter, extra ...string) []string {
 	needed := make(map[string]struct{})
 
 	for _, f := range filters {
@@ -132,36 +142,15 @@ func GetRequiredJoins(filters []Filter) []string {
 			needed[meta.Join] = struct{}{}
 		}
 	}
+	for _, join := range extra {
+		needed[join] = struct{}{}
+	}
 
 	var joins []string
 	for join := range needed {
 		joins = append(joins, join)
 	}
 	return joins
-}
-
-func ConstructOrderByClause(joins *[]string, source, sortField, sortOrder string) string {
-	sortColumn := sortField
-
-	if meta, ok := resolveMeta(source, sortField); ok {
-		sortColumn = meta.Column
-
-		if meta.Join != "" {
-			// Deduplicate join
-			alreadyJoined := false
-			for _, j := range *joins {
-				if j == meta.Join {
-					alreadyJoined = true
-					break
-				}
-			}
-			if !alreadyJoined {
-				*joins = append(*joins, meta.Join)
-			}
-		}
-	}
-
-	return sortColumn + " " + sortOrder
 }
 
 func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {

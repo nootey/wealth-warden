@@ -3,6 +3,8 @@ package models
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 var RiverJobStates = []string{
@@ -16,17 +18,34 @@ var RiverJobStates = []string{
 	"scheduled",
 }
 
-var RiverJobSortFields = map[string]string{
-	"id":           "id",
-	"kind":         "kind",
-	"queue":        "queue",
-	"state":        "state",
-	"attempt":      "attempt",
-	"created_at":   "created_at",
-	"scheduled_at": "scheduled_at",
-	"attempted_at": "attempted_at",
-	"finalized_at": "finalized_at",
-	"duration":     "(COALESCE(finalized_at, now()) - attempted_at)",
+var RiverJobSort = SortSpec[RiverJobRow]{
+	Fields: map[string]SortKey[RiverJobRow]{
+		"kind":         {Column: "river_job.kind", Value: func(j RiverJobRow) any { return j.Kind }},
+		"queue":        {Column: "river_job.queue", Value: func(j RiverJobRow) any { return j.Queue }},
+		"state":        {Column: "river_job.state", Value: func(j RiverJobRow) any { return j.State }},
+		"attempt":      {Column: "river_job.attempt", Value: func(j RiverJobRow) any { return j.Attempt }},
+		"created_at":   {Column: "river_job.created_at", Value: func(j RiverJobRow) any { return j.CreatedAt }},
+		"scheduled_at": {Column: "river_job.scheduled_at", Value: func(j RiverJobRow) any { return j.ScheduledAt }},
+		"attempted_at": {Column: "river_job.attempted_at", Value: func(j RiverJobRow) any { return j.AttemptedAt }},
+		"finalized_at": {Column: "river_job.finalized_at", Value: func(j RiverJobRow) any { return j.FinalizedAt }},
+		// A running job's duration grows between requests, so paging by it can skip or repeat
+		// a running job. Finished jobs compare exactly to the microsecond.
+		"duration": {
+			Column: "EXTRACT(EPOCH FROM (COALESCE(river_job.finalized_at, now()) - river_job.attempted_at))",
+			Value: func(j RiverJobRow) any {
+				if j.AttemptedAt == nil {
+					return nil
+				}
+				end := time.Now()
+				if j.FinalizedAt != nil {
+					end = *j.FinalizedAt
+				}
+				return decimal.New(end.Sub(*j.AttemptedAt).Microseconds(), -6)
+			},
+		},
+	},
+	ID:      SortKey[RiverJobRow]{Column: "river_job.id", Value: func(j RiverJobRow) any { return j.ID }},
+	Default: "id",
 }
 
 type RiverJobRow struct {

@@ -2,6 +2,7 @@
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import { computed, onMounted, provide, ref, watch } from "vue";
 import type {
   TemplateSummary,
@@ -16,7 +17,6 @@ import ColumnHeader from "../base/ColumnHeader.vue";
 import TransactionTemplateForm from "../forms/TransactionTemplateForm.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
-import type { PaginatorState } from "../../../models/shared_models.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const emit = defineEmits<{
@@ -43,7 +43,7 @@ onMounted(async () => {
 });
 
 watch(activeTab, async () => {
-  page.value = 1;
+  pager.reset();
   sort.value = { field: "next_run_at", order: 1 };
   await getData();
 });
@@ -66,13 +66,8 @@ const params = computed(() => {
 });
 const rows = ref([10, 25]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value!,
-});
-const page = ref(1);
+const pager = useCursorPager(default_rows.value!);
+const paginator = pager.paginator;
 const sort = ref({ field: "next_run_at", order: 1 });
 
 const activeColumns = computed<Column[]>(() => {
@@ -108,20 +103,17 @@ async function getSummary() {
   }
 }
 
-async function getData(new_page = null) {
+async function getData() {
   loadingRecords.value = true;
-  if (new_page) page.value = new_page;
 
   try {
     let paginationResponse = await sharedStore.getRecordsPaginated(
       apiPrefix,
       { ...params.value },
-      page.value,
+      pager.cursor.value,
     );
     records.value = paginationResponse.data;
-    paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
+    pager.update(paginationResponse, records.value.length);
     loadingRecords.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -129,9 +121,7 @@ async function getData(new_page = null) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 function refresh() {
@@ -208,6 +198,7 @@ function switchSort(column: string) {
     sort.value.order = 1;
   }
   sort.value.field = column;
+  pager.reset();
   getData();
 }
 

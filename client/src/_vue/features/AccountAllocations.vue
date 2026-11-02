@@ -79,19 +79,15 @@ watch(
   },
 );
 
-async function getData(page = 1) {
+async function getData() {
   loading.value = true;
   try {
-    const { data } = await sharedStore.getRecordsPaginated(
-      "accounts",
-      {
-        rowsPerPage: 25,
-        sort: { field: "id", order: "asc" },
-        filters: [],
-        classification: props.classification,
-      },
-      page,
-    );
+    const { data } = await sharedStore.getRecordsPaginated("accounts", {
+      rowsPerPage: 25,
+      sort: { field: "id", order: "asc" },
+      filters: [],
+      classification: props.classification,
+    });
     accounts.value = data ?? [];
   } catch (err) {
     toastStore.errorResponseToast(err);

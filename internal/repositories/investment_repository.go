@@ -15,12 +15,12 @@ type InvestmentRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	CountInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
 	CountInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
-	FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error)
+	FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error)
 	FindAllInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentAsset, error)
 	FindInvestmentAssetByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentAsset, error)
 	FindAssetAccountIDs(ctx context.Context, tx *gorm.DB, userID int64, assetIDs ...int64) ([]int64, error)
 	FindAssetsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentAsset, error)
-	FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error)
+	FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error)
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
 	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
@@ -59,7 +59,7 @@ type InvestmentRepositoryInterface interface {
 	CreateInvestmentIncome(ctx context.Context, tx *gorm.DB, record *models.InvestmentIncome) (int64, error)
 	FindInvestmentIncomeByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.InvestmentIncome, error)
 	CountInvestmentIncome(ctx context.Context, tx *gorm.DB, assetID, userID int64) (int64, error)
-	GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, offset, limit int, sortField, sortOrder string) ([]models.InvestmentIncome, error)
+	GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, ks utils.Keyset) ([]models.InvestmentIncome, error)
 	DeleteInvestmentIncome(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	GetForeignCurrencyIncome(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentIncome, error)
 	UpdateInvestmentIncomeExchangeRate(ctx context.Context, tx *gorm.DB, id, userID int64, rate decimal.Decimal) error
@@ -148,7 +148,7 @@ func (r *InvestmentRepository) CountInvestmentTrades(ctx context.Context, tx *go
 	return totalRecords, nil
 }
 
-func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error) {
+func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error) {
 	var records []models.InvestmentAsset
 	db := tx
 	if db == nil {
@@ -165,8 +165,7 @@ func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gor
 		q = q.Where("investment_assets.account_id = ?", *accountID)
 	}
 
-	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "investment_assets", sortField, sortOrder)
+	joins := utils.GetRequiredJoins(filters, ks.Joins...)
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -174,10 +173,7 @@ func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gor
 
 	q = utils.ApplyFilters(q, filters)
 
-	err := q.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err
@@ -269,7 +265,7 @@ func (r *InvestmentRepository) FindAssetsByAccountID(ctx context.Context, tx *go
 	return records, q.Error
 }
 
-func (r *InvestmentRepository) FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error) {
+func (r *InvestmentRepository) FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error) {
 	var records []models.InvestmentTrade
 	db := tx
 	if db == nil {
@@ -286,8 +282,7 @@ func (r *InvestmentRepository) FindInvestmentTrades(ctx context.Context, tx *gor
 		q = q.Where("investment_trades.asset_id = ?", *accountID)
 	}
 
-	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "investment_trades", sortField, sortOrder)
+	joins := utils.GetRequiredJoins(filters, ks.Joins...)
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -295,10 +290,7 @@ func (r *InvestmentRepository) FindInvestmentTrades(ctx context.Context, tx *gor
 
 	q = utils.ApplyFilters(q, filters)
 
-	err := q.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err
@@ -956,18 +948,15 @@ func (r *InvestmentRepository) CountInvestmentIncome(ctx context.Context, tx *go
 	return total, err
 }
 
-func (r *InvestmentRepository) GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, offset, limit int, sortField, sortOrder string) ([]models.InvestmentIncome, error) {
+func (r *InvestmentRepository) GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, ks utils.Keyset) ([]models.InvestmentIncome, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	var records []models.InvestmentIncome
-	orderBy := utils.ConstructOrderByClause(nil, "investment_income", sortField, sortOrder)
-	err := db.WithContext(ctx).
-		Where("asset_id = ? AND user_id = ?", assetID, userID).
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
+	q := db.WithContext(ctx).
+		Where("asset_id = ? AND user_id = ?", assetID, userID)
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	return records, err
 }

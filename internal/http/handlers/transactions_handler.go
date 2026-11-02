@@ -95,11 +95,10 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"current_page":  paginator.CurrentPage,
 		"rows_per_page": paginator.RowsPerPage,
-		"from":          paginator.From,
-		"to":            paginator.To,
 		"total_records": paginator.TotalRecords,
+		"next_cursor":   paginator.NextCursor,
+		"prev_cursor":   paginator.PrevCursor,
 		"data":          gin.H{"records": records, "totals": totals},
 	}
 
@@ -127,11 +126,10 @@ func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"current_page":  paginator.CurrentPage,
 		"rows_per_page": paginator.RowsPerPage,
-		"from":          paginator.From,
-		"to":            paginator.To,
 		"total_records": paginator.TotalRecords,
+		"next_cursor":   paginator.NextCursor,
+		"prev_cursor":   paginator.PrevCursor,
 		"data":          records,
 	}
 
@@ -592,11 +590,10 @@ func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"current_page":  paginator.CurrentPage,
 		"rows_per_page": paginator.RowsPerPage,
-		"from":          paginator.From,
-		"to":            paginator.To,
 		"total_records": paginator.TotalRecords,
+		"next_cursor":   paginator.NextCursor,
+		"prev_cursor":   paginator.PrevCursor,
 		"data":          records,
 	}
 

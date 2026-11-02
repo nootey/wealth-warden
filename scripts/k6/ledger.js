@@ -146,7 +146,7 @@ export function churn(data) {
       { ...json, tags: { name: "churn insert" } },
     );
   } else if (roll < 0.85) {
-    const list = http.get(api(`transactions?account_id=${account}&page=1&rowsPerPage=25`), {
+    const list = http.get(api(`transactions?account_id=${account}&rowsPerPage=25`), {
       tags: { name: "churn list" },
     });
     const own = (list.json("data.records") || []).filter((t) => t.description === "k6 churn");

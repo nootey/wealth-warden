@@ -28,30 +28,18 @@ func NewNotificationService(repo repositories.NotificationRepositoryInterface) *
 var _ NotificationServiceInterface = (*NotificationService)(nil)
 
 func (s *NotificationService) GetNotifications(ctx context.Context, userID int64, onlyUnread bool, p utils.PaginationParams) ([]models.Notification, *utils.Paginator, error) {
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, total, err := s.repo.FindByUser(ctx, userID, onlyUnread, p.RowsPerPage, offset)
+	p.SortField, p.SortOrder = "created_at", "desc"
+	ks, err := utils.NewKeyset(models.NotificationSort, p)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	from := offset + 1
-	if from > int(total) {
-		from = int(total)
-	}
-	to := offset + len(records)
-	if to > int(total) {
-		to = int(total)
+	records, total, err := s.repo.FindByUser(ctx, userID, onlyUnread, ks)
+	if err != nil {
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(total),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.NotificationSort, total)
 	return records, paginator, nil
 }
 

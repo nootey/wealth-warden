@@ -108,36 +108,22 @@ var (
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
 
 func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.InvestmentAssetSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountInvestmentAssets(ctx, nil, userID, p.Filters, accountID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindInvestmentAssets(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, accountID)
+	records, err := s.repo.FindInvestmentAssets(ctx, nil, userID, ks, p.Filters, accountID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.InvestmentAssetSort, totalRecords)
 	return records, paginator, nil
 }
 
@@ -176,36 +162,22 @@ func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID
 }
 
 func (s *InvestmentService) FetchInvestmentTradesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, assetID *int64) ([]models.InvestmentTrade, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.InvestmentTradeSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountInvestmentTrades(ctx, nil, userID, p.Filters, assetID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-
-	records, err := s.repo.FindInvestmentTrades(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, assetID)
+	records, err := s.repo.FindInvestmentTrades(ctx, nil, userID, ks, p.Filters, assetID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.InvestmentTradeSort, totalRecords)
 	return records, paginator, nil
 }
 
@@ -1458,34 +1430,22 @@ func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, user
 }
 
 func (s *InvestmentService) FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error) {
+	ks, err := utils.NewKeyset(models.InvestmentIncomeSort, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	totalRecords, err := s.repo.CountInvestmentIncome(ctx, nil, assetID, userID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (p.PageNumber - 1) * p.RowsPerPage
-	records, err := s.repo.GetInvestmentIncomeByAsset(ctx, nil, assetID, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder)
+	records, err := s.repo.GetInvestmentIncomeByAsset(ctx, nil, assetID, userID, ks)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, utils.KeysetError(ks, err)
 	}
 
-	from := offset + 1
-	if from > int(totalRecords) {
-		from = int(totalRecords)
-	}
-	to := offset + len(records)
-	if to > int(totalRecords) {
-		to = int(totalRecords)
-	}
-
-	paginator := &utils.Paginator{
-		CurrentPage:  p.PageNumber,
-		RowsPerPage:  p.RowsPerPage,
-		TotalRecords: int(totalRecords),
-		From:         from,
-		To:           to,
-	}
-
+	records, paginator := utils.Paginate(records, ks, models.InvestmentIncomeSort, totalRecords)
 	return records, paginator, nil
 }
 

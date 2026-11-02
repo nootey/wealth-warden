@@ -37,11 +37,10 @@ func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"current_page":  paginator.CurrentPage,
 		"rows_per_page": paginator.RowsPerPage,
 		"total_records": paginator.TotalRecords,
-		"from":          paginator.From,
-		"to":            paginator.To,
+		"next_cursor":   paginator.NextCursor,
+		"prev_cursor":   paginator.PrevCursor,
 		"data":          records,
 	})
 }

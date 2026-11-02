@@ -27,7 +27,7 @@ type AnalyticsRepositoryInterface interface {
 	FetchMonthlyCategoryTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year, month int) ([]models.YearlyCategoryRow, error)
 	GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
 	CountReports(ctx context.Context, tx *gorm.DB, userID int64) (int64, error)
-	FindReports(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.Report, error)
+	FindReports(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset) ([]models.Report, error)
 	FindReportByID(ctx context.Context, tx *gorm.DB, id, userID int64) (*models.Report, error)
 	InsertReport(ctx context.Context, tx *gorm.DB, record *models.Report) error
 	UpdateReport(ctx context.Context, tx *gorm.DB, id int64, fields map[string]interface{}) error
@@ -692,7 +692,7 @@ func (r *AnalyticsRepository) CountReports(ctx context.Context, tx *gorm.DB, use
 	return total, nil
 }
 
-func (r *AnalyticsRepository) FindReports(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.Report, error) {
+func (r *AnalyticsRepository) FindReports(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset) ([]models.Report, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -700,11 +700,9 @@ func (r *AnalyticsRepository) FindReports(ctx context.Context, tx *gorm.DB, user
 	db = db.WithContext(ctx)
 
 	var records []models.Report
-	err := db.Model(&models.Report{}).
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Limit(limit).
-		Offset(offset).
+	q := db.Model(&models.Report{}).
+		Where("user_id = ?", userID)
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	if err != nil {
 		return nil, err

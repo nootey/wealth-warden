@@ -50,6 +50,18 @@ type SavingContribution struct {
 	UpdatedAt time.Time                `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
+var SavingContributionSort = SortSpec[SavingContribution]{
+	Fields: map[string]SortKey[SavingContribution]{
+		"month":      {Column: "saving_contributions.month", Value: func(c SavingContribution) any { return c.Month }},
+		"amount":     {Column: "saving_contributions.amount", Value: func(c SavingContribution) any { return c.Amount }},
+		"source":     {Column: "saving_contributions.source", Value: func(c SavingContribution) any { return c.Source }},
+		"note":       {Column: "saving_contributions.note", Value: func(c SavingContribution) any { return c.Note }},
+		"created_at": {Column: "saving_contributions.created_at", Value: func(c SavingContribution) any { return c.CreatedAt }},
+	},
+	ID:      SortKey[SavingContribution]{Column: "saving_contributions.id", Value: func(c SavingContribution) any { return c.ID }},
+	Default: "month",
+}
+
 type SavingGoalWithProgress struct {
 	SavingGoal
 	ProgressPercent decimal.Decimal  `json:"progress_percent"`

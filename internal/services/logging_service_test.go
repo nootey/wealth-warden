@@ -43,8 +43,8 @@ func (s *LoggingServiceTestSuite) createUser(email string) int64 {
 	return user.ID
 }
 
-func (s *LoggingServiceTestSuite) pageParams(page, rows int) utils.PaginationParams {
-	return utils.PaginationParams{PageNumber: page, RowsPerPage: rows, SortField: "created_at", SortOrder: "desc"}
+func (s *LoggingServiceTestSuite) pageParams(cursor string, rows int) utils.PaginationParams {
+	return utils.PaginationParams{Cursor: cursor, RowsPerPage: rows, SortField: "created_at", SortOrder: "desc"}
 }
 
 func (s *LoggingServiceTestSuite) insertLog(event, category string, recordID int64, causerID int64) {
@@ -73,7 +73,7 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_ScopedToCauser() {
 	s.insertLog("update", "account", 42, owner)
 	s.insertLog("update", "account", 42, other)
 
-	trail, _, err := svc.FetchAuditTrail(s.Ctx, "42", []string{"account"}, []string{"update"}, owner, s.pageParams(1, 10))
+	trail, _, err := svc.FetchAuditTrail(s.Ctx, "42", []string{"account"}, []string{"update"}, owner, s.pageParams("", 10))
 	s.Require().NoError(err)
 	s.Require().Len(trail, 1, "trail should contain only the caller's own log")
 	s.Equal(owner, *trail[0].CauserID)
@@ -90,7 +90,7 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_SpansCategoriesOnSubjectID
 	s.insertLog("update", "balance", 7, owner)
 	s.insertLog("update", "balance", 8, owner)
 
-	trail, _, err := svc.FetchAuditTrail(s.Ctx, "7", []string{"account", "balance"}, []string{"update"}, owner, s.pageParams(1, 10))
+	trail, _, err := svc.FetchAuditTrail(s.Ctx, "7", []string{"account", "balance"}, []string{"update"}, owner, s.pageParams("", 10))
 	s.Require().NoError(err)
 	s.Require().Len(trail, 2, "trail should span both categories for the subject account")
 
@@ -157,19 +157,36 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_Paginates() {
 	for range 7 {
 		s.insertLog("update", "account", 21, owner)
 	}
+	trail := func(cursor string) ([]models.ActivityLog, *utils.Paginator) {
+		records, paginator, err := svc.FetchAuditTrail(s.Ctx, "21", []string{"account"}, []string{"update"}, owner, s.pageParams(cursor, 3))
+		s.Require().NoError(err)
+		return records, paginator
+	}
 
-	first, paginator, err := svc.FetchAuditTrail(s.Ctx, "21", []string{"account"}, []string{"update"}, owner, s.pageParams(1, 3))
-	s.Require().NoError(err)
+	first, paginator := trail("")
 	s.Len(first, 3)
 	s.Equal(7, paginator.TotalRecords)
-	s.Equal(1, paginator.From)
-	s.Equal(3, paginator.To)
+	s.Nil(paginator.PrevCursor)
+	s.Require().NotNil(paginator.NextCursor)
 
-	last, paginator, err := svc.FetchAuditTrail(s.Ctx, "21", []string{"account"}, []string{"update"}, owner, s.pageParams(3, 3))
-	s.Require().NoError(err)
+	middle, paginator := trail(*paginator.NextCursor)
+	s.Len(middle, 3)
+	s.Require().NotNil(paginator.NextCursor)
+
+	last, paginator := trail(*paginator.NextCursor)
 	s.Len(last, 1, "final page holds the remainder")
-	s.Equal(7, paginator.From)
-	s.Equal(7, paginator.To)
+	s.Nil(paginator.NextCursor)
+	s.Require().NotNil(paginator.PrevCursor)
+
+	back, _ := trail(*paginator.PrevCursor)
+	s.Equal(middle, back, "walking back returns the same page in the same order")
+
+	seen := map[int64]bool{}
+	for _, l := range append(append(first, middle...), last...) {
+		s.False(seen[l.ID], "log %d repeats across pages", l.ID)
+		seen[l.ID] = true
+	}
+	s.Len(seen, 7)
 }
 
 // Walking to a record only another user has touched must reveal nothing
@@ -182,7 +199,7 @@ func (s *LoggingServiceTestSuite) TestFetchAuditTrail_ForeignRecordReturnsEmpty(
 
 	s.insertLog("update", "account", 99, other)
 
-	trail, _, err := svc.FetchAuditTrail(s.Ctx, "99", []string{"account"}, []string{"update"}, owner, s.pageParams(1, 10))
+	trail, _, err := svc.FetchAuditTrail(s.Ctx, "99", []string{"account"}, []string{"update"}, owner, s.pageParams("", 10))
 	s.Require().NoError(err)
 	s.Empty(trail, "another user's record history must not be readable")
 }

@@ -25,7 +25,7 @@ type SavingsRepositoryInterface interface {
 	GetUncategorizedBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
 	HasContributionForMonth(ctx context.Context, tx *gorm.DB, goalID int64, month time.Time) (bool, error)
 	CountContributions(ctx context.Context, tx *gorm.DB, goalID int64) (int64, error)
-	FindContributionsPaginated(ctx context.Context, tx *gorm.DB, goalID int64, offset, limit int, sortField, sortOrder string) ([]models.SavingContribution, error)
+	FindContributionsPaginated(ctx context.Context, tx *gorm.DB, goalID int64, ks utils.Keyset) ([]models.SavingContribution, error)
 	FindContributionByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.SavingContribution, error)
 	InsertContribution(ctx context.Context, tx *gorm.DB, record *models.SavingContribution) (int64, error)
 	DeleteContribution(ctx context.Context, tx *gorm.DB, id int64) error
@@ -234,20 +234,17 @@ func (r *SavingsRepository) CountContributions(ctx context.Context, tx *gorm.DB,
 	return count, err
 }
 
-func (r *SavingsRepository) FindContributionsPaginated(ctx context.Context, tx *gorm.DB, goalID int64, offset, limit int, sortField, sortOrder string) ([]models.SavingContribution, error) {
+func (r *SavingsRepository) FindContributionsPaginated(ctx context.Context, tx *gorm.DB, goalID int64, ks utils.Keyset) ([]models.SavingContribution, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	orderBy := utils.ConstructOrderByClause(nil, "saving_contributions", sortField, sortOrder)
-
 	var records []models.SavingContribution
-	err := db.Model(&models.SavingContribution{}).
-		Where("goal_id = ?", goalID).
-		Order(orderBy + ", created_at DESC").
-		Offset(offset).Limit(limit).
+	q := db.Model(&models.SavingContribution{}).
+		Where("goal_id = ?", goalID)
+	err := utils.ApplyKeyset(q, ks).
 		Find(&records).Error
 	return records, err
 }

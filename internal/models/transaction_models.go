@@ -185,6 +185,71 @@ type TransactionTemplate struct {
 	UpdatedAt    time.Time             `json:"updated_at"`
 }
 
+var TransactionSort = SortSpec[Transaction]{
+	Source: "transactions",
+	Fields: map[string]SortKey[Transaction]{
+		"txn_date":    {Column: "transactions.txn_date", Value: func(t Transaction) any { return t.TxnDate }},
+		"created_at":  {Column: "transactions.created_at", Value: func(t Transaction) any { return t.CreatedAt }},
+		"amount":      {Column: "transactions.amount", Value: func(t Transaction) any { return t.Amount }},
+		"direction":   {Column: "transactions.direction", Value: func(t Transaction) any { return t.Direction }},
+		"description": {Column: "transactions.description", Value: func(t Transaction) any { return t.Description }},
+		"category":    {Column: "categories.name", Value: func(t Transaction) any { return t.Category.Name }},
+		"account":     {Column: "accounts.name", Value: func(t Transaction) any { return t.Account.Name }},
+	},
+	ID:      SortKey[Transaction]{Column: "transactions.id", Value: func(t Transaction) any { return t.ID }},
+	Default: "txn_date",
+}
+
+var TransferSort = SortSpec[Transfer]{
+	Source: "transfers",
+	Fields: map[string]SortKey[Transfer]{
+		"created_at": {Column: "transfers.created_at", Value: func(t Transfer) any { return t.CreatedAt }},
+		"amount":     {Column: "transfers.amount", Value: func(t Transfer) any { return t.Amount }},
+		"notes":      {Column: "transfers.notes", Value: func(t Transfer) any { return t.Notes }},
+		"txn_date":   {Column: "from_txn.txn_date", Value: func(t Transfer) any { return t.TransactionOutflow.TxnDate }},
+		"from":       {Column: "from_accounts.name", Value: func(t Transfer) any { return t.TransactionOutflow.Account.Name }},
+		"to":         {Column: "to_accounts.name", Value: func(t Transfer) any { return t.TransactionInflow.Account.Name }},
+	},
+	ID:      SortKey[Transfer]{Column: "transfers.id", Value: func(t Transfer) any { return t.ID }},
+	Default: "created_at",
+}
+
+var TransactionTemplateSort = SortSpec[TransactionTemplate]{
+	Source: "transaction_templates",
+	// Active templates list first.
+	Fixed: []SortKey[TransactionTemplate]{
+		{Column: "NOT transaction_templates.is_active", Value: func(t TransactionTemplate) any { return !t.IsActive }},
+	},
+	Fields: map[string]SortKey[TransactionTemplate]{
+		"name":        {Column: "transaction_templates.name", Value: func(t TransactionTemplate) any { return t.Name }},
+		"amount":      {Column: "transaction_templates.amount", Value: func(t TransactionTemplate) any { return t.Amount }},
+		"frequency":   {Column: "transaction_templates.frequency", Value: func(t TransactionTemplate) any { return t.Frequency }},
+		"next_run_at": {Column: "transaction_templates.next_run_at", Value: func(t TransactionTemplate) any { return t.NextRunAt }},
+		"created_at":  {Column: "transaction_templates.created_at", Value: func(t TransactionTemplate) any { return t.CreatedAt }},
+		"account":     {Column: "accounts.name", Value: func(t TransactionTemplate) any { return t.Account.Name }},
+		"to_account": {
+			Column: "to_accounts.name",
+			Value: func(t TransactionTemplate) any {
+				if t.ToAccount == nil {
+					return nil
+				}
+				return t.ToAccount.Name
+			},
+		},
+		"category": {
+			Column: "categories.name",
+			Value: func(t TransactionTemplate) any {
+				if t.Category == nil {
+					return nil
+				}
+				return t.Category.Name
+			},
+		},
+	},
+	ID:      SortKey[TransactionTemplate]{Column: "transaction_templates.id", Value: func(t TransactionTemplate) any { return t.ID }},
+	Default: "next_run_at",
+}
+
 type Category struct {
 	ID             int64              `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID         *int64             `gorm:"index:idx_categories_user_class" json:"user_id"`

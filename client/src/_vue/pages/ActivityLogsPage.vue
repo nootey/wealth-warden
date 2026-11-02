@@ -10,10 +10,11 @@ import IconDisplay from "../components/base/IconDisplay.vue";
 import ActionRow from "../components/layout/ActionRow.vue";
 import type { ActivityLog, Causer } from "../../models/logging_models";
 import filterHelper from "../../utils/filter_helper.ts";
+import { useCursorPager } from "../../utils/use_cursor_pager.ts";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import { useConfirm } from "primevue/useconfirm";
 import type { Column } from "../../services/filter_registry.ts";
-import type { FilterObj, PaginatorState } from "../../models/shared_models.ts";
+import type { FilterObj } from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import FilterPopover from "../components/filters/FilterPopover.vue";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
@@ -42,13 +43,8 @@ const params = computed(() => {
 
 const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value!,
-});
-const page = ref(1);
+const pager = useCursorPager(default_rows.value!);
+const paginator = pager.paginator;
 const sort = ref(filterHelper.initSort());
 const expandedRows = ref([]);
 const filterStorageIndex = ref(apiPrefix + "-filters");
@@ -110,9 +106,8 @@ async function getFilterData() {
   }
 }
 
-async function getData(new_page: number | null = null) {
+async function getData() {
   loadingRecords.value = true;
-  if (new_page) page.value = new_page;
 
   try {
     let payload = {
@@ -121,13 +116,11 @@ async function getData(new_page: number | null = null) {
 
     let paginationResponse = await loggingStore.getLogsPaginated(
       payload,
-      page.value,
+      pager.cursor.value,
     );
 
     records.value = paginationResponse.data;
-    paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
+    pager.update(paginationResponse, records.value.length);
     loadingRecords.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -135,14 +128,13 @@ async function getData(new_page: number | null = null) {
 }
 
 async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
+  if (pager.goTo(event.page, event.rows)) await getData();
 }
 
 function applyFilters(list: FilterObj[]) {
   filters.value = filterHelper.mergeFilters(filters.value, list);
   localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
+  pager.reset();
   getData();
   filterOverlayRef.value.hide();
 }
@@ -151,6 +143,7 @@ function clearFilters() {
   filters.value = [];
   localStorage.removeItem(filterStorageIndex.value);
   cancelFilters();
+  pager.reset();
   getData();
 }
 
@@ -174,6 +167,7 @@ function removeFilter(index: number) {
     localStorage.removeItem(filterStorageIndex.value);
   }
 
+  pager.reset();
   getData();
 }
 
@@ -184,6 +178,7 @@ function switchSort(column: string) {
     sort.value.order = 1;
   }
   sort.value.field = column;
+  pager.reset();
   getData();
 }
 

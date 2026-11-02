@@ -21,3 +21,11 @@ type Notification struct {
 	CreatedAt time.Time        `json:"created_at"`
 	UpdatedAt time.Time        `json:"updated_at"`
 }
+
+var NotificationSort = SortSpec[Notification]{
+	Fields: map[string]SortKey[Notification]{
+		"created_at": {Column: "notifications.created_at", Value: func(n Notification) any { return n.CreatedAt }},
+	},
+	ID:      SortKey[Notification]{Column: "notifications.id", Value: func(n Notification) any { return n.ID }},
+	Default: "created_at",
+}

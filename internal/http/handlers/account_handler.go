@@ -73,11 +73,10 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"current_page":  paginator.CurrentPage,
 		"rows_per_page": paginator.RowsPerPage,
-		"from":          paginator.From,
-		"to":            paginator.To,
 		"total_records": paginator.TotalRecords,
+		"next_cursor":   paginator.NextCursor,
+		"prev_cursor":   paginator.PrevCursor,
 		"data":          records,
 	}
 

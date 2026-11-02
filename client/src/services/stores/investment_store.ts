@@ -13,7 +13,7 @@ export const useInvestmentStore = defineStore("investment", {
   actions: {
     async getAssetCount(): Promise<number> {
       const response = await apiClient.get(`${this.apiPrefix}`, {
-        params: { page: 1, rowsPerPage: 1 },
+        params: { rowsPerPage: 1 },
       });
       return response.data?.total_records ?? 0;
     },

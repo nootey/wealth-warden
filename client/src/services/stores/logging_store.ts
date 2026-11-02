@@ -6,10 +6,10 @@ export const useLoggingStore = defineStore("logging", {
     apiPrefix: "logs",
   }),
   actions: {
-    async getLogsPaginated(params: object, page: number) {
+    async getLogsPaginated(params: object, cursor: string | null) {
       const queryParams = {
         ...params,
-        page: page,
+        cursor: cursor ?? undefined,
       };
 
       const response = await apiClient.get(`${this.apiPrefix}`, {
@@ -29,11 +29,17 @@ export const useLoggingStore = defineStore("logging", {
       id: string | number,
       events: string[],
       categories: string[],
-      page: number,
+      cursor: string | null,
       rowsPerPage: number,
     ) {
       if (!events || events.length === 0) {
-        return { data: [], total_records: 0, from: 0, to: 0 };
+        return {
+          data: [],
+          rows_per_page: rowsPerPage,
+          total_records: 0,
+          next_cursor: null,
+          prev_cursor: null,
+        };
       }
 
       const response = await apiClient.get(`${this.apiPrefix}/audit-trail`, {
@@ -41,7 +47,7 @@ export const useLoggingStore = defineStore("logging", {
           id: id.toString(),
           event: events.join(","),
           category: categories.join(","),
-          page: page,
+          cursor: cursor ?? undefined,
           rowsPerPage: rowsPerPage,
         },
       });

@@ -2112,7 +2112,7 @@ func (s *InvestmentServiceTestSuite) TestFetchInvestmentAssetsPaginated_DerivesV
 	big := s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
 		decimal.NewFromInt(10), decimal.NewFromInt(100)) // 10 * 100 = 1000
 
-	page := utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "current_value", SortOrder: "asc"}
+	page := utils.PaginationParams{RowsPerPage: 10, SortField: "current_value", SortOrder: "asc"}
 	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
 	s.Require().NoError(err)
 	s.Require().Len(rows, 2)
@@ -2150,7 +2150,7 @@ func (s *InvestmentServiceTestSuite) TestFetchInvestmentTradesPaginated_BuyTrack
 
 	s.setLatestTickerPrice("IWDA.AS", decimal.NewFromInt(150))
 
-	page := utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "id", SortOrder: "asc"}
+	page := utils.PaginationParams{RowsPerPage: 10, SortField: "id", SortOrder: "asc"}
 	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentTradesPaginated(s.Ctx, userID, page, &assetID)
 	s.Require().NoError(err)
 	s.Require().Len(rows, 2)
