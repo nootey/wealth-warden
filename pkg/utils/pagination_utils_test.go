@@ -338,8 +338,8 @@ func TestKeysetError(t *testing.T) {
 	t.Run("bad input past a cursor is an invalid cursor", func(t *testing.T) {
 		err := utils.KeysetError(resumed, badInput)
 
-		assert.ErrorIs(t, err, utils.ErrInvalidCursor)
-		assert.ErrorIs(t, err, badInput)
+		require.ErrorIs(t, err, utils.ErrInvalidCursor)
+		require.ErrorIs(t, err, badInput)
 		status, message := apperr.Resolve(err)
 		assert.Equal(t, http.StatusBadRequest, status)
 		assert.Equal(t, "invalid page cursor", message)
