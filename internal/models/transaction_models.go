@@ -111,6 +111,7 @@ type Transaction struct {
 	TransactionType TransactionType      `gorm:"not null;default:'ledger'" json:"transaction_type"`
 	IdempotencyKey  *string              `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
 	ExternalTxnID   *string              `gorm:"type:varchar(256)" json:"external_txn_id,omitempty"`
+	TemplateID      *int64               `json:"template_id,omitempty"`
 	Account         Account              `json:"account"`
 	Category        Category             `json:"category,omitempty"`
 	CreatedAt       time.Time            `json:"created_at"`
@@ -354,6 +355,16 @@ type TemplateSummary struct {
 	ThisMonthIncome   decimal.Decimal `json:"this_month_income"`
 	MonthlyTransfer   decimal.Decimal `json:"monthly_transfer"`
 	ThisMonthTransfer decimal.Decimal `json:"this_month_transfer"`
+	CurrentIncome     decimal.Decimal `json:"current_income"`
+	CurrentExpense    decimal.Decimal `json:"current_expense"`
+	ProjectedNet      decimal.Decimal `json:"projected_net"`
+}
+
+type TemplateFlowTotal struct {
+	TransactionType TransactionType
+	Direction       TransactionDirection
+	TemplateID      *int64
+	Total           decimal.Decimal
 }
 
 type TransactionReq struct {
@@ -364,6 +375,7 @@ type TransactionReq struct {
 	TxnDate        time.Time            `json:"txn_date" validate:"required"`
 	Description    *string              `json:"description,omitempty"`
 	IdempotencyKey *string              `json:"idempotency_key,omitempty"`
+	TemplateID     *int64               `json:"-"`
 }
 
 type BulkTransactionReq struct {
