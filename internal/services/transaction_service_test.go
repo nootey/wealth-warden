@@ -3882,6 +3882,113 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_CursorWalk(
 	tests.AssertCursorWalk(&s.ServiceIntegrationSuite, models.TransactionSort, utils.PaginationParams{Filters: byCategory}, fetch)
 }
 
+// Current totals cover this month's live ledger rows on checking accounts only. Projected net
+// is the checking projection plus every checking row or transfer leg that no recurring template
+// already covers.
+func (s *TransactionServiceTestSuite) TestGetTemplateSummary_CheckingTotalsAndNet() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	now := time.Now().UTC()
+	today := now.Truncate(24 * time.Hour)
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	openedAt := monthStart.AddDate(0, 0, -10)
+
+	balance := decimal.NewFromInt(50000)
+	newAccount := func(name string, typeID int64) int64 {
+		id, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+			Name:          name,
+			AccountTypeID: typeID,
+			Balance:       &balance,
+			OpenedAt:      openedAt,
+		})
+		s.Require().NoError(err)
+		return id
+	}
+	checkingID := newAccount("Summary Checking", 1)
+	secondCheckingID := newAccount("Summary Checking 2", 1)
+	savingsID := newAccount("Summary Savings", 2)
+
+	insert := func(accountID int64, direction models.TransactionDirection, amount int64, date time.Time) int64 {
+		res, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accountID,
+			Direction: direction,
+			Amount:    decimal.NewFromInt(amount),
+			TxnDate:   date,
+		})
+		s.Require().NoError(err)
+		return res.ID
+	}
+
+	newTemplate := func(name, templateType string, accountID int64, toAccountID *int64, direction *models.TransactionDirection, amount int64, maxRuns *int) int64 {
+		nextRun := utils.LocalMidnightUTC(now.AddDate(0, 0, 10), time.UTC)
+		t := models.TransactionTemplate{
+			Name:         name,
+			UserID:       userID,
+			AccountID:    accountID,
+			ToAccountID:  toAccountID,
+			TemplateType: templateType,
+			Direction:    direction,
+			Amount:       decimal.NewFromInt(amount),
+			Frequency:    "monthly",
+			DayOfMonth:   nextRun.Day(),
+			NextRunAt:    nextRun,
+			MaxRuns:      maxRuns,
+			IsActive:     true,
+		}
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&t).Error)
+		return t.ID
+	}
+
+	income := models.TxnDirectionIncome
+	expense := models.TxnDirectionExpense
+	once := 1
+
+	salaryID := newTemplate("Salary", "transaction", checkingID, nil, &income, 3000, nil)
+	newTemplate("Rent", "transaction", checkingID, nil, &expense, 1000, nil)
+	toSavingsID := newTemplate("To savings", "transfer", checkingID, &savingsID, nil, 500, nil)
+	newTemplate("Savings fee", "transaction", savingsID, nil, &expense, 200, nil)
+	repairID := newTemplate("Car repair", "transaction", checkingID, nil, &expense, 250, &once)
+
+	// The salary run is covered by its recurring projection. The one-off repair deactivates
+	// after its run, so its row is no longer projected and must count as spent.
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, salaryID))
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, repairID))
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, toSavingsID))
+
+	transfer := func(sourceID, destinationID int64, amount int64) {
+		_, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+			SourceID:      sourceID,
+			DestinationID: destinationID,
+			Amount:        decimal.NewFromInt(amount),
+			CreatedAt:     today,
+		})
+		s.Require().NoError(err)
+	}
+	transfer(checkingID, savingsID, 300)
+	transfer(savingsID, checkingID, 100)
+	transfer(checkingID, secondCheckingID, 70)
+
+	insert(checkingID, income, 150, today)
+	insert(checkingID, expense, 80, today)
+	insert(checkingID, expense, 60, monthStart.AddDate(0, 0, -3))
+	insert(savingsID, expense, 40, today)
+	archivedID := insert(checkingID, expense, 75, today)
+	s.Require().NoError(svc.DeleteTransaction(s.Ctx, userID, archivedID))
+
+	summary, err := svc.GetTemplateSummary(s.Ctx, userID)
+	s.Require().NoError(err)
+
+	s.True(decimal.NewFromInt(3150).Equal(summary.CurrentIncome), "current income: got %s", summary.CurrentIncome)
+	s.True(decimal.NewFromInt(330).Equal(summary.CurrentExpense), "current expense: got %s", summary.CurrentExpense)
+	s.True(decimal.NewFromInt(1200).Equal(summary.MonthlyExpense), "projected expense keeps every account: got %s", summary.MonthlyExpense)
+
+	// 3000 salary - 1000 rent - 500 to savings + 150 income - 80 expense - 250 repair
+	// - 300 out to savings + 100 in from savings; the checking-to-checking 70 cancels out
+	s.True(decimal.NewFromInt(1120).Equal(summary.ProjectedNet), "projected net: got %s", summary.ProjectedNet)
+}
+
 func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {
 	accSvc := s.TC.App.AccountService
 	txnSvc := s.TC.App.TransactionService

@@ -68,6 +68,7 @@ type TransactionRepositoryInterface interface {
 	DeleteTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64) error
 	GetTransactionsByYearAndClass(ctx context.Context, tx *gorm.DB, userID int64, year int, class string, accountID *int64) ([]models.Transaction, error)
 	GetAllTimeStatsByClass(ctx context.Context, tx *gorm.DB, userID int64, class string, accountID, categoryID *int64) (total decimal.Decimal, monthsWithData int, err error)
+	GetFlowTotalsByTemplate(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, from, to time.Time) ([]models.TemplateFlowTotal, error)
 	PurgeImportedTransactions(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error)
 	PurgeImportedTransfers(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error)
 	PurgeImportedCategories(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error)
@@ -1152,6 +1153,31 @@ func (r *TransactionRepository) GetAllTimeStatsByClass(ctx context.Context, tx *
 	}
 
 	return result.Total, result.MonthsWithData, nil
+}
+
+func (r *TransactionRepository) GetFlowTotalsByTemplate(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, from, to time.Time) ([]models.TemplateFlowTotal, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var rows []models.TemplateFlowTotal
+	if len(accountIDs) == 0 {
+		return rows, nil
+	}
+
+	err := db.Model(&models.Transaction{}).
+		Select("transaction_type, direction, template_id, COALESCE(SUM(amount), 0) AS total").
+		Where("user_id = ? AND account_id IN ? AND transaction_type IN ? AND deleted_at IS NULL", userID, accountIDs, []models.TransactionType{models.TxnTypeLedger, models.TxnTypeTransfer}).
+		Where("txn_date >= ? AND txn_date < ?", from, to).
+		Group("transaction_type, direction, template_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, nil
 }
 
 func (r *TransactionRepository) PurgeImportedTransactions(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error) {

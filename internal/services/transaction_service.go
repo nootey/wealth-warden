@@ -388,6 +388,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		TxnDate:        txDay,
 		Description:    req.Description,
 		IdempotencyKey: req.IdempotencyKey,
+		TemplateID:     req.TemplateID,
 	}
 
 	txnID, err := s.repo.InsertTransaction(ctx, tx, &tr)
@@ -2967,7 +2968,19 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	monthEnd := monthStart.AddDate(0, 1, 0)
 
+	checkingAccounts, err := s.accRepo.FindAccountsBySubtype(ctx, nil, userID, "checking", true)
+	if err != nil {
+		return nil, err
+	}
+	checking := make(map[int64]bool, len(checkingAccounts))
+	checkingIDs := make([]int64, 0, len(checkingAccounts))
+	for _, a := range checkingAccounts {
+		checking[a.ID] = true
+		checkingIDs = append(checkingIDs, a.ID)
+	}
+
 	summary := &models.TemplateSummary{}
+	recurringIDs := make(map[int64]bool)
 	for _, t := range templates {
 		isTransfer := t.TemplateType == "transfer"
 		isExpense := t.Direction != nil && *t.Direction == "expense"
@@ -2997,32 +3010,69 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 			}
 		}
 
-		if !isOneOff && !isWindingDown {
-			if multiplier, ok := baseMultipliers[t.Frequency]; ok {
-				monthlyAmount := t.Amount.Mul(multiplier)
-				switch {
-				case isTransfer:
-					summary.MonthlyTransfer = summary.MonthlyTransfer.Add(monthlyAmount)
-				case isExpense:
-					summary.MonthlyExpense = summary.MonthlyExpense.Add(monthlyAmount)
-				default:
-					summary.MonthlyIncome = summary.MonthlyIncome.Add(monthlyAmount)
-				}
-				continue
-			}
+		multiplier, hasMultiplier := baseMultipliers[t.Frequency]
+		recurring := hasMultiplier && !isOneOff && !isWindingDown
+		dueThisMonth := !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd)
+
+		var amount decimal.Decimal
+		switch {
+		case recurring:
+			amount = t.Amount.Mul(multiplier)
+			recurringIDs[t.ID] = true
+		case (isOneOff || isWindingDown || periodicFrequencies[t.Frequency]) && dueThisMonth:
+			amount = t.Amount
+		default:
+			continue
 		}
 
-		if isOneOff || isWindingDown || periodicFrequencies[t.Frequency] {
-			if !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd) {
-				switch {
-				case isTransfer:
-					summary.ThisMonthTransfer = summary.ThisMonthTransfer.Add(t.Amount)
-				case isExpense:
-					summary.ThisMonthExpense = summary.ThisMonthExpense.Add(t.Amount)
-				default:
-					summary.ThisMonthIncome = summary.ThisMonthIncome.Add(t.Amount)
-				}
-			}
+		switch {
+		case isTransfer && recurring:
+			summary.MonthlyTransfer = summary.MonthlyTransfer.Add(amount)
+		case isTransfer:
+			summary.ThisMonthTransfer = summary.ThisMonthTransfer.Add(amount)
+		case isExpense && recurring:
+			summary.MonthlyExpense = summary.MonthlyExpense.Add(amount)
+		case isExpense:
+			summary.ThisMonthExpense = summary.ThisMonthExpense.Add(amount)
+		case recurring:
+			summary.MonthlyIncome = summary.MonthlyIncome.Add(amount)
+		default:
+			summary.ThisMonthIncome = summary.ThisMonthIncome.Add(amount)
+		}
+
+		// Transfers between two checking accounts cancel out, so only the ones crossing in or out move the net.
+		fromChecking := checking[t.AccountID]
+		toChecking := isTransfer && t.ToAccountID != nil && checking[*t.ToAccountID]
+		switch {
+		case isExpense && fromChecking, isTransfer && fromChecking && !toChecking:
+			summary.ProjectedNet = summary.ProjectedNet.Sub(amount)
+		case !isExpense && !isTransfer && fromChecking, isTransfer && toChecking && !fromChecking:
+			summary.ProjectedNet = summary.ProjectedNet.Add(amount)
+		}
+	}
+
+	actuals, err := s.repo.GetFlowTotalsByTemplate(ctx, nil, userID, checkingIDs, monthStart, monthEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	currentTotals := map[models.TransactionDirection]*decimal.Decimal{
+		models.TxnDirectionIncome:  &summary.CurrentIncome,
+		models.TxnDirectionExpense: &summary.CurrentExpense,
+	}
+	for _, a := range actuals {
+		if total, ok := currentTotals[a.Direction]; ok && a.TransactionType == models.TxnTypeLedger {
+			*total = total.Add(a.Total)
+		}
+
+		// Only recurring runs are projected; one-off and periodic runs have moved past this month.
+		if a.TemplateID != nil && recurringIDs[*a.TemplateID] {
+			continue
+		}
+		if a.Direction == models.TxnDirectionExpense {
+			summary.ProjectedNet = summary.ProjectedNet.Sub(a.Total)
+		} else {
+			summary.ProjectedNet = summary.ProjectedNet.Add(a.Total)
 		}
 	}
 
@@ -3239,6 +3289,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			CategoryID:      &transferCategory.ID,
+			TemplateID:      &currentTemplate.ID,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 			tx.Rollback()
@@ -3255,6 +3306,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			Description:     &desc,
 			TransactionType: models.TxnTypeTransfer,
 			CategoryID:      &transferCategory.ID,
+			TemplateID:      &currentTemplate.ID,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 			tx.Rollback()
@@ -3317,6 +3369,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			Amount:      currentTemplate.Amount,
 			TxnDate:     txDate,
 			Description: &desc,
+			TemplateID:  &currentTemplate.ID,
 		}
 		if _, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx); err != nil {
 			tx.Rollback()

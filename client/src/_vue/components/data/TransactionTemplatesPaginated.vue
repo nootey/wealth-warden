@@ -91,6 +91,50 @@ const activeColumns = computed<Column[]>(() => {
   ];
 });
 
+const projectionRows = computed<
+  {
+    label: string;
+    value: number;
+    avg?: number;
+    showAvg?: boolean;
+    color?: string;
+  }[][]
+>(() => {
+  const amount = (key: keyof TemplateSummary) =>
+    Number(summary.value?.[key] ?? 0);
+  const projected = (
+    flow: "income" | "expense" | "transfer",
+    label: string,
+    color?: string,
+  ) => ({
+    label,
+    value: amount(`monthly_${flow}`) + amount(`this_month_${flow}`),
+    avg: amount(`monthly_${flow}`),
+    showAvg: amount(`this_month_${flow}`) > 0,
+    color,
+  });
+  return [
+    [
+      projected("income", "Projected income", colors.value.pos),
+      projected("expense", "Projected expenses", colors.value.neg),
+      projected("transfer", "Projected transfers"),
+    ],
+    [
+      {
+        label: "Current income",
+        value: amount("current_income"),
+        color: colors.value.pos,
+      },
+      {
+        label: "Current expenses",
+        value: amount("current_expense"),
+        color: colors.value.neg,
+      },
+      { label: "Projected net", value: amount("projected_net") },
+    ],
+  ];
+});
+
 async function getSummary() {
   loadingSummary.value = true;
   try {
@@ -270,93 +314,34 @@ defineExpose({ refresh });
 
     <div
       id="projection-bar"
-      class="flex w-full p-4 gap-2 rounded-xl justify-between items-center"
-      style="border: 1px solid var(--border-color)"
+      class="flex flex-col w-full rounded-xl border border-line divide-y divide-line"
     >
       <div
-        class="flex-1 text-center px-4"
-        style="border-right: 1px solid var(--border-color)"
+        v-for="(row, i) in projectionRows"
+        :key="i"
+        class="grid grid-cols-3 py-1 divide-x divide-line"
       >
         <div
-          id="projection-label"
-          class="text-sm"
-          style="color: var(--text-secondary)"
+          v-for="cell in row"
+          :key="cell.label"
+          class="text-center px-2 md:px-4"
         >
-          {{ "Projected income" }}
-        </div>
-        <div class="font-bold" :style="{ color: colors.pos }">
-          {{
-            loadingSummary
-              ? "—"
-              : vueHelper.displayAsCurrency(
-                  Number(summary?.monthly_income ?? 0) +
-                    Number(summary?.this_month_income ?? 0) || 0,
-                )
-          }}
-        </div>
-        <div
-          v-if="!loadingSummary && Number(summary?.this_month_income ?? 0) > 0"
-          class="text-xs mt-1"
-          style="color: var(--text-secondary)"
-        >
-          {{ vueHelper.displayAsCurrency(summary?.monthly_income ?? 0) }} avg.
-        </div>
-      </div>
-      <div
-        class="flex-1 text-center px-4"
-        style="border-right: 1px solid var(--border-color)"
-      >
-        <div
-          id="projection-label"
-          class="text-sm"
-          style="color: var(--text-secondary)"
-        >
-          {{ "Projected expenses" }}
-        </div>
-        <div class="font-bold">
-          {{
-            loadingSummary
-              ? "—"
-              : vueHelper.displayAsCurrency(
-                  Number(summary?.monthly_expense ?? 0) +
-                    Number(summary?.this_month_expense ?? 0) || 0,
-                )
-          }}
-        </div>
-        <div
-          v-if="!loadingSummary && Number(summary?.this_month_expense ?? 0) > 0"
-          class="text-xs mt-1"
-          style="color: var(--text-secondary)"
-        >
-          {{ vueHelper.displayAsCurrency(summary?.monthly_expense ?? 0) }} avg.
-        </div>
-      </div>
-      <div class="flex-1 text-center px-4">
-        <div
-          id="projection-label"
-          class="text-sm"
-          style="color: var(--text-secondary)"
-        >
-          {{ "Projected transfers" }}
-        </div>
-        <div class="font-bold">
-          {{
-            loadingSummary
-              ? "—"
-              : vueHelper.displayAsCurrency(
-                  Number(summary?.monthly_transfer ?? 0) +
-                    Number(summary?.this_month_transfer ?? 0) || 0,
-                )
-          }}
-        </div>
-        <div
-          v-if="
-            !loadingSummary && Number(summary?.this_month_transfer ?? 0) > 0
-          "
-          class="text-xs mt-1"
-          style="color: var(--text-secondary)"
-        >
-          {{ vueHelper.displayAsCurrency(summary?.monthly_transfer ?? 0) }} avg.
+          <div class="text-xs" style="color: var(--text-secondary)">
+            {{ cell.label }}
+          </div>
+          <div
+            class="text-xs md:text-sm font-bold"
+            :style="{ color: cell.color }"
+          >
+            {{ loadingSummary ? "—" : vueHelper.displayAsCurrency(cell.value) }}
+          </div>
+          <div
+            v-if="!loadingSummary && cell.showAvg"
+            class="text-xs"
+            style="color: var(--text-secondary)"
+          >
+            {{ vueHelper.displayAsCurrency(cell.avg ?? null) }} avg.
+          </div>
         </div>
       </div>
     </div>
@@ -469,16 +454,6 @@ defineExpose({ refresh });
 </template>
 
 <style scoped>
-@media (max-width: 768px) {
-  #projection-bar {
-    padding: 0.5rem !important;
-    font-size: 75%;
-  }
-  #projection-label {
-    font-size: 0.75rem !important;
-  }
-}
-
 .hover {
   font-weight: bold;
 }
