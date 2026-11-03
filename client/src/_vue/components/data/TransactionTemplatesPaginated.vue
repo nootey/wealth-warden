@@ -4,10 +4,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useCursorPager } from "../../../utils/use_cursor_pager.ts";
 import { computed, onMounted, provide, ref, watch } from "vue";
-import type {
-  TemplateSummary,
-  TransactionTemplate,
-} from "../../../models/transaction_models.ts";
+import type { TransactionTemplate } from "../../../models/transaction_models.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { Column } from "../../../services/filter_registry.ts";
 import dateHelper from "../../../utils/date_helper.ts";
@@ -16,7 +13,6 @@ import LoadingSpinner from "../base/LoadingSpinner.vue";
 import ColumnHeader from "../base/ColumnHeader.vue";
 import TransactionTemplateForm from "../forms/TransactionTemplateForm.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
-import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const emit = defineEmits<{
@@ -24,7 +20,6 @@ const emit = defineEmits<{
 }>();
 
 const sharedStore = useSharedStore();
-const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
@@ -39,7 +34,7 @@ const tabOptions = [
 const activeTab = ref<"transaction" | "transfer">("transaction");
 
 onMounted(async () => {
-  await Promise.all([getData(), getSummary()]);
+  await getData();
 });
 
 watch(activeTab, async () => {
@@ -49,9 +44,7 @@ watch(activeTab, async () => {
 });
 
 const loadingRecords = ref(true);
-const loadingSummary = ref(true);
 const records = ref<TransactionTemplate[]>([]);
-const summary = ref<TemplateSummary | null>(null);
 const createModal = ref(false);
 const updateModal = ref(false);
 const updateRecordID = ref(null);
@@ -90,62 +83,6 @@ const activeColumns = computed<Column[]>(() => {
     { field: "next_run_at", header: "Next run", hideOnMobile: true },
   ];
 });
-
-const projectionRows = computed<
-  {
-    label: string;
-    value: number;
-    avg?: number;
-    showAvg?: boolean;
-    color?: string;
-  }[][]
->(() => {
-  const amount = (key: keyof TemplateSummary) =>
-    Number(summary.value?.[key] ?? 0);
-  const projected = (
-    flow: "income" | "expense" | "transfer",
-    label: string,
-    color?: string,
-  ) => ({
-    label,
-    value: amount(`monthly_${flow}`) + amount(`this_month_${flow}`),
-    avg: amount(`monthly_${flow}`),
-    showAvg: amount(`this_month_${flow}`) > 0,
-    color,
-  });
-  return [
-    [
-      projected("income", "Projected income", colors.value.pos),
-      projected("expense", "Projected expenses", colors.value.neg),
-      projected("transfer", "Projected transfers"),
-    ],
-    [
-      {
-        label: "Current income",
-        value: amount("current_income"),
-        color: colors.value.pos,
-      },
-      {
-        label: "Current expenses",
-        value: amount("current_expense"),
-        color: colors.value.neg,
-      },
-      { label: "Projected net", value: amount("projected_net") },
-    ],
-  ];
-});
-
-async function getSummary() {
-  loadingSummary.value = true;
-  try {
-    const response = await transactionStore.getTemplateSummary();
-    summary.value = response.data;
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  } finally {
-    loadingSummary.value = false;
-  }
-}
 
 async function getData() {
   loadingRecords.value = true;
@@ -208,19 +145,19 @@ async function handleEmit(emitType: any, data?: any) {
     case "completeOperation": {
       createModal.value = false;
       updateModal.value = false;
-      await Promise.all([getData(), getSummary()]);
+      await getData();
       emit("refreshTemplateCount");
       break;
     }
     case "completeDelete": {
       createModal.value = false;
       updateModal.value = false;
-      await Promise.all([getData(), getSummary()]);
+      await getData();
       emit("refreshTemplateCount");
       break;
     }
     case "refreshList": {
-      await Promise.all([getData(), getSummary()]);
+      await getData();
       emit("refreshTemplateCount");
       break;
     }
@@ -310,40 +247,6 @@ defineExpose({ refresh });
           <span class="mobile-hide"> Template </span>
         </div>
       </Button>
-    </div>
-
-    <div
-      id="projection-bar"
-      class="flex flex-col w-full rounded-xl border border-line divide-y divide-line"
-    >
-      <div
-        v-for="(row, i) in projectionRows"
-        :key="i"
-        class="grid grid-cols-3 py-1 divide-x divide-line"
-      >
-        <div
-          v-for="cell in row"
-          :key="cell.label"
-          class="text-center px-2 md:px-4"
-        >
-          <div class="text-xs" style="color: var(--text-secondary)">
-            {{ cell.label }}
-          </div>
-          <div
-            class="text-xs md:text-sm font-bold"
-            :style="{ color: cell.color }"
-          >
-            {{ loadingSummary ? "—" : vueHelper.displayAsCurrency(cell.value) }}
-          </div>
-          <div
-            v-if="!loadingSummary && cell.showAvg"
-            class="text-xs"
-            style="color: var(--text-secondary)"
-          >
-            {{ vueHelper.displayAsCurrency(cell.avg ?? null) }} avg.
-          </div>
-        </div>
-      </div>
     </div>
 
     <div
