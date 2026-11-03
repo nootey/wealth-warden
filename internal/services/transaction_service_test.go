@@ -5,7 +5,6 @@ package services_test
 import (
 	"context"
 	"errors"
-	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -3873,61 +3872,14 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_CursorWalk(
 		s.Require().NoError(err)
 	}
 
-	ids := func(records []models.Transaction) []int64 {
-		out := make([]int64, len(records))
-		for i, r := range records {
-			out[i] = r.ID
-		}
-		return out
+	fetch := func(p utils.PaginationParams) ([]models.Transaction, *utils.Paginator, error) {
+		records, _, paginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
+		return records, paginator, err
 	}
 	byCategory := []utils.Filter{{Source: "transactions", Field: "category", Operator: "=", Value: strconv.FormatInt(categoryIDs[0], 10)}}
 
-	cases := []struct {
-		field, order string
-		filters      []utils.Filter
-	}{
-		{field: "txn_date", order: "desc"},
-		{field: "amount", order: "asc"},
-		{field: "description", order: "asc"},
-		{field: "description", order: "desc"},
-		{field: "category", order: "asc"},
-		{field: "category", order: "desc", filters: byCategory},
-		{field: "account", order: "desc"},
-	}
-	for _, tc := range cases {
-		name := tc.field + " " + tc.order
-		p := utils.PaginationParams{RowsPerPage: 200, SortField: tc.field, SortOrder: tc.order, Filters: tc.filters}
-		all, _, _, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
-		s.Require().NoError(err, name)
-		s.Require().Greater(len(all), 3, name)
-
-		p.RowsPerPage = 3
-		var pages [][]int64
-		var paginator *utils.Paginator
-		for {
-			var records []models.Transaction
-			records, _, paginator, err = svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
-			s.Require().NoError(err, name)
-			pages = append(pages, ids(records))
-			if paginator.NextCursor == nil {
-				break
-			}
-			p.Cursor = *paginator.NextCursor
-		}
-		s.Equal(ids(all), slices.Concat(pages...), name)
-		s.Equal(len(all), paginator.TotalRecords, name)
-
-		for i := len(pages) - 2; i >= 0; i-- {
-			s.Require().NotNil(paginator.PrevCursor, name)
-			p.Cursor = *paginator.PrevCursor
-
-			var records []models.Transaction
-			records, _, paginator, err = svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
-			s.Require().NoError(err, name)
-			s.Equal(pages[i], ids(records), name)
-		}
-		s.Nil(paginator.PrevCursor, name)
-	}
+	tests.AssertCursorWalk(&s.ServiceIntegrationSuite, models.TransactionSort, utils.PaginationParams{}, fetch)
+	tests.AssertCursorWalk(&s.ServiceIntegrationSuite, models.TransactionSort, utils.PaginationParams{Filters: byCategory}, fetch)
 }
 
 func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {

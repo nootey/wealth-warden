@@ -4,6 +4,7 @@ package services_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 	"wealth-warden/internal/config"
@@ -11,6 +12,7 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 	"wealth-warden/pkg/authz"
+	"wealth-warden/pkg/utils"
 
 	"github.com/stretchr/testify/suite"
 	"gorm.io/datatypes"
@@ -352,4 +354,51 @@ func (s *AuthServiceTestSuite) TestResetPassword_Success() {
 	// the token is single use
 	_, err = svc.ValidatePasswordReset(s.Ctx, token.TokenValue)
 	s.ErrorIs(err, services.ErrInvalidToken)
+}
+
+func (s *AuthServiceTestSuite) walkRoleIDs() []int64 {
+	var roleIDs []int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM roles WHERE name IN ?`, []string{"admin", "member"}).Scan(&roleIDs).Error)
+	s.Require().Len(roleIDs, 2)
+	return roleIDs
+}
+
+func (s *AuthServiceTestSuite) TestFetchUsersPaginated_CursorWalk() {
+	roleIDs := s.walkRoleIDs()
+	confirmed := time.Now().UTC()
+
+	for i := range 5 {
+		user := &models.User{
+			Password:    "unused",
+			Email:       fmt.Sprintf("walk%d@example.com", i),
+			DisplayName: "Walker",
+			RoleID:      roleIDs[i%2],
+		}
+		if i%2 == 0 {
+			user.EmailConfirmed = &confirmed
+		}
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(user).Error)
+	}
+
+	tests.AssertCursorWalk(&s.ServiceIntegrationSuite, models.UserSort, utils.PaginationParams{},
+		func(p utils.PaginationParams) ([]models.User, *utils.Paginator, error) {
+			return s.TC.App.UserService.FetchUsersPaginated(s.Ctx, p, false)
+		})
+}
+
+func (s *AuthServiceTestSuite) TestFetchInvitationsPaginated_CursorWalk() {
+	roleIDs := s.walkRoleIDs()
+
+	for i := range 5 {
+		_, err := s.TC.App.UserService.InsertInvitation(s.Ctx, int64(1), models.InvitationReq{
+			Email:  fmt.Sprintf("invite%d@example.com", i),
+			RoleID: roleIDs[i%2],
+		})
+		s.Require().NoError(err)
+	}
+
+	tests.AssertCursorWalk(&s.ServiceIntegrationSuite, models.InvitationSort, utils.PaginationParams{},
+		func(p utils.PaginationParams) ([]models.Invitation, *utils.Paginator, error) {
+			return s.TC.App.UserService.FetchInvitationsPaginated(s.Ctx, p)
+		})
 }

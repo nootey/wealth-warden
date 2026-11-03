@@ -9,6 +9,7 @@ import (
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -610,4 +611,35 @@ func (s *SavingsServiceTestSuite) TestInsertContribution_RacingExpensesNeverOver
 	s.Require().NoError(s.TC.DB.Raw(`SELECT balance FROM balances WHERE account_id = ?`, accID).Scan(&balance).Error)
 	s.Require().NoError(s.TC.DB.Raw(`SELECT COALESCE(SUM(current_amount), 0) FROM saving_goals WHERE account_id = ?`, accID).Scan(&allocated).Error)
 	s.True(allocated.LessThanOrEqual(balance), "allocated %s exceeds balance %s", allocated, balance)
+}
+
+func (s *SavingsServiceTestSuite) TestFetchContributionsPaginated_CursorWalk() {
+	svc := s.TC.App.SavingsService
+	userID := int64(1)
+	accID := s.newSavingsAccount("Walk Savings", decimal.NewFromInt(10000))
+
+	goalID, err := svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:    accID,
+		Name:         "Walk Goal",
+		TargetAmount: decimal.NewFromInt(5000),
+	})
+	s.Require().NoError(err)
+
+	note := "Shared note"
+	for i := range 7 {
+		req := &models.SavingContributionReq{
+			Amount: decimal.NewFromInt(int64(10 + i%2)),
+			Month:  fmt.Sprintf("2026-0%d-01", 1+i%3),
+		}
+		if i%2 == 0 {
+			req.Note = &note
+		}
+		_, err := svc.InsertContribution(s.Ctx, userID, goalID, req)
+		s.Require().NoError(err)
+	}
+
+	tests.AssertCursorWalk(&s.ServiceIntegrationSuite, models.SavingContributionSort, utils.PaginationParams{},
+		func(p utils.PaginationParams) ([]models.SavingContribution, *utils.Paginator, error) {
+			return svc.FetchContributionsPaginated(s.Ctx, userID, goalID, p)
+		})
 }
