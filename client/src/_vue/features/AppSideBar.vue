@@ -9,7 +9,7 @@
     <template #container="{ closeCallback }">
       <div class="flex flex-col h-full overflow-y-auto bg-canvas">
         <div
-          class="sticky top-0 z-10 flex flex-row items-center justify-between gap-2 px-5 py-4 border-b border-line bg-canvas"
+          class="sticky top-0 z-10 flex flex-row items-center justify-between gap-2 px-3 py-3 md:px-5 md:py-4 border-b border-line bg-canvas"
         >
           <div class="flex flex-col gap-0.5">
             <span class="label">Activity</span>
@@ -27,9 +27,10 @@
           </button>
         </div>
 
-        <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-3 p-3">
           <DailyStats />
           <MonthlyStats />
+          <MonthlyProjection />
         </div>
       </div>
     </template>
@@ -40,6 +41,7 @@
 import { ref } from "vue";
 import MonthlyStats from "../components/data/MonthlyStats.vue";
 import DailyStats from "../components/data/DailyStats.vue";
+import MonthlyProjection from "../components/data/MonthlyProjection.vue";
 
 const open = ref(false);
 

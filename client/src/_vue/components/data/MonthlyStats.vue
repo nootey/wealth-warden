@@ -169,7 +169,6 @@ const rateSections = computed(() => [
   {
     key: "necessity",
     label: "Necessity",
-    hint: "Share of this month's outflows.",
     items: necessityBars.value,
   },
 ]);
@@ -259,9 +258,9 @@ const pieOptions = computed(() => ({
     />
 
     <template v-else-if="monthlyStats">
-      <div class="flex flex-col gap-0.5 rounded-xl bg-sunken px-4 py-3">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-3 py-2">
         <span class="text-xs text-muted">Net</span>
-        <span class="text-xl leading-tight font-medium tracking-tight text-ink">
+        <span class="text-xs sm:text-sm font-medium tracking-tight text-ink">
           {{
             vueHelper.displayAsCurrency(monthlyStats.net, monthlyStats.currency)
           }}
@@ -269,9 +268,9 @@ const pieOptions = computed(() => ({
       </div>
 
       <div class="grid grid-cols-2 gap-2">
-        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-3 py-2">
           <span class="text-xs text-muted">Inflows</span>
-          <span class="text-base font-medium tracking-tight text-gain">
+          <span class="text-xs sm:text-sm font-medium tracking-tight text-gain">
             {{
               vueHelper.displayAsCurrency(
                 monthlyStats.inflow,
@@ -280,9 +279,9 @@ const pieOptions = computed(() => ({
             }}
           </span>
         </div>
-        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+        <div class="flex flex-col gap-1 rounded-xl bg-sunken px-3 py-2">
           <span class="text-xs text-muted">Outflows</span>
-          <span class="text-base font-medium tracking-tight text-loss">
+          <span class="text-xs sm:text-sm font-medium tracking-tight text-loss">
             {{
               vueHelper.displayAsCurrency(
                 monthlyStats.outflow,
@@ -298,12 +297,7 @@ const pieOptions = computed(() => ({
         :key="section.key"
         class="flex flex-col gap-3"
       >
-        <div class="flex flex-col gap-1">
-          <span class="label">{{ section.label }}</span>
-          <span v-if="section.hint" class="text-xs text-faint">
-            {{ section.hint }}
-          </span>
-        </div>
+        <span class="label">{{ section.label }}</span>
         <div
           v-for="a in section.items"
           :key="a.key"
@@ -351,7 +345,7 @@ const pieOptions = computed(() => ({
         </div>
         <div v-if="hasOutflowData" class="flex justify-center py-2">
           <ComparativePieChart
-            :size="260"
+            :size="200"
             :show-legend="false"
             :show-total="true"
             :options="pieOptions"

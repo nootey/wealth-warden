@@ -47,17 +47,17 @@ async function loadStats() {
     <ShowLoading v-if="loading" :num-fields="2" />
 
     <div v-else-if="dailyStats" class="grid grid-cols-2 gap-2">
-      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-3 py-2">
         <span class="text-xs text-muted">Inflows</span>
-        <span class="text-lg font-medium tracking-tight text-gain">
+        <span class="text-xs sm:text-sm font-medium tracking-tight text-gain">
           {{
             vueHelper.displayAsCurrency(dailyStats.inflow, dailyStats.currency)
           }}
         </span>
       </div>
-      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-4 py-3">
+      <div class="flex flex-col gap-1 rounded-xl bg-sunken px-3 py-2">
         <span class="text-xs text-muted">Outflows</span>
-        <span class="text-lg font-medium tracking-tight text-loss">
+        <span class="text-xs sm:text-sm font-medium tracking-tight text-loss">
           {{
             vueHelper.displayAsCurrency(dailyStats.outflow, dailyStats.currency)
           }}
