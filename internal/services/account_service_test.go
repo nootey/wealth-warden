@@ -5,12 +5,14 @@ package services_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -2012,4 +2014,29 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_WaitsForInFlightClose() 
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error)
 	s.Zero(txnCount, "nothing may post to the closed account")
+}
+
+func (s *AccountServiceTestSuite) TestFetchAccountsPaginated_CursorWalk() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	for i := range 7 {
+		balance := decimal.NewFromInt(100)
+		_, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+			Name:           fmt.Sprintf("Walk Account %d", i),
+			AccountTypeID:  1,
+			Type:           "asset",
+			Subtype:        "cash",
+			Classification: "current",
+			Balance:        &balance,
+			OpenedAt:       today.AddDate(0, 0, -(i % 3)),
+		})
+		s.Require().NoError(err)
+	}
+
+	tests.AssertCursorWalk(&s.ServiceIntegrationSuite, models.AccountSort, utils.PaginationParams{},
+		func(p utils.PaginationParams) ([]models.Account, *utils.Paginator, error) {
+			return svc.FetchAccountsPaginated(s.Ctx, userID, p, true, "")
+		})
 }

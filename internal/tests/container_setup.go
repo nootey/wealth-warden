@@ -2,14 +2,18 @@ package tests
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
+	"wealth-warden/internal/models"
 	"wealth-warden/pkg/database/seeders"
+	"wealth-warden/pkg/utils"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/pressly/goose/v3"
@@ -180,6 +184,61 @@ func (s *ServiceIntegrationSuite) RunConcurrently(n int, call func(i int) error)
 	close(start)
 	wg.Wait()
 	return errs
+}
+
+func AssertCursorWalk[T any](s *ServiceIntegrationSuite, spec models.SortSpec[T], base utils.PaginationParams, fetch func(utils.PaginationParams) ([]T, *utils.Paginator, error)) {
+	s.T().Helper()
+	for _, field := range slices.Sorted(maps.Keys(spec.Fields)) {
+		for _, order := range []string{"asc", "desc"} {
+			p := base
+			p.SortField, p.SortOrder = field, order
+			assertCursorWalk(s, spec, p, fetch)
+		}
+	}
+}
+
+func assertCursorWalk[T any](s *ServiceIntegrationSuite, spec models.SortSpec[T], p utils.PaginationParams, fetch func(utils.PaginationParams) ([]T, *utils.Paginator, error)) {
+	s.T().Helper()
+	name := p.SortField + " " + p.SortOrder
+	ids := func(rows []T) []any {
+		out := make([]any, len(rows))
+		for i, r := range rows {
+			out[i] = spec.ID.Value(r)
+		}
+		return out
+	}
+
+	p.RowsPerPage = 200
+	all, _, err := fetch(p)
+	s.Require().NoError(err, name)
+	s.Require().Greater(len(all), 3, name)
+
+	p.RowsPerPage = 3
+	var pages [][]any
+	var paginator *utils.Paginator
+	for {
+		var rows []T
+		rows, paginator, err = fetch(p)
+		s.Require().NoError(err, name)
+		pages = append(pages, ids(rows))
+		if paginator.NextCursor == nil {
+			break
+		}
+		p.Cursor = *paginator.NextCursor
+	}
+	s.Equal(ids(all), slices.Concat(pages...), name)
+	s.Equal(len(all), paginator.TotalRecords, name)
+
+	for i := len(pages) - 2; i >= 0; i-- {
+		s.Require().NotNil(paginator.PrevCursor, name)
+		p.Cursor = *paginator.PrevCursor
+
+		var rows []T
+		rows, paginator, err = fetch(p)
+		s.Require().NoError(err, name)
+		s.Equal(pages[i], ids(rows), name)
+	}
+	s.Nil(paginator.PrevCursor, name)
 }
 
 // SetupTest empties mutable tables and the session store between tests, ensuring a clean slate
