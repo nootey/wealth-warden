@@ -1305,8 +1305,8 @@ func (_c *MockTransactionServiceInterface_FetchTransfersPaginated_Call) RunAndRe
 }
 
 // GetTemplateSummary provides a mock function for the type MockTransactionServiceInterface
-func (_mock *MockTransactionServiceInterface) GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error) {
-	ret := _mock.Called(ctx, userID)
+func (_mock *MockTransactionServiceInterface) GetTemplateSummary(ctx context.Context, userID int64, year int, month int, now time.Time) (*models.TemplateSummary, error) {
+	ret := _mock.Called(ctx, userID, year, month, now)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTemplateSummary")
@@ -1314,18 +1314,18 @@ func (_mock *MockTransactionServiceInterface) GetTemplateSummary(ctx context.Con
 
 	var r0 *models.TemplateSummary
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) (*models.TemplateSummary, error)); ok {
-		return returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int, int, time.Time) (*models.TemplateSummary, error)); ok {
+		return returnFunc(ctx, userID, year, month, now)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) *models.TemplateSummary); ok {
-		r0 = returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int, int, time.Time) *models.TemplateSummary); ok {
+		r0 = returnFunc(ctx, userID, year, month, now)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.TemplateSummary)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, int64) error); ok {
-		r1 = returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int, int, time.Time) error); ok {
+		r1 = returnFunc(ctx, userID, year, month, now)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1340,11 +1340,14 @@ type MockTransactionServiceInterface_GetTemplateSummary_Call struct {
 // GetTemplateSummary is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockTransactionServiceInterface_Expecter) GetTemplateSummary(ctx any, userID any) *MockTransactionServiceInterface_GetTemplateSummary_Call {
-	return &MockTransactionServiceInterface_GetTemplateSummary_Call{Call: _e.mock.On("GetTemplateSummary", ctx, userID)}
+//   - year int
+//   - month int
+//   - now time.Time
+func (_e *MockTransactionServiceInterface_Expecter) GetTemplateSummary(ctx any, userID any, year any, month any, now any) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+	return &MockTransactionServiceInterface_GetTemplateSummary_Call{Call: _e.mock.On("GetTemplateSummary", ctx, userID, year, month, now)}
 }
 
-func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) Run(run func(ctx context.Context, userID int64)) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) Run(run func(ctx context.Context, userID int64, year int, month int, now time.Time)) *MockTransactionServiceInterface_GetTemplateSummary_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -1354,9 +1357,24 @@ func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) Run(run func(
 		if args[1] != nil {
 			arg1 = args[1].(int64)
 		}
+		var arg2 int
+		if args[2] != nil {
+			arg2 = args[2].(int)
+		}
+		var arg3 int
+		if args[3] != nil {
+			arg3 = args[3].(int)
+		}
+		var arg4 time.Time
+		if args[4] != nil {
+			arg4 = args[4].(time.Time)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
+			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -1367,7 +1385,7 @@ func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) Return(templa
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) RunAndReturn(run func(ctx context.Context, userID int64) (*models.TemplateSummary, error)) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) RunAndReturn(run func(ctx context.Context, userID int64, year int, month int, now time.Time) (*models.TemplateSummary, error)) *MockTransactionServiceInterface_GetTemplateSummary_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -15,6 +15,10 @@ import {
   useChartColors,
 } from "../../../style/theme/chartColors.ts";
 
+const emit = defineEmits<{
+  (e: "periodChange", period: { year: number; month: number }): void;
+}>();
+
 const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
 const { colors } = useChartColors();
@@ -44,6 +48,10 @@ const monthOptions = computed(() => {
 
 onMounted(async () => {
   await loadAvailableYears();
+  emit("periodChange", {
+    year: selectedYear.value,
+    month: selectedMonth.value,
+  });
   if (!availableYears.value.length) {
     loading.value = false;
     return;
@@ -100,7 +108,9 @@ watch(selectedYear, (newYear) => {
     : (months[months.length - 1] ?? currentMonth);
 });
 
-watch(selectedMonth, async () => {
+// Watch both, since a year switch can keep the same month number.
+watch([selectedYear, selectedMonth], async ([year, month]) => {
+  emit("periodChange", { year, month });
   await loadStats();
 });
 

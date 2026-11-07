@@ -1,25 +1,42 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import type { TemplateSummary } from "../../../models/transaction_models.ts";
 
+const props = defineProps<{
+  period: { year: number; month: number } | null;
+}>();
+
 const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
 
-const loading = ref(false);
+const loading = ref(true);
 const summary = ref<TemplateSummary | null>(null);
 
-onMounted(async () => {
-  await loadSummary();
-});
+const periodLabel = computed(() =>
+  props.period
+    ? new Date(props.period.year, props.period.month - 1).toLocaleString(
+        "default",
+        { month: "long", year: "numeric" },
+      )
+    : "",
+);
 
-async function loadSummary() {
+watch(
+  () => props.period,
+  async (period) => {
+    if (period) await loadSummary(period.year, period.month);
+  },
+  { immediate: true },
+);
+
+async function loadSummary(year: number, month: number) {
   try {
     loading.value = true;
-    const response = await transactionStore.getTemplateSummary();
+    const response = await transactionStore.getTemplateSummary(year, month);
     summary.value = response.data;
   } catch (e) {
     toastStore.errorResponseToast(e);
@@ -79,7 +96,7 @@ const tiles = computed<
   >
     <div class="flex items-baseline justify-between gap-2">
       <span class="label">Projection</span>
-      <span class="text-xs text-faint">This month</span>
+      <span class="text-xs text-faint">{{ periodLabel }}</span>
     </div>
 
     <ShowLoading v-if="loading" :num-fields="2" />

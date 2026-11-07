@@ -67,7 +67,7 @@ type TransactionServiceInterface interface {
 	ExecuteTemplateEarly(ctx context.Context, userID int64, id int64) error
 	DeleteTransactionTemplate(ctx context.Context, userID int64, id int64) error
 	GetTransactionTemplateCount(ctx context.Context, userID int64, templateType string) (int64, error)
-	GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error)
+	GetTemplateSummary(ctx context.Context, userID int64, year, month int, now time.Time) (*models.TemplateSummary, error)
 	GetTemplatesReadyToRun(ctx context.Context) ([]*models.TransactionTemplate, error)
 	ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error
 	RecalculateTemplateTimezones(ctx context.Context, userID int64, loc *time.Location) (int, error)
@@ -2947,10 +2947,37 @@ func (s *TransactionService) GetTransactionTemplateCount(ctx context.Context, us
 	return s.repo.CountTransactionTemplates(ctx, nil, userID, true, templateType)
 }
 
-func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error) {
-	templates, err := s.repo.GetActiveTemplates(ctx, nil, userID)
-	if err != nil {
-		return nil, err
+func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int64, year, month int, now time.Time) (*models.TemplateSummary, error) {
+	monthStart := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	monthEnd := monthStart.AddDate(0, 1, 0)
+
+	// A closed month has nothing left to run, so it counts what its templates actually ran,
+	// even templates turned off or edited since.
+	isPastMonth := !monthEnd.After(now.UTC())
+	ranAmounts := make(map[int64]decimal.Decimal)
+	var templates []models.TransactionTemplate
+	var err error
+	if isPastMonth {
+		templates, err = s.repo.GetTemplatesRunBetween(ctx, nil, userID, monthStart, monthEnd)
+		if err != nil {
+			return nil, err
+		}
+		runs, err := s.repo.GetTemplateRunTotals(ctx, nil, userID, monthStart, monthEnd)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range runs {
+			// A transfer run posts an outflow and an inflow leg of the same amount.
+			if r.TransactionType == models.TxnTypeTransfer && r.Direction == models.TxnDirectionIncome {
+				continue
+			}
+			ranAmounts[*r.TemplateID] = ranAmounts[*r.TemplateID].Add(r.Total)
+		}
+	} else {
+		templates, err = s.repo.GetActiveTemplates(ctx, nil, userID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	baseMultipliers := map[string]decimal.Decimal{
@@ -2964,10 +2991,6 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 		"annually":  true,
 	}
 
-	now := time.Now()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	monthEnd := monthStart.AddDate(0, 1, 0)
-
 	checkingAccounts, err := s.accRepo.FindAccountsBySubtype(ctx, nil, userID, "checking", true)
 	if err != nil {
 		return nil, err
@@ -2980,7 +3003,7 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 	}
 
 	summary := &models.TemplateSummary{}
-	recurringIDs := make(map[int64]bool)
+	projectedIDs := make(map[int64]bool)
 	for _, t := range templates {
 		isTransfer := t.TemplateType == "transfer"
 		isExpense := t.Direction != nil && *t.Direction == "expense"
@@ -2997,7 +3020,7 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 				}
 			}
 			if t.EndDate != nil {
-				months := (t.EndDate.Year()-now.Year())*12 + int(t.EndDate.Month()-now.Month())
+				months := (t.EndDate.Year()-year)*12 + int(t.EndDate.Month()) - month
 				if months < 0 {
 					months = 0
 				}
@@ -3016,9 +3039,10 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 
 		var amount decimal.Decimal
 		switch {
+		case isPastMonth:
+			amount = ranAmounts[t.ID]
 		case recurring:
 			amount = t.Amount.Mul(multiplier)
-			recurringIDs[t.ID] = true
 		case (isOneOff || isWindingDown || periodicFrequencies[t.Frequency]) && dueThisMonth:
 			amount = t.Amount
 		default:
@@ -3039,6 +3063,12 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 		default:
 			summary.ThisMonthIncome = summary.ThisMonthIncome.Add(amount)
 		}
+
+		// A closed month's net comes from its rows alone.
+		if isPastMonth {
+			continue
+		}
+		projectedIDs[t.ID] = true
 
 		// Transfers between two checking accounts cancel out, so only the ones crossing in or out move the net.
 		fromChecking := checking[t.AccountID]
@@ -3065,8 +3095,8 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 			*total = total.Add(a.Total)
 		}
 
-		// Only recurring runs are projected; one-off and periodic runs have moved past this month.
-		if a.TemplateID != nil && recurringIDs[*a.TemplateID] {
+		// In an open month, one-off and periodic runs have moved past it and are not projected.
+		if a.TemplateID != nil && projectedIDs[*a.TemplateID] {
 			continue
 		}
 		if a.Direction == models.TxnDirectionExpense {
