@@ -360,6 +360,11 @@ type TemplateSummary struct {
 	ProjectedNet      decimal.Decimal `json:"projected_net"`
 }
 
+type TemplateSummaryQuery struct {
+	Year  int `form:"year" validate:"omitempty,min=1900,max=3000"`
+	Month int `form:"month" validate:"omitempty,min=1,max=12"`
+}
+
 type TemplateFlowTotal struct {
 	TransactionType TransactionType
 	Direction       TransactionDirection

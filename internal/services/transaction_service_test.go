@@ -3884,7 +3884,8 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_CursorWalk(
 
 // Current totals cover this month's live ledger rows on checking accounts only. Projected net
 // is the checking projection plus every checking row or transfer leg that no recurring template
-// already covers.
+// already covers. A past month counts only what its templates actually ran, and its net
+// matches its rows.
 func (s *TransactionServiceTestSuite) TestGetTemplateSummary_CheckingTotalsAndNet() {
 	svc := s.TC.App.TransactionService
 	accSvc := s.TC.App.AccountService
@@ -3946,7 +3947,7 @@ func (s *TransactionServiceTestSuite) TestGetTemplateSummary_CheckingTotalsAndNe
 	once := 1
 
 	salaryID := newTemplate("Salary", "transaction", checkingID, nil, &income, 3000, nil)
-	newTemplate("Rent", "transaction", checkingID, nil, &expense, 1000, nil)
+	rentID := newTemplate("Rent", "transaction", checkingID, nil, &expense, 1000, nil)
 	toSavingsID := newTemplate("To savings", "transfer", checkingID, &savingsID, nil, 500, nil)
 	newTemplate("Savings fee", "transaction", savingsID, nil, &expense, 200, nil)
 	repairID := newTemplate("Car repair", "transaction", checkingID, nil, &expense, 250, &once)
@@ -3977,7 +3978,7 @@ func (s *TransactionServiceTestSuite) TestGetTemplateSummary_CheckingTotalsAndNe
 	archivedID := insert(checkingID, expense, 75, today)
 	s.Require().NoError(svc.DeleteTransaction(s.Ctx, userID, archivedID))
 
-	summary, err := svc.GetTemplateSummary(s.Ctx, userID)
+	summary, err := svc.GetTemplateSummary(s.Ctx, userID, now.Year(), int(now.Month()), now)
 	s.Require().NoError(err)
 
 	s.True(decimal.NewFromInt(3150).Equal(summary.CurrentIncome), "current income: got %s", summary.CurrentIncome)
@@ -3987,6 +3988,47 @@ func (s *TransactionServiceTestSuite) TestGetTemplateSummary_CheckingTotalsAndNe
 	// 3000 salary - 1000 rent - 500 to savings + 150 income - 80 expense - 250 repair
 	// - 300 out to savings + 100 in from savings; the checking-to-checking 70 cancels out
 	s.True(decimal.NewFromInt(1120).Equal(summary.ProjectedNet), "projected net: got %s", summary.ProjectedNet)
+
+	insertRun := func(templateID, amount int64, date time.Time) {
+		_, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID:  checkingID,
+			Direction:  expense,
+			Amount:     decimal.NewFromInt(amount),
+			TxnDate:    date,
+			TemplateID: &templateID,
+		})
+		s.Require().NoError(err)
+	}
+	gymID := newTemplate("Gym", "transaction", checkingID, nil, &expense, 40, nil)
+	insertRun(rentID, 950, monthStart.AddDate(0, 0, -5))
+	insertRun(gymID, 40, monthStart.AddDate(0, 0, -4))
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TransactionTemplate{}).
+		Where("id = ?", gymID).Update("is_active", false).Error)
+
+	savingsRunDate := monthStart.AddDate(0, 0, -6)
+	_, err = svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      checkingID,
+		DestinationID: savingsID,
+		Amount:        decimal.NewFromInt(400),
+		CreatedAt:     savingsRunDate,
+	})
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("user_id = ? AND transaction_type = ? AND txn_date = ?", userID, models.TxnTypeTransfer, savingsRunDate).
+		Update("template_id", toSavingsID).Error)
+
+	prevMonth := monthStart.AddDate(0, -1, 0)
+	prev, err := svc.GetTemplateSummary(s.Ctx, userID, prevMonth.Year(), int(prevMonth.Month()), now)
+	s.Require().NoError(err)
+
+	s.True(prev.CurrentIncome.IsZero(), "previous month income: got %s", prev.CurrentIncome)
+	s.True(decimal.NewFromInt(1050).Equal(prev.CurrentExpense), "previous month expense: got %s", prev.CurrentExpense)
+	s.True(prev.MonthlyIncome.IsZero(), "salary did not run last month: got %s", prev.MonthlyIncome)
+	s.True(decimal.NewFromInt(400).Equal(prev.MonthlyTransfer), "the savings transfer counts its run once: got %s", prev.MonthlyTransfer)
+	s.True(decimal.NewFromInt(990).Equal(prev.MonthlyExpense), "rent and the now inactive gym at their run amounts: got %s", prev.MonthlyExpense)
+
+	// -950 rent - 40 gym - 60 expense - 400 to savings
+	s.True(decimal.NewFromInt(-1450).Equal(prev.ProjectedNet), "previous month net: got %s", prev.ProjectedNet)
 }
 
 func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {

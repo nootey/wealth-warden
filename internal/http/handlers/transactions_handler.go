@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -776,7 +777,25 @@ func (h *TransactionHandler) GetTransactionTemplateSummary(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	summary, err := h.Service.GetTemplateSummary(ctx, userID)
+	var q models.TemplateSummaryQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid query parameters", err))
+		return
+	}
+	if err := h.v.ValidateStruct(&q); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
+	now := time.Now()
+	if q.Year == 0 {
+		q.Year = now.Year()
+	}
+	if q.Month == 0 {
+		q.Month = int(now.Month())
+	}
+
+	summary, err := h.Service.GetTemplateSummary(ctx, userID, q.Year, q.Month, now)
 	if err != nil {
 		_ = c.Error(err)
 		return

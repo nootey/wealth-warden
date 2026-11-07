@@ -87,6 +87,8 @@ type TransactionRepositoryInterface interface {
 	GetYearlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.Transfer, error)
 	GetTransfersOutsideNetWorth(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, from, to time.Time) ([]models.Transfer, error)
 	GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error)
+	GetTemplatesRunBetween(ctx context.Context, tx *gorm.DB, userID int64, from, to time.Time) ([]models.TransactionTemplate, error)
+	GetTemplateRunTotals(ctx context.Context, tx *gorm.DB, userID int64, from, to time.Time) ([]models.TemplateFlowTotal, error)
 	GetActiveTemplatesForUser(ctx context.Context, userID int64) ([]models.TransactionTemplate, error)
 	BulkUpdateTemplateTimezone(ctx context.Context, updates []models.TemplateTimezoneUpdate) error
 	FindTransfersBetweenAccounts(ctx context.Context, tx *gorm.DB, accountAID, accountBID, userID int64) ([]models.Transfer, error)
@@ -968,6 +970,50 @@ func (r *TransactionRepository) GetActiveTemplates(ctx context.Context, tx *gorm
 	}
 
 	return records, nil
+}
+
+func (r *TransactionRepository) GetTemplatesRunBetween(ctx context.Context, tx *gorm.DB, userID int64, from, to time.Time) ([]models.TransactionTemplate, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	subQuery := db.Table("transactions").
+		Select("DISTINCT template_id").
+		Where("user_id = ? AND template_id IS NOT NULL AND deleted_at IS NULL", userID).
+		Where("txn_date >= ? AND txn_date < ?", from, to)
+
+	var records []models.TransactionTemplate
+	err := db.Model(&models.TransactionTemplate{}).
+		Where("user_id = ? AND id IN (?)", userID, subQuery).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *TransactionRepository) GetTemplateRunTotals(ctx context.Context, tx *gorm.DB, userID int64, from, to time.Time) ([]models.TemplateFlowTotal, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var rows []models.TemplateFlowTotal
+	err := db.Model(&models.Transaction{}).
+		Select("transaction_type, direction, template_id, COALESCE(SUM(amount), 0) AS total").
+		Where("user_id = ? AND template_id IS NOT NULL AND deleted_at IS NULL", userID).
+		Where("txn_date >= ? AND txn_date < ?", from, to).
+		Group("transaction_type, direction, template_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, nil
 }
 
 func (r *TransactionRepository) CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool, templateType string) (int64, error) {

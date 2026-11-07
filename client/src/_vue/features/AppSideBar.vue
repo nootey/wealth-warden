@@ -29,8 +29,8 @@
 
         <div class="flex flex-col gap-3 p-3">
           <DailyStats />
-          <MonthlyStats />
-          <MonthlyProjection />
+          <MonthlyStats @period-change="period = $event" />
+          <MonthlyProjection :period="period" />
         </div>
       </div>
     </template>
@@ -44,6 +44,7 @@ import DailyStats from "../components/data/DailyStats.vue";
 import MonthlyProjection from "../components/data/MonthlyProjection.vue";
 
 const open = ref(false);
+const period = ref<{ year: number; month: number } | null>(null);
 
 const toggle = () => (open.value = !open.value);
 
