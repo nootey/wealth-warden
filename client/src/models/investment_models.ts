@@ -26,6 +26,7 @@ export interface InvestmentAsset {
   latest_price?: string | null;
   latest_price_currency?: string | null;
   last_price_update?: Date | null;
+  is_closed?: boolean;
   currency: string;
   created_at?: Date;
   updated_at?: Date;

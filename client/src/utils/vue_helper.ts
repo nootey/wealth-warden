@@ -187,6 +187,9 @@ const vueHelper = {
   isActiveRowClass<T extends { is_active?: string | null }>(data: T) {
     return !data?.is_active ? "row-deleted" : "";
   },
+  closedRowClass<T extends { is_closed?: boolean }>(data: T) {
+    return data?.is_closed ? "row-deleted" : "";
+  },
 };
 
 export default vueHelper;

@@ -24,6 +24,9 @@ const (
 	IncomeTypeDividend IncomeType = "dividend"
 )
 
+// Sells can leave dust, so a priced holding worth less than this counts as closed.
+const InvestmentAssetDustValue = 0.1
+
 type AssetBackfillRow struct {
 	Ticker         string
 	InvestmentType InvestmentType
@@ -67,6 +70,7 @@ type InvestmentAsset struct {
 	LatestPrice         *decimal.Decimal `gorm:"->" json:"latest_price"`
 	LatestPriceCurrency *string          `gorm:"->" json:"latest_price_currency"`
 	LastPriceUpdate     *time.Time       `gorm:"->" json:"last_price_update"`
+	IsClosed            bool             `gorm:"-" json:"is_closed"`
 	Currency            string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	Account             Account          `json:"account"`
 	ImportID            *int64           `json:"import_id,omitempty"`

@@ -60,6 +60,16 @@ func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
 
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
+	includeClosedStr := qp.Get("include_deleted")
+	var includeClosed bool
+	if includeClosedStr != "" {
+		v, err := strconv.ParseBool(includeClosedStr)
+		if err != nil {
+			_ = c.Error(apperr.Wrap(apperr.Invalid, "include_deleted must be a valid boolean", err))
+			return
+		}
+		includeClosed = v
+	}
 
 	accountIDStr := qp.Get("account")
 	var accountID *int64
@@ -72,7 +82,7 @@ func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
 		accountID = &id
 	}
 
-	records, paginator, err := h.Service.FetchInvestmentAssetsPaginated(ctx, userID, p, accountID)
+	records, paginator, err := h.Service.FetchInvestmentAssetsPaginated(ctx, userID, p, includeClosed, accountID)
 	if err != nil {
 		_ = c.Error(err)
 		return

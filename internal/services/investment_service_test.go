@@ -2113,7 +2113,7 @@ func (s *InvestmentServiceTestSuite) TestFetchInvestmentAssetsPaginated_DerivesV
 		decimal.NewFromInt(10), decimal.NewFromInt(100)) // 10 * 100 = 1000
 
 	page := utils.PaginationParams{RowsPerPage: 10, SortField: "current_value", SortOrder: "asc"}
-	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
+	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, false, &accID)
 	s.Require().NoError(err)
 	s.Require().Len(rows, 2)
 
@@ -2123,9 +2123,48 @@ func (s *InvestmentServiceTestSuite) TestFetchInvestmentAssetsPaginated_DerivesV
 	s.True(decimal.NewFromInt(1000).Equal(rows[1].CurrentValue), "got %s", rows[1].CurrentValue.String())
 
 	page.SortOrder = "desc"
-	rows, _, err = s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
+	rows, _, err = s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, false, &accID)
 	s.Require().NoError(err)
 	s.Equal(big, rows[0].ID, "descending: larger current_value first")
+}
+
+// Sold-out and dust holdings are closed and hidden by default. An unpriced holding
+// has no value to judge, so it stays open while it holds any quantity.
+func (s *InvestmentServiceTestSuite) TestFetchInvestmentAssetsPaginated_HidesClosedUnlessIncluded() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	soldOutAccID := s.newInvestmentAccount(userID, "Sold Out Account")
+
+	open := s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100))
+	dust := s.newHolding(userID, accID, "BTC-EUR", "Bitcoin EUR", models.InvestmentCrypto,
+		decimal.NewFromFloat(0.000002), decimal.NewFromInt(45000)) // 0.000002 * 45000 = 0.09
+	soldOut := s.newHolding(userID, soldOutAccID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.Zero, decimal.Zero)
+	unpriced := s.newHolding(userID, accID, "BTC-USD", "Bitcoin", models.InvestmentCrypto,
+		decimal.NewFromFloat(0.000002), decimal.NewFromInt(50000))
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
+		`DELETE FROM ticker_price_history WHERE ticker = ?`, "BTC-USD").Error)
+
+	page := utils.PaginationParams{RowsPerPage: 10}
+
+	rows, paginator, err := s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, false, nil)
+	s.Require().NoError(err)
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	s.ElementsMatch([]int64{open, unpriced}, ids)
+	s.Equal(2, paginator.TotalRecords)
+
+	rows, paginator, err = s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, true, nil)
+	s.Require().NoError(err)
+	closed := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		closed[row.ID] = row.IsClosed
+	}
+	s.Equal(map[int64]bool{open: false, dust: true, soldOut: true, unpriced: false}, closed)
+	s.Equal(4, paginator.TotalRecords)
 }
 
 // A buy trade's PnL follows the latest ticker price; a sell trade's PnL is the

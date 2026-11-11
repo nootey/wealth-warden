@@ -870,8 +870,8 @@ func (_c *MockInvestmentServiceInterface_FetchInvestmentAssetByID_Call) RunAndRe
 }
 
 // FetchInvestmentAssetsPaginated provides a mock function for the type MockInvestmentServiceInterface
-func (_mock *MockInvestmentServiceInterface) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
-	ret := _mock.Called(ctx, userID, p, accountID)
+func (_mock *MockInvestmentServiceInterface) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeClosed bool, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
+	ret := _mock.Called(ctx, userID, p, includeClosed, accountID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FetchInvestmentAssetsPaginated")
@@ -880,25 +880,25 @@ func (_mock *MockInvestmentServiceInterface) FetchInvestmentAssetsPaginated(ctx 
 	var r0 []models.InvestmentAsset
 	var r1 *utils.Paginator
 	var r2 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, *int64) ([]models.InvestmentAsset, *utils.Paginator, error)); ok {
-		return returnFunc(ctx, userID, p, accountID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool, *int64) ([]models.InvestmentAsset, *utils.Paginator, error)); ok {
+		return returnFunc(ctx, userID, p, includeClosed, accountID)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, *int64) []models.InvestmentAsset); ok {
-		r0 = returnFunc(ctx, userID, p, accountID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool, *int64) []models.InvestmentAsset); ok {
+		r0 = returnFunc(ctx, userID, p, includeClosed, accountID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.InvestmentAsset)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams, *int64) *utils.Paginator); ok {
-		r1 = returnFunc(ctx, userID, p, accountID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams, bool, *int64) *utils.Paginator); ok {
+		r1 = returnFunc(ctx, userID, p, includeClosed, accountID)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*utils.Paginator)
 		}
 	}
-	if returnFunc, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams, *int64) error); ok {
-		r2 = returnFunc(ctx, userID, p, accountID)
+	if returnFunc, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams, bool, *int64) error); ok {
+		r2 = returnFunc(ctx, userID, p, includeClosed, accountID)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -914,12 +914,13 @@ type MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - p utils.PaginationParams
+//   - includeClosed bool
 //   - accountID *int64
-func (_e *MockInvestmentServiceInterface_Expecter) FetchInvestmentAssetsPaginated(ctx any, userID any, p any, accountID any) *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call {
-	return &MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call{Call: _e.mock.On("FetchInvestmentAssetsPaginated", ctx, userID, p, accountID)}
+func (_e *MockInvestmentServiceInterface_Expecter) FetchInvestmentAssetsPaginated(ctx any, userID any, p any, includeClosed any, accountID any) *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call {
+	return &MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call{Call: _e.mock.On("FetchInvestmentAssetsPaginated", ctx, userID, p, includeClosed, accountID)}
 }
 
-func (_c *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call) Run(run func(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64)) *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call {
+func (_c *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call) Run(run func(ctx context.Context, userID int64, p utils.PaginationParams, includeClosed bool, accountID *int64)) *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -933,15 +934,20 @@ func (_c *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call) Ru
 		if args[2] != nil {
 			arg2 = args[2].(utils.PaginationParams)
 		}
-		var arg3 *int64
+		var arg3 bool
 		if args[3] != nil {
-			arg3 = args[3].(*int64)
+			arg3 = args[3].(bool)
+		}
+		var arg4 *int64
+		if args[4] != nil {
+			arg4 = args[4].(*int64)
 		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
+			arg4,
 		)
 	})
 	return _c
@@ -952,7 +958,7 @@ func (_c *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call) Re
 	return _c
 }
 
-func (_c *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call) RunAndReturn(run func(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)) *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call {
+func (_c *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call) RunAndReturn(run func(ctx context.Context, userID int64, p utils.PaginationParams, includeClosed bool, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)) *MockInvestmentServiceInterface_FetchInvestmentAssetsPaginated_Call {
 	_c.Call.Return(run)
 	return _c
 }

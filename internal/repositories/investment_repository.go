@@ -13,9 +13,9 @@ import (
 
 type InvestmentRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
-	CountInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
+	CountInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeClosed bool, accountID *int64) (int64, error)
 	CountInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
-	FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error)
+	FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, includeClosed bool, accountID *int64) ([]models.InvestmentAsset, error)
 	FindAllInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentAsset, error)
 	FindInvestmentAssetByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentAsset, error)
 	FindAssetAccountIDs(ctx context.Context, tx *gorm.DB, userID int64, assetIDs ...int64) ([]int64, error)
@@ -90,7 +90,7 @@ func (r *InvestmentRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	return tx, tx.Error
 }
 
-func (r *InvestmentRepository) CountInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error) {
+func (r *InvestmentRepository) CountInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeClosed bool, accountID *int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -99,10 +99,15 @@ func (r *InvestmentRepository) CountInvestmentAssets(ctx context.Context, tx *go
 
 	var totalRecords int64
 	q := db.WithContext(ctx).Model(&models.InvestmentAsset{}).
-		Where("user_id = ?", userID)
+		Table("investment_assets_valued AS investment_assets").
+		Where("investment_assets.user_id = ?", userID)
+
+	if !includeClosed {
+		q = q.Where("investment_assets.quantity > 0 AND (investment_assets.latest_price IS NULL OR investment_assets.current_value >= ?)", models.InvestmentAssetDustValue)
+	}
 
 	if accountID != nil {
-		q = q.Where("account_id = ?", *accountID)
+		q = q.Where("investment_assets.account_id = ?", *accountID)
 	}
 
 	joins := utils.GetRequiredJoins(filters)
@@ -148,7 +153,7 @@ func (r *InvestmentRepository) CountInvestmentTrades(ctx context.Context, tx *go
 	return totalRecords, nil
 }
 
-func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error) {
+func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, ks utils.Keyset, filters []utils.Filter, includeClosed bool, accountID *int64) ([]models.InvestmentAsset, error) {
 	var records []models.InvestmentAsset
 	db := tx
 	if db == nil {
@@ -160,6 +165,10 @@ func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gor
 		Table("investment_assets_valued AS investment_assets").
 		Where("investment_assets.user_id = ?", userID).
 		Preload("Account")
+
+	if !includeClosed {
+		q = q.Where("investment_assets.quantity > 0 AND (investment_assets.latest_price IS NULL OR investment_assets.current_value >= ?)", models.InvestmentAssetDustValue)
+	}
 
 	if accountID != nil {
 		q = q.Where("investment_assets.account_id = ?", *accountID)
