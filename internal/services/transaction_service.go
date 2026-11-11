@@ -3725,7 +3725,9 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			Payload:     changes,
 			Causer:      &currentTemplate.UserID,
 		}); err != nil {
-			return 0, time.Time{}, err
+			s.logger.Error("template transfer activity log failed",
+				zap.Error(err), zap.Int64("user_id", currentTemplate.UserID),
+				zap.Int64("template_id", currentTemplate.ID), zap.Int64("transfer_id", transferLog.ID))
 		}
 	}
 
@@ -3737,7 +3739,9 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			Payload:     utils.TransactionCreateChanges(insertedTxn, insertedTxn.Account.Name, insertedTxn.Category.Name),
 			Causer:      &currentTemplate.UserID,
 		}); err != nil {
-			return 0, time.Time{}, err
+			s.logger.Error("template transaction activity log failed",
+				zap.Error(err), zap.Int64("user_id", currentTemplate.UserID),
+				zap.Int64("template_id", currentTemplate.ID), zap.Int64("transaction_id", insertedTxn.ID))
 		}
 	}
 
