@@ -220,6 +220,9 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	if !direction.IsValid() {
 		return models.InsertResult{}, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
 	}
+	if !req.Amount.IsPositive() {
+		return models.InsertResult{}, apperr.New(apperr.Validation, "amount must be greater than zero")
+	}
 
 	if req.IdempotencyKey != nil && *req.IdempotencyKey != "" {
 		if existing, err := s.repo.FindTransactionByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); err == nil {
@@ -412,31 +415,22 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, err
 	}
 
-	if ownsTx {
-		if err := tx.Commit().Error; err != nil {
-			return models.InsertResult{}, err
-		}
+	// A caller that passes its own transaction logs after its commit, so a rollback leaves no log behind.
+	if !ownsTx {
+		tr.Account = *account
+		tr.Category = category
+		return models.InsertResult{ID: txnID, Transaction: &tr}, nil
 	}
 
-	// Dispatch transaction activity log
-	changes := utils.InitChanges()
-	amountString := tr.Amount.StringFixed(2)
-	dateStr := tr.TxnDate.UTC().Format(time.RFC3339)
-
-	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
-	utils.CompareChanges("", account.Name, changes, "account")
-	utils.CompareChanges("", string(tr.Direction), changes, "type")
-	utils.CompareChanges("", dateStr, changes, "date")
-	utils.CompareChanges("", amountString, changes, "amount")
-	utils.CompareChanges("", tr.Currency, changes, "currency")
-	utils.CompareChanges("", category.Name, changes, "category")
-	utils.CompareChanges("", utils.SafeString(tr.Description), changes, "description")
+	if err := tx.Commit().Error; err != nil {
+		return models.InsertResult{}, err
+	}
 
 	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "transaction",
 		Description: nil,
-		Payload:     changes,
+		Payload:     utils.TransactionCreateChanges(&tr, account.Name, category.Name),
 		Causer:      &userID,
 	})
 	if err != nil {
@@ -447,6 +441,10 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 }
 
 func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (models.InsertResult, error) {
+	if !req.Amount.IsPositive() {
+		return models.InsertResult{}, apperr.New(apperr.Validation, "amount must be greater than zero")
+	}
+
 	if req.IdempotencyKey != nil && *req.IdempotencyKey != "" {
 		if existing, err := s.repo.FindTransferByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); err == nil {
 			return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
@@ -816,6 +814,9 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	direction := models.TransactionDirection(strings.ToLower(string(req.Direction)))
 	if !direction.IsValid() {
 		return 0, apperr.New(apperr.Validation, fmt.Sprintf("direction must be income or expense, got %q", req.Direction))
+	}
+	if !req.Amount.IsPositive() {
+		return 0, apperr.New(apperr.Validation, "amount must be greater than zero")
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -1614,6 +1615,10 @@ func (s *TransactionService) logBulkTransactionEvent(ctx context.Context, userID
 }
 
 func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, id int64, req *models.UpdateTransferReq) error {
+	if !req.Amount.IsPositive() {
+		return apperr.New(apperr.Validation, "amount must be greater than zero")
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2397,6 +2402,10 @@ func (s *TransactionService) FetchTransactionTemplateByID(ctx context.Context, u
 }
 
 func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, userID int64, req *models.TransactionTemplateReq) (int64, error) {
+	if !req.Amount.IsPositive() {
+		return 0, apperr.New(apperr.Validation, "amount must be greater than zero")
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -2592,6 +2601,10 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 }
 
 func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, userID, id int64, req *models.TransactionTemplateReq) (int64, error) {
+	if !req.Amount.IsPositive() {
+		return 0, apperr.New(apperr.Validation, "amount must be greater than zero")
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -3269,6 +3282,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 
 	var transferLog *models.Transfer
 	var transferSrcName, transferDstName string
+	var insertedTxn *models.Transaction
 
 	if currentTemplate.TemplateType == "transfer" {
 		srcAcc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, false)
@@ -3401,10 +3415,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			Description: &desc,
 			TemplateID:  &currentTemplate.ID,
 		}
-		if _, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx); err != nil {
+		res, err := s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx)
+		if err != nil {
 			tx.Rollback()
 			return 0, time.Time{}, err
 		}
+		insertedTxn = res.Transaction
 	}
 
 	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency, currentTemplate.DayOfMonth, loc)
@@ -3454,6 +3470,18 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			Category:    "transfer",
 			Description: &desc,
 			Payload:     changes,
+			Causer:      &currentTemplate.UserID,
+		}); err != nil {
+			return 0, time.Time{}, err
+		}
+	}
+
+	if insertedTxn != nil {
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+			Event:       "create",
+			Category:    "transaction",
+			Description: nil,
+			Payload:     utils.TransactionCreateChanges(insertedTxn, insertedTxn.Account.Name, insertedTxn.Category.Name),
 			Causer:      &currentTemplate.UserID,
 		}); err != nil {
 			return 0, time.Time{}, err

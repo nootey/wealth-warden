@@ -331,6 +331,143 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_FutureDate() {
 	s.Equal(int64(0), txnCount, "no transaction should have been inserted")
 }
 
+func (s *TransactionServiceTestSuite) TestInsertTransaction_RejectsNonPositiveAmount() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+
+	for _, amount := range []decimal.Decimal{decimal.Zero, decimal.NewFromInt(-50)} {
+		_, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+			AccountID: accID,
+			Direction: "expense",
+			Amount:    amount,
+			TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+		})
+		var appErr *apperr.Error
+		s.Require().ErrorAs(err, &appErr, "amount %s", amount)
+		s.Equal(apperr.Validation, appErr.Kind)
+		s.Equal("amount must be greater than zero", appErr.Message)
+	}
+
+	var txnCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
+		Count(&txnCount).Error)
+	s.Zero(txnCount)
+	s.assertBalance(accID, decimal.NewFromInt(1000), "balance after rejected amounts")
+}
+
+func (s *TransactionServiceTestSuite) TestUpdateTransaction_RejectsNonPositiveAmount() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+	txnID := s.insertLedgerTxn(userID, accID, models.TxnDirectionExpense, decimal.NewFromInt(100), "update amount guard")
+
+	for _, amount := range []decimal.Decimal{decimal.Zero, decimal.NewFromInt(-50)} {
+		_, err := svc.UpdateTransaction(s.Ctx, userID, txnID, &models.TransactionReq{
+			AccountID: accID,
+			Direction: "expense",
+			Amount:    amount,
+			TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+		})
+		var appErr *apperr.Error
+		s.Require().ErrorAs(err, &appErr, "amount %s", amount)
+		s.Equal(apperr.Validation, appErr.Kind)
+		s.Equal("amount must be greater than zero", appErr.Message)
+	}
+
+	var tr models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, txnID).Error)
+	s.True(decimal.NewFromInt(100).Equal(tr.Amount), "amount must be unchanged, got %s", tr.Amount)
+	s.assertBalance(accID, decimal.NewFromInt(900), "balance after rejected updates")
+}
+
+func (s *TransactionServiceTestSuite) TestTransfer_RejectsNonPositiveAmount() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	srcID := s.newNamedAccount(userID, "Transfer Guard Source", decimal.NewFromInt(500))
+	dstID := s.newNamedAccount(userID, "Transfer Guard Destination", decimal.NewFromInt(100))
+
+	tr, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID: srcID, DestinationID: dstID, Amount: decimal.NewFromInt(50), CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	for _, amount := range []decimal.Decimal{decimal.Zero, decimal.NewFromInt(-50)} {
+		_, insertErr := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+			SourceID: srcID, DestinationID: dstID, Amount: amount, CreatedAt: today,
+		})
+		updateErr := svc.UpdateTransfer(s.Ctx, userID, tr.ID, &models.UpdateTransferReq{
+			Amount: amount, CreatedAt: today,
+		})
+		for _, err := range []error{insertErr, updateErr} {
+			var appErr *apperr.Error
+			s.Require().ErrorAs(err, &appErr, "amount %s", amount)
+			s.Equal(apperr.Validation, appErr.Kind)
+			s.Equal("amount must be greater than zero", appErr.Message)
+		}
+	}
+
+	var stored models.Transfer
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&stored, tr.ID).Error)
+	s.True(decimal.NewFromInt(50).Equal(stored.Amount), "amount must be unchanged, got %s", stored.Amount)
+	s.assertBalance(srcID, decimal.NewFromInt(450), "source after rejected transfers")
+	s.assertBalance(dstID, decimal.NewFromInt(150), "destination after rejected transfers")
+}
+
+func (s *TransactionServiceTestSuite) TestTransactionTemplate_RejectsNonPositiveAmount() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newNamedAccount(userID, "Template Guard Account", decimal.NewFromInt(1000))
+	nextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	direction := models.TxnDirectionExpense
+
+	template := models.TransactionTemplate{
+		Name:         "Rent",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &direction,
+		Amount:       decimal.NewFromInt(300),
+		Frequency:    "monthly",
+		DayOfMonth:   nextRun.Day(),
+		NextRunAt:    nextRun,
+		IsActive:     true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+
+	for _, amount := range []decimal.Decimal{decimal.Zero, decimal.NewFromInt(-50)} {
+		req := &models.TransactionTemplateReq{
+			Name:         "Rent",
+			TemplateType: "transaction",
+			AccountID:    accID,
+			Direction:    &direction,
+			Amount:       amount,
+			Frequency:    "monthly",
+			NextRunAt:    nextRun,
+			IsActive:     true,
+		}
+		_, insertErr := svc.InsertTransactionTemplate(s.Ctx, userID, req)
+		_, updateErr := svc.UpdateTransactionTemplate(s.Ctx, userID, template.ID, req)
+		for _, err := range []error{insertErr, updateErr} {
+			var appErr *apperr.Error
+			s.Require().ErrorAs(err, &appErr, "amount %s", amount)
+			s.Equal(apperr.Validation, appErr.Kind)
+			s.Equal("amount must be greater than zero", appErr.Message)
+		}
+	}
+
+	var count int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TransactionTemplate{}).
+		Where("account_id = ?", accID).Count(&count).Error)
+	s.Equal(int64(1), count, "no template should be created")
+
+	var stored models.TransactionTemplate
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&stored, template.ID).Error)
+	s.True(decimal.NewFromInt(300).Equal(stored.Amount), "amount must be unchanged, got %s", stored.Amount)
+}
+
 // Tests that snapshot end_balance values are correctly calculated
 // and forward-filled when transactions are added
 func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrect() {

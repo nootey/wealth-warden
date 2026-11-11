@@ -194,7 +194,7 @@ const rules = {
   amount: {
     required,
     decimalValid,
-    decimalMin: decimalMin(0),
+    decimalMin: decimalMin("0.01"),
     decimalMax: decimalMax(1_000_000_000),
   },
   txn_date: {

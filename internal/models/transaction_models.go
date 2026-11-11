@@ -340,6 +340,7 @@ func FindDefaultCategoryDef(classification string) (*DefaultCategoryDef, bool) {
 type InsertResult struct {
 	ID          int64
 	IsDuplicate bool
+	Transaction *Transaction
 }
 
 type TransactionBatchTotals struct {

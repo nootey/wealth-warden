@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"wealth-warden/internal/apperr"
@@ -200,6 +201,19 @@ func PartitionBulkTransactions(records []models.Transaction, allow func(models.T
 		}
 	}
 	return eligible, skipped
+}
+
+func TransactionCreateChanges(tr *models.Transaction, accountName, categoryName string) *Changes {
+	changes := InitChanges()
+	CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
+	CompareChanges("", accountName, changes, "account")
+	CompareChanges("", string(tr.Direction), changes, "type")
+	CompareChanges("", tr.TxnDate.UTC().Format(time.RFC3339), changes, "date")
+	CompareChanges("", tr.Amount.StringFixed(2), changes, "amount")
+	CompareChanges("", tr.Currency, changes, "currency")
+	CompareChanges("", categoryName, changes, "category")
+	CompareChanges("", SafeString(tr.Description), changes, "description")
+	return changes
 }
 
 func TransactionIDs(records []models.Transaction) []int64 {
