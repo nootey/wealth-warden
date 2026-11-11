@@ -23,6 +23,11 @@ func NewTradeExchangeRateKey(trade models.InvestmentTrade) TradeExchangeRateKey 
 	}
 }
 
+func IsAssetClosed(asset models.InvestmentAsset) bool {
+	return asset.Quantity.LessThanOrEqual(decimal.Zero) ||
+		(asset.LatestPrice != nil && asset.CurrentValue.LessThan(decimal.NewFromFloat(models.InvestmentAssetDustValue)))
+}
+
 func MergeStakingIntoTrades(trades []models.InvestmentTrade, income []models.InvestmentIncome) []models.InvestmentTrade {
 	if len(income) == 0 {
 		return trades

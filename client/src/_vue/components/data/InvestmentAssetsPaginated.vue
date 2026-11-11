@@ -3,6 +3,7 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import ColumnHeader from "../base/ColumnHeader.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
+import ActionRow from "../layout/ActionRow.vue";
 import type { Column } from "../../../services/filter_registry.ts";
 import { computed, onMounted, onUnmounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
@@ -116,7 +117,29 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <div class="flex flex-col w-full">
+  <div class="flex flex-col w-full gap-2">
+    <ActionRow>
+      <template #includeDeleted>
+        <div
+          v-tooltip="includeDeleted ? 'Hide closed' : 'Show closed'"
+          class="hover-icon flex flex-row items-center justify-center p-2 rounded-lg"
+          :style="{
+            border: includeDeleted
+              ? '1px solid var(--accent-primary)'
+              : '1px solid var(--border-color)',
+          }"
+          @click="includeDeleted = !includeDeleted"
+        >
+          <i
+            class="pi pi-eye"
+            :style="{
+              fontSize: '0.845rem',
+              color: includeDeleted ? 'var(--accent-primary)' : undefined,
+            }"
+          />
+        </div>
+      </template>
+    </ActionRow>
     <DataTable
       data-key="id"
       class="w-full enhanced-table"
@@ -124,7 +147,7 @@ defineExpose({ refresh });
       :value="records"
       scrollable
       scroll-height="50vh"
-      :row-class="vueHelper.deletedRowClass"
+      :row-class="vueHelper.closedRowClass"
       column-resize-mode="fit"
       scroll-direction="both"
     >

@@ -27,7 +27,7 @@ type InvestmentServiceInterface interface {
 	RebuildInvestmentDerivedData(ctx context.Context, userID int64) error
 	CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error
 	BackfillIncomeExchangeRates(ctx context.Context, userID int64) (updated, skipped int, err error)
-	FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)
+	FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeClosed bool, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)
 	FetchAllInvestmentAssets(ctx context.Context, userID int64) ([]models.InvestmentAsset, error)
 	FetchInvestmentAssetByID(ctx context.Context, userID int64, id int64) (*models.InvestmentAsset, error)
 	FetchInvestmentTradesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentTrade, *utils.Paginator, error)
@@ -107,28 +107,38 @@ var (
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
 
-func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
+func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeClosed bool, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
 	ks, err := utils.NewKeyset(models.InvestmentAssetSort, p)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	totalRecords, err := s.repo.CountInvestmentAssets(ctx, nil, userID, p.Filters, accountID)
+	totalRecords, err := s.repo.CountInvestmentAssets(ctx, nil, userID, p.Filters, includeClosed, accountID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	records, err := s.repo.FindInvestmentAssets(ctx, nil, userID, ks, p.Filters, accountID)
+	records, err := s.repo.FindInvestmentAssets(ctx, nil, userID, ks, p.Filters, includeClosed, accountID)
 	if err != nil {
 		return nil, nil, utils.KeysetError(ks, err)
 	}
 
 	records, paginator := utils.Paginate(records, ks, models.InvestmentAssetSort, totalRecords)
+	for i := range records {
+		records[i].IsClosed = utils.IsAssetClosed(records[i])
+	}
 	return records, paginator, nil
 }
 
 func (s *InvestmentService) FetchAllInvestmentAssets(ctx context.Context, userID int64) ([]models.InvestmentAsset, error) {
-	return s.repo.FindAllInvestmentAssets(ctx, nil, userID)
+	records, err := s.repo.FindAllInvestmentAssets(ctx, nil, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range records {
+		records[i].IsClosed = utils.IsAssetClosed(records[i])
+	}
+	return records, nil
 }
 
 func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID int64, id int64) (*models.InvestmentAsset, error) {
@@ -136,6 +146,7 @@ func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID
 	if err != nil {
 		return nil, err
 	}
+	record.IsClosed = utils.IsAssetClosed(record)
 
 	brackets, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, record.InvestmentType)
 	if err != nil {
