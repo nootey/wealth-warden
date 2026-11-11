@@ -469,6 +469,129 @@ func (s *TransactionServiceTestSuite) TestTransactionTemplate_RejectsNonPositive
 	s.True(decimal.NewFromInt(300).Equal(stored.Amount), "amount must be unchanged, got %s", stored.Amount)
 }
 
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_RejectsNonPositiveAmount() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	srcID := s.newNamedAccount(userID, "Template Run Guard Source", decimal.NewFromInt(1000))
+	dstID := s.newNamedAccount(userID, "Template Run Guard Destination", decimal.NewFromInt(100))
+	nextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	direction := models.TxnDirectionExpense
+
+	templates := []models.TransactionTemplate{
+		{Name: "Zero rent", TemplateType: "transaction", Direction: &direction, Amount: decimal.Zero},
+		{Name: "Negative rent", TemplateType: "transaction", Direction: &direction, Amount: decimal.NewFromInt(-50)},
+		{Name: "Zero savings", TemplateType: "transfer", ToAccountID: &dstID, Amount: decimal.Zero},
+		{Name: "Negative savings", TemplateType: "transfer", ToAccountID: &dstID, Amount: decimal.NewFromInt(-50)},
+	}
+	for _, template := range templates {
+		template.UserID = userID
+		template.AccountID = srcID
+		template.Frequency = "monthly"
+		template.DayOfMonth = nextRun.Day()
+		template.NextRunAt = nextRun
+		template.IsActive = true
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+
+		err := svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID)
+		var appErr *apperr.Error
+		s.Require().ErrorAs(err, &appErr, template.Name)
+		s.Equal(apperr.Validation, appErr.Kind)
+		s.Equal("amount must be greater than zero", appErr.Message)
+
+		var stored models.TransactionTemplate
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&stored, template.ID).Error)
+		s.Zero(stored.RunCount, "%s must not advance run_count", template.Name)
+	}
+
+	var txnCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id IN ? AND transaction_type <> ?", []int64{srcID, dstID}, models.TxnTypeOpening).
+		Count(&txnCount).Error)
+	s.Zero(txnCount)
+
+	var transferCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transfer{}).
+		Where("user_id = ?", userID).Count(&transferCount).Error)
+	s.Zero(transferCount)
+	s.assertBalance(srcID, decimal.NewFromInt(1000), "source balance after rejected runs")
+	s.assertBalance(dstID, decimal.NewFromInt(100), "destination balance after rejected runs")
+}
+
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_TransferUsesCreditLimit() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	srcID := s.newGoalBackedOverdraftAccount(userID, decimal.NewFromInt(1000), decimal.NewFromInt(800))
+	dstID := s.newNamedAccount(userID, "Template Limit Destination", decimal.Zero)
+
+	intoGoalMoney := s.newTransferTemplate(userID, srcID, dstID, "Into goal money", decimal.NewFromInt(600))
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, intoGoalMoney), "credit limit should take precedence over goal allocations")
+	s.assertBalance(srcID, decimal.NewFromInt(400), "source balance after the first run")
+
+	intoOverdraft := s.newTransferTemplate(userID, srcID, dstID, "Into overdraft", decimal.NewFromInt(800))
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, intoOverdraft), "a run within the credit limit should go below zero")
+	s.assertBalance(srcID, decimal.NewFromInt(-400), "source balance after the overdraft run")
+
+	overLimit := s.newTransferTemplate(userID, srcID, dstID, "Over limit", decimal.NewFromInt(200))
+	err := svc.ExecuteTemplateEarly(s.Ctx, userID, overLimit)
+	var appErr *apperr.Error
+	s.Require().ErrorAs(err, &appErr)
+	s.Equal(apperr.Validation, appErr.Kind)
+	s.Equal("insufficient funds: 100.00 over credit limit", appErr.Message)
+	s.assertBalance(srcID, decimal.NewFromInt(-400), "source balance after the rejected run")
+	s.assertBalance(dstID, decimal.NewFromInt(1400), "destination balance after the rejected run")
+}
+
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_TransferBlockedByGoalAllocation() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	srcID := s.newNamedAccount(userID, "Template Goal Source", decimal.NewFromInt(1000))
+	dstID := s.newNamedAccount(userID, "Template Goal Destination", decimal.Zero)
+
+	goalID, err := s.TC.App.SavingsService.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:    srcID,
+		Name:         "Emergency Fund",
+		TargetAmount: decimal.NewFromInt(5000),
+	})
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Exec("UPDATE saving_goals SET current_amount = 800 WHERE id = ?", goalID).Error)
+
+	templateID := s.newTransferTemplate(userID, srcID, dstID, "Into goal money", decimal.NewFromInt(500))
+	err = svc.ExecuteTemplateEarly(s.Ctx, userID, templateID)
+	var appErr *apperr.Error
+	s.Require().ErrorAs(err, &appErr)
+	s.Equal(apperr.Validation, appErr.Kind)
+	s.Contains(appErr.Message, "insufficient free balance: 200.00 available")
+
+	var transferCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transfer{}).
+		Where("user_id = ?", userID).Count(&transferCount).Error)
+	s.Zero(transferCount)
+	s.assertBalance(srcID, decimal.NewFromInt(1000), "source balance after the rejected run")
+}
+
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_TransferFromLiability() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	debt := decimal.NewFromInt(5000)
+	srcID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Template Loan Source",
+		AccountTypeID:  19,
+		Type:           "loan",
+		Subtype:        "personal",
+		Classification: "liability",
+		Balance:        &debt,
+		OpenedAt:       time.Now().AddDate(0, 0, -30),
+	})
+	s.Require().NoError(err)
+	dstID := s.newNamedAccount(userID, "Template Loan Destination", decimal.Zero)
+
+	templateID := s.newTransferTemplate(userID, srcID, dstID, "Loan draw", decimal.NewFromInt(200))
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, templateID), "a liability source has no balance floor, as with a manual transfer")
+	s.assertBalance(srcID, decimal.NewFromInt(-5200), "liability balance after the run")
+	s.assertBalance(dstID, decimal.NewFromInt(200), "destination balance after the run")
+}
+
 // Tests that snapshot end_balance values are correctly calculated
 // and forward-filled when transactions are added
 func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrect() {
@@ -5169,6 +5292,24 @@ func (s *TransactionServiceTestSuite) TestBulkInsertTransactions_RejectsDuplicat
 		Count(&count).Error)
 	s.Zero(count)
 	s.assertBalance(accID, decimal.NewFromInt(1000), "balance after rejected batch")
+}
+
+func (s *TransactionServiceTestSuite) newTransferTemplate(userID, srcID, dstID int64, name string, amount decimal.Decimal) int64 {
+	nextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	template := models.TransactionTemplate{
+		Name:         name,
+		UserID:       userID,
+		AccountID:    srcID,
+		ToAccountID:  &dstID,
+		TemplateType: "transfer",
+		Amount:       amount,
+		Frequency:    "monthly",
+		DayOfMonth:   nextRun.Day(),
+		NextRunAt:    nextRun,
+		IsActive:     true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+	return template.ID
 }
 
 func (s *TransactionServiceTestSuite) newNamedAccount(userID int64, name string, balance decimal.Decimal) int64 {

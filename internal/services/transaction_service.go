@@ -3476,6 +3476,11 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		return 0, time.Time{}, apperr.New(apperr.Conflict, "template is not active")
 	}
 
+	if !currentTemplate.Amount.IsPositive() {
+		tx.Rollback()
+		return 0, time.Time{}, apperr.New(apperr.Validation, "amount must be greater than zero")
+	}
+
 	// Verify account still exists and is active
 	acc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, false)
 	if err != nil {
@@ -3545,10 +3550,24 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			return 0, time.Time{}, err
 		}
 
-		if srcBalance := balances[srcAcc.ID]; srcBalance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
-			tx.Rollback()
-			return 0, time.Time{}, apperr.New(apperr.Validation, fmt.Sprintf("insufficient funds in source account %s (balance: %s, requested: %s)",
-				srcAcc.Name, srcBalance.StringFixed(2), currentTemplate.Amount.StringFixed(2)))
+		if srcAcc.AccountType.Classification == "asset" {
+			resultingBalance := balances[srcAcc.ID].Sub(currentTemplate.Amount)
+			if utils.AccountBelowLimit(resultingBalance, srcAcc) {
+				tx.Rollback()
+				return 0, time.Time{}, utils.AccountLimitError(resultingBalance, srcAcc)
+			}
+
+			if srcAcc.CreditLimit == nil {
+				uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, srcAcc.ID, currentTemplate.UserID)
+				if err != nil {
+					tx.Rollback()
+					return 0, time.Time{}, err
+				}
+				if err := utils.CheckGoalAllocation(currentTemplate.Amount, uncategorized, srcAcc.AccountType.Classification); err != nil {
+					tx.Rollback()
+					return 0, time.Time{}, err
+				}
+			}
 		}
 
 		transferCategory, err := s.repo.EnsureRootCategory(ctx, tx, "uncategorized", currentTemplate.UserID)
