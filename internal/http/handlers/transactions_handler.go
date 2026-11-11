@@ -35,6 +35,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("", authz.RequireAllMW("view_data"), h.GetTransactionsPaginated)
 	ap.GET(":id", authz.RequireAllMW("view_data"), h.GetTransactionByID)
 	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertTransaction)
+	ap.PUT("/bulk", authz.RequireAllMW("manage_data"), h.BulkInsertTransactions)
 	ap.PUT("/:id", authz.RequireAllMW("manage_data"), h.UpdateTransaction)
 	ap.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteTransaction)
 	ap.POST("/bulk", authz.RequireAllMW("manage_data"), h.BulkTransactions)
@@ -439,6 +440,41 @@ func (h *TransactionHandler) BulkTransactions(c *gin.Context) {
 	}
 	if result.Skipped > 0 {
 		msg = fmt.Sprintf("%s, %d skipped", msg, result.Skipped)
+	}
+
+	utils.SuccessMessage(c, msg, "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) BulkInsertTransactions(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req models.BulkInsertTransactionReq
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
+		return
+	}
+
+	result, err := h.Service.BulkInsertTransactions(ctx, userID, &req)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	if result.Processed == 0 {
+		utils.SuccessMessage(c, "Request already processed", "Already recorded", http.StatusAlreadyReported)
+		return
+	}
+
+	msg := fmt.Sprintf("%d transaction(s) created", result.Processed)
+	if result.Skipped > 0 {
+		msg = fmt.Sprintf("%s, %d already recorded", msg, result.Skipped)
 	}
 
 	utils.SuccessMessage(c, msg, "Success", http.StatusOK)

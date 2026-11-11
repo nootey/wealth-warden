@@ -11,6 +11,7 @@ const properties = ref<any>({
     register: { icon: "pi pi-user-plus" },
     create: { icon: "pi pi-plus" },
     update: { icon: "pi pi-pencil" },
+    bulk_create: { icon: "pi pi-plus" },
     bulk_categorize: { icon: "pi pi-pencil" },
     bulk_describe: { icon: "pi pi-pencil" },
     bulk_delete: { icon: "pi pi-pencil" },

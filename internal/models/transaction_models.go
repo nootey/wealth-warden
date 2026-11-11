@@ -340,6 +340,7 @@ func FindDefaultCategoryDef(classification string) (*DefaultCategoryDef, bool) {
 type InsertResult struct {
 	ID          int64
 	IsDuplicate bool
+	Transaction *Transaction
 }
 
 type TransactionBatchTotals struct {
@@ -393,6 +394,20 @@ type BulkTransactionReq struct {
 type BulkTransactionResult struct {
 	Processed int64 `json:"processed"`
 	Skipped   int64 `json:"skipped"`
+}
+
+type BulkInsertTransactionReq struct {
+	AccountID int64              `json:"account_id" validate:"required"`
+	TxnDate   time.Time          `json:"txn_date" validate:"required"`
+	Rows      []BulkInsertRowReq `json:"rows" validate:"required,min=1,max=50,dive"`
+}
+
+type BulkInsertRowReq struct {
+	CategoryID     *int64               `json:"category_id,omitempty"`
+	Direction      TransactionDirection `json:"direction" validate:"required"`
+	Amount         decimal.Decimal      `json:"amount" validate:"required"`
+	Description    *string              `json:"description,omitempty"`
+	IdempotencyKey *string              `json:"idempotency_key,omitempty"`
 }
 
 type TransferReq struct {

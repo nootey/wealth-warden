@@ -53,6 +53,14 @@ export interface Transaction {
   transaction_type: TransactionType;
 }
 
+export interface BulkTransactionRow {
+  direction: string;
+  amount: string | null;
+  category: Category | null;
+  description: string | null;
+  idempotency_key: string;
+}
+
 export interface Transfer {
   id?: number | null;
   source_id: number | null;
