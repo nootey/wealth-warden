@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SegmentedTabs from "../components/layout/SegmentedTabs.vue";
 import TransactionForm from "../components/forms/TransactionForm.vue";
+import TransactionBulkForm from "../components/forms/TransactionBulkForm.vue";
 import { computed, onMounted, ref } from "vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
@@ -35,6 +36,9 @@ const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
 
 const createModal = ref(false);
+const bulkMode = ref(false);
+const bulkSharedDescription = ref(false);
+const bulkSharedDirection = ref(true);
 const updateModal = ref(false);
 const templateModal = ref(false);
 const updateTransactionID = ref(null);
@@ -190,10 +194,60 @@ async function handleEmit(emitType: any) {
     class="rounded-dialog"
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
-    :style="{ width: '500px' }"
-    header="Add transaction"
+    :style="{ width: bulkMode ? 'min(760px, 90vw)' : '500px' }"
+    :header="bulkMode ? 'Add transactions' : 'Add transaction'"
   >
+    <div
+      class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 mb-3 rounded-xl text-sm"
+      style="
+        background: var(--background-secondary);
+        border: 1px solid var(--border-color);
+      "
+    >
+      <div class="flex items-center gap-2">
+        <Checkbox v-model="bulkMode" input-id="bulk-mode" binary />
+        <label for="bulk-mode" class="cursor-pointer font-medium">Bulk</label>
+      </div>
+      <template v-if="bulkMode">
+        <span class="h-4 w-px" style="background: var(--border-color)" />
+        <div class="flex items-center gap-2">
+          <Checkbox
+            v-model="bulkSharedDirection"
+            input-id="bulk-shared-direction"
+            binary
+          />
+          <label
+            for="bulk-shared-direction"
+            class="cursor-pointer"
+            style="color: var(--text-secondary)"
+          >
+            Same direction
+          </label>
+        </div>
+        <div class="flex items-center gap-2">
+          <Checkbox
+            v-model="bulkSharedDescription"
+            input-id="bulk-shared-description"
+            binary
+          />
+          <label
+            for="bulk-shared-description"
+            class="cursor-pointer"
+            style="color: var(--text-secondary)"
+          >
+            Same description
+          </label>
+        </div>
+      </template>
+    </div>
+    <TransactionBulkForm
+      v-if="bulkMode"
+      v-model:shared-direction="bulkSharedDirection"
+      v-model:shared-description="bulkSharedDescription"
+      @complete-tx-operation="handleEmit('completeTxOperation')"
+    />
     <TransactionForm
+      v-else
       mode="create"
       @complete-tx-operation="handleEmit('completeTxOperation')"
       @complete-tr-operation="handleEmit('completeTrOperation')"

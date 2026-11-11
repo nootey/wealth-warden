@@ -52,6 +52,7 @@ func (suite *TransactionHandlerTestSuite) SetupTest() {
 	})
 
 	suite.router.POST("/transactions", suite.handler.InsertTransaction)
+	suite.router.PUT("/transactions/bulk", suite.handler.BulkInsertTransactions)
 	suite.router.POST("/transfers", suite.handler.InsertTransfer)
 	suite.router.PUT("/transactions/:id", suite.handler.UpdateTransaction)
 	suite.router.DELETE("/transactions/:id", suite.handler.DeleteTransaction)
@@ -120,6 +121,89 @@ func (suite *TransactionHandlerTestSuite) TestInsertTransaction_ValidationFailed
 
 	suite.Equal(http.StatusUnprocessableEntity, w.Code)
 	suite.mockService.AssertNotCalled(suite.T(), "InsertTransaction")
+}
+
+func (suite *TransactionHandlerTestSuite) TestBulkInsertTransactions_Success() {
+	payload := &models.BulkInsertTransactionReq{
+		AccountID: 1,
+		TxnDate:   time.Now(),
+		Rows: []models.BulkInsertRowReq{
+			{Direction: "expense", Amount: decimal.NewFromInt(100)},
+			{Direction: "income", Amount: decimal.NewFromInt(200)},
+		},
+	}
+
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.AnythingOfType("models.BulkInsertTransactionReq")).
+		Return(nil).
+		Once()
+
+	suite.mockService.EXPECT().
+		BulkInsertTransactions(mock.Anything, int64(123), mock.Anything).
+		Return(&models.BulkTransactionResult{Processed: 2}, nil).
+		Once()
+
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, "/transactions/bulk", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	suite.Require().NoError(json.Unmarshal(w.Body.Bytes(), &response))
+	suite.Equal("2 transaction(s) created", response["message"])
+}
+
+func (suite *TransactionHandlerTestSuite) TestBulkInsertTransactions_AllDuplicates() {
+	payload := &models.BulkInsertTransactionReq{
+		AccountID: 1,
+		TxnDate:   time.Now(),
+		Rows:      []models.BulkInsertRowReq{{Direction: "expense", Amount: decimal.NewFromInt(100)}},
+	}
+
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.AnythingOfType("models.BulkInsertTransactionReq")).
+		Return(nil).
+		Once()
+
+	suite.mockService.EXPECT().
+		BulkInsertTransactions(mock.Anything, int64(123), mock.Anything).
+		Return(&models.BulkTransactionResult{Skipped: 1}, nil).
+		Once()
+
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, "/transactions/bulk", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusAlreadyReported, w.Code)
+}
+
+func (suite *TransactionHandlerTestSuite) TestBulkInsertTransactions_ValidationFailed() {
+	payload := &models.BulkInsertTransactionReq{
+		AccountID: 1,
+		TxnDate:   time.Now(),
+	}
+
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.AnythingOfType("models.BulkInsertTransactionReq")).
+		Return(errors.New("rows is required")).
+		Once()
+
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, "/transactions/bulk", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnprocessableEntity, w.Code)
+	suite.mockService.AssertNotCalled(suite.T(), "BulkInsertTransactions")
 }
 
 func (suite *TransactionHandlerTestSuite) TestInsertTransfer_Success() {

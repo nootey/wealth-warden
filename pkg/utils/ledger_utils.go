@@ -216,6 +216,14 @@ func TransactionCreateChanges(tr *models.Transaction, accountName, categoryName 
 	return changes
 }
 
+func BulkRowError(row int, err error) error {
+	var appErr *apperr.Error
+	if errors.As(err, &appErr) {
+		return apperr.Wrap(appErr.Kind, fmt.Sprintf("row %d: %s", row, appErr.Message), err)
+	}
+	return err
+}
+
 func TransactionIDs(records []models.Transaction) []int64 {
 	ids := make([]int64, len(records))
 	for i := range records {

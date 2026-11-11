@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 	"wealth-warden/internal/apperr"
@@ -4972,6 +4973,202 @@ func (s *TransactionServiceTestSuite) TestBulkOperateTransactions_SetCategoryGua
 	var tr models.Transaction
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&tr, incomeID).Error)
 	s.Equal(models.TxnDirectionIncome, tr.Direction, "direction must be unchanged on rollback")
+}
+
+func (s *TransactionServiceTestSuite) TestBulkInsertTransactions_InsertsEveryRow() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	catID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "BulkInsertCategory", Classification: "expense"})
+	s.Require().NoError(err)
+
+	descA, descB := "a", "b"
+	res, err := svc.BulkInsertTransactions(s.Ctx, userID, &models.BulkInsertTransactionReq{
+		AccountID: accID,
+		TxnDate:   today,
+		Rows: []models.BulkInsertRowReq{
+			{Direction: "expense", Amount: decimal.NewFromInt(100), CategoryID: &catID, Description: &descA},
+			{Direction: "income", Amount: decimal.NewFromInt(250), Description: &descB},
+		},
+	})
+	s.Require().NoError(err)
+	s.Equal(int64(2), res.Processed)
+	s.Equal(int64(0), res.Skipped)
+
+	var rows []models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
+		Order("id").Find(&rows).Error)
+	s.Require().Len(rows, 2)
+	s.Equal(models.TxnDirectionExpense, rows[0].Direction)
+	s.Require().NotNil(rows[0].CategoryID)
+	s.Equal(catID, *rows[0].CategoryID)
+	s.Equal(models.TxnDirectionIncome, rows[1].Direction)
+	s.Require().NotNil(rows[1].Description)
+	s.Equal(descB, *rows[1].Description)
+
+	s.assertBalance(accID, decimal.NewFromInt(1150), "balance after bulk insert")
+	s.assertSnapshot(accID, today, decimal.NewFromInt(1150), "today")
+}
+
+func (s *TransactionServiceTestSuite) TestBulkInsertTransactions_CumulativeLimitRollsBack() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+
+	res, err := svc.BulkInsertTransactions(s.Ctx, userID, &models.BulkInsertTransactionReq{
+		AccountID: accID,
+		TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+		Rows: []models.BulkInsertRowReq{
+			{Direction: "expense", Amount: decimal.NewFromInt(600)},
+			{Direction: "expense", Amount: decimal.NewFromInt(600)},
+		},
+	})
+	s.Require().Error(err)
+	s.Nil(res)
+
+	var appErr *apperr.Error
+	s.Require().ErrorAs(err, &appErr)
+	s.Equal(apperr.Validation, appErr.Kind)
+	s.Contains(appErr.Message, "row 2: insufficient funds")
+
+	var count int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
+		Count(&count).Error)
+	s.Zero(count, "no row should be kept when the batch rolls back")
+	s.assertBalance(accID, decimal.NewFromInt(1000), "balance after rollback")
+}
+
+func (s *TransactionServiceTestSuite) TestBulkInsertTransactions_RetryIsDeduplicated() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+
+	keyA, keyB := "bulk-insert-key-a", "bulk-insert-key-b"
+	req := &models.BulkInsertTransactionReq{
+		AccountID: accID,
+		TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+		Rows: []models.BulkInsertRowReq{
+			{Direction: "expense", Amount: decimal.NewFromInt(100), IdempotencyKey: &keyA},
+			{Direction: "expense", Amount: decimal.NewFromInt(200), IdempotencyKey: &keyB},
+		},
+	}
+
+	first, err := svc.BulkInsertTransactions(s.Ctx, userID, req)
+	s.Require().NoError(err)
+	s.Equal(int64(2), first.Processed)
+
+	second, err := svc.BulkInsertTransactions(s.Ctx, userID, req)
+	s.Require().NoError(err)
+	s.Equal(int64(0), second.Processed)
+	s.Equal(int64(2), second.Skipped)
+
+	s.assertBalance(accID, decimal.NewFromInt(700), "balance after retry")
+}
+
+func (s *TransactionServiceTestSuite) TestBulkInsertTransactions_ConcurrentRetryIsDeduplicated() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+
+	keyA, keyB := "bulk-race-key-a", "bulk-race-key-b"
+	req := &models.BulkInsertTransactionReq{
+		AccountID: accID,
+		TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+		Rows: []models.BulkInsertRowReq{
+			{Direction: "expense", Amount: decimal.NewFromInt(100), IdempotencyKey: &keyA},
+			{Direction: "expense", Amount: decimal.NewFromInt(200), IdempotencyKey: &keyB},
+		},
+	}
+
+	start := make(chan struct{})
+	results := make([]*models.BulkTransactionResult, 2)
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			results[i], errs[i] = svc.BulkInsertTransactions(s.Ctx, userID, req)
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	var processed, skipped int64
+	for i := range 2 {
+		s.Require().NoError(errs[i], "request %d", i)
+		processed += results[i].Processed
+		skipped += results[i].Skipped
+	}
+	s.Equal(int64(2), processed)
+	s.Equal(int64(2), skipped)
+
+	var count int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
+		Count(&count).Error)
+	s.Equal(int64(2), count)
+	s.assertBalance(accID, decimal.NewFromInt(700), "balance after concurrent retry")
+}
+
+func (s *TransactionServiceTestSuite) TestBulkInsertTransactions_RejectsNonPositiveAmount() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+
+	for _, amount := range []decimal.Decimal{decimal.Zero, decimal.NewFromInt(-50)} {
+		_, err := svc.BulkInsertTransactions(s.Ctx, userID, &models.BulkInsertTransactionReq{
+			AccountID: accID,
+			TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+			Rows: []models.BulkInsertRowReq{
+				{Direction: "expense", Amount: decimal.NewFromInt(100)},
+				{Direction: "expense", Amount: amount},
+			},
+		})
+		var appErr *apperr.Error
+		s.Require().ErrorAs(err, &appErr, "amount %s", amount)
+		s.Equal(apperr.Validation, appErr.Kind)
+		s.Contains(appErr.Message, "row 2: amount must be greater than zero")
+	}
+
+	var count int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
+		Count(&count).Error)
+	s.Zero(count)
+	s.assertBalance(accID, decimal.NewFromInt(1000), "balance after rejected amounts")
+}
+
+func (s *TransactionServiceTestSuite) TestBulkInsertTransactions_RejectsDuplicateKeys() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+	accID := s.newBulkAccount(userID, decimal.NewFromInt(1000))
+
+	key := "bulk-duplicate-key"
+	_, err := svc.BulkInsertTransactions(s.Ctx, userID, &models.BulkInsertTransactionReq{
+		AccountID: accID,
+		TxnDate:   time.Now().UTC().Truncate(24 * time.Hour),
+		Rows: []models.BulkInsertRowReq{
+			{Direction: "expense", Amount: decimal.NewFromInt(100), IdempotencyKey: &key},
+			{Direction: "expense", Amount: decimal.NewFromInt(200), IdempotencyKey: &key},
+		},
+	})
+	var appErr *apperr.Error
+	s.Require().ErrorAs(err, &appErr)
+	s.Equal(apperr.Validation, appErr.Kind)
+	s.Equal("row 2: duplicate idempotency key", appErr.Message)
+
+	var count int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
+		Count(&count).Error)
+	s.Zero(count)
+	s.assertBalance(accID, decimal.NewFromInt(1000), "balance after rejected batch")
 }
 
 func (s *TransactionServiceTestSuite) newNamedAccount(userID int64, name string, balance decimal.Decimal) int64 {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -50,6 +51,7 @@ type TransactionServiceInterface interface {
 	UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error)
 	DeleteTransaction(ctx context.Context, userID int64, id int64) error
 	BulkOperateTransactions(ctx context.Context, userID int64, req *models.BulkTransactionReq) (*models.BulkTransactionResult, error)
+	BulkInsertTransactions(ctx context.Context, userID int64, req *models.BulkInsertTransactionReq) (*models.BulkTransactionResult, error)
 	UpdateTransfer(ctx context.Context, userID int64, id int64, req *models.UpdateTransferReq) error
 	DeleteTransfer(ctx context.Context, userID int64, id int64) error
 	DeleteCategory(ctx context.Context, userID int64, id int64) error
@@ -1596,6 +1598,238 @@ func (s *TransactionService) bulkDelete(ctx context.Context, tx *gorm.DB, userID
 	s.logBulkTransactionEvent(ctx, userID, "bulk_delete", changes)
 
 	return &models.BulkTransactionResult{Processed: deleted, Skipped: int64(skipped)}, nil
+}
+
+func (s *TransactionService) BulkInsertTransactions(ctx context.Context, userID int64, req *models.BulkInsertTransactionReq) (*models.BulkTransactionResult, error) {
+	if len(req.Rows) == 0 {
+		return nil, apperr.New(apperr.Validation, "no transactions to insert")
+	}
+
+	directions := make([]models.TransactionDirection, len(req.Rows))
+	keys := make([]string, 0, len(req.Rows))
+	hasExpense := false
+	for i, row := range req.Rows {
+		direction := models.TransactionDirection(strings.ToLower(string(row.Direction)))
+		if !direction.IsValid() {
+			return nil, apperr.New(apperr.Validation, fmt.Sprintf("row %d: direction must be income or expense, got %q", i+1, row.Direction))
+		}
+		if !row.Amount.IsPositive() {
+			return nil, apperr.New(apperr.Validation, fmt.Sprintf("row %d: amount must be greater than zero", i+1))
+		}
+		directions[i] = direction
+		hasExpense = hasExpense || direction == models.TxnDirectionExpense
+		if row.IdempotencyKey != nil && *row.IdempotencyKey != "" {
+			if slices.Contains(keys, *row.IdempotencyKey) {
+				return nil, apperr.New(apperr.Validation, fmt.Sprintf("row %d: duplicate idempotency key", i+1))
+			}
+			keys = append(keys, *row.IdempotencyKey)
+		}
+	}
+
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return nil, fmt.Errorf("can't fetch user settings %w", err)
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	txDay := utils.LocalMidnightUTC(req.TxnDate, loc)
+	todayDay := utils.LocalMidnightUTC(time.Now(), loc)
+	if txDay.After(todayDay) {
+		return nil, apperr.New(apperr.Validation, fmt.Sprintf(
+			"transaction date (%s) cannot be in the future (>%s)",
+			txDay.Format("2006-01-02"), todayDay.Format("2006-01-02"),
+		))
+	}
+
+	categories, err := s.repo.FindAllCategories(ctx, nil, userID, false)
+	if err != nil {
+		return nil, err
+	}
+	categoryByID := make(map[int64]models.Category, len(categories))
+	for _, c := range categories {
+		categoryByID[c.ID] = c
+	}
+
+	rules, err := s.rulesRepo.FindRules(ctx, nil, userID, true)
+	if err != nil {
+		return nil, err
+	}
+
+	rowCategories := make([]models.Category, len(req.Rows))
+	needsFallback := false
+	for i, row := range req.Rows {
+		if row.CategoryID != nil {
+			category, ok := categoryByID[*row.CategoryID]
+			if !ok {
+				return nil, utils.BulkRowError(i+1, ErrInvalidCategoryID)
+			}
+			rowCategories[i] = category
+		}
+		if rowCategories[i].ID == 0 || rowCategories[i].Classification == "uncategorized" {
+			for _, id := range utils.MatchingRuleCategories(rules, utils.SafeString(row.Description), row.Amount, directions[i]) {
+				if category, ok := categoryByID[id]; ok {
+					rowCategories[i] = category
+					break
+				}
+			}
+		}
+		needsFallback = needsFallback || rowCategories[i].ID == 0
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	balances, err := s.balanceRepo.LockBalances(ctx, tx, userID, req.AccountID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrInvalidAccountID
+		}
+		return nil, err
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	openAsOf, err := s.accRepo.GetAccountOpeningAsOf(ctx, tx, account.ID)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apperr.New(apperr.Conflict, "account has no opening balance; set an opening balance first")
+		}
+		return nil, err
+	}
+	openDay := utils.LocalMidnightUTC(openAsOf, loc)
+	if txDay.Before(openDay) {
+		tx.Rollback()
+		return nil, apperr.New(apperr.Validation, fmt.Sprintf(
+			"transaction date (%s) cannot be before account opening date (%s)",
+			txDay.Format("2006-01-02"), openDay.Format("2006-01-02"),
+		))
+	}
+
+	// Read under the balance lock, so a concurrent retry of this batch sees the rows the first one committed.
+	recorded, err := s.repo.FindRecordedIdempotencyKeys(ctx, tx, userID, keys)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	alreadyRecorded := make(map[string]bool, len(recorded))
+	for _, key := range recorded {
+		alreadyRecorded[key] = true
+	}
+
+	checkGoals := hasExpense && account.CreditLimit == nil
+	var uncategorized decimal.Decimal
+	if checkGoals {
+		uncategorized, err = s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	var fallback models.Category
+	if needsFallback {
+		fallback, err = s.repo.EnsureRootCategory(ctx, tx, "uncategorized", userID)
+		if err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("can't find default category %w", err)
+		}
+	}
+
+	running := balances[account.ID]
+	records := make([]models.Transaction, 0, len(req.Rows))
+	var skipped int64
+	for i, row := range req.Rows {
+		if row.IdempotencyKey != nil && alreadyRecorded[*row.IdempotencyKey] {
+			skipped++
+			continue
+		}
+
+		effect := utils.DirectionEffect(directions[i], row.Amount)
+		if directions[i] == models.TxnDirectionExpense {
+			resultingBalance := running.Add(effect)
+			if utils.AccountBelowLimit(resultingBalance, account) {
+				tx.Rollback()
+				return nil, utils.BulkRowError(i+1, utils.AccountLimitError(resultingBalance, account))
+			}
+			if checkGoals {
+				if err := utils.CheckGoalAllocation(row.Amount, uncategorized, account.AccountType.Classification); err != nil {
+					tx.Rollback()
+					return nil, utils.BulkRowError(i+1, err)
+				}
+			}
+		}
+		running = running.Add(effect)
+		uncategorized = uncategorized.Add(effect)
+
+		category := rowCategories[i]
+		if category.ID == 0 {
+			category = fallback
+		}
+		records = append(records, models.Transaction{
+			UserID:         userID,
+			AccountID:      account.ID,
+			CategoryID:     &category.ID,
+			Direction:      directions[i],
+			Amount:         row.Amount,
+			Currency:       account.Currency,
+			TxnDate:        txDay,
+			Description:    row.Description,
+			IdempotencyKey: row.IdempotencyKey,
+		})
+	}
+
+	if len(records) == 0 {
+		tx.Rollback()
+		return &models.BulkTransactionResult{Skipped: skipped}, nil
+	}
+
+	if err := s.repo.InsertTransactionsBatch(ctx, tx, records, len(records)); err != nil {
+		tx.Rollback()
+		if utils.IsUniqueViolation(err) {
+			return nil, apperr.Wrap(apperr.Conflict, "some of these transactions were already recorded, reload and try again", err)
+		}
+		return nil, err
+	}
+
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, txDay.UTC().Truncate(24*time.Hour)); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	ids := utils.TransactionIDs(records)
+	changes := utils.InitChanges()
+	utils.CompareChanges("", account.Name, changes, "account")
+	utils.CompareChanges("", strconv.Itoa(len(ids)), changes, "count")
+	utils.CompareChanges("", utils.JoinInt64s(ids, ","), changes, "ids")
+	s.logBulkTransactionEvent(ctx, userID, "bulk_create", changes)
+
+	return &models.BulkTransactionResult{Processed: int64(len(records)), Skipped: skipped}, nil
 }
 
 func (s *TransactionService) logBulkTransactionEvent(ctx context.Context, userID int64, event string, changes *utils.Changes) {
