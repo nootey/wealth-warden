@@ -65,7 +65,7 @@ Create the configuration files from their examples and edit them
 Run the migrations and seeders, then start the server and the client
 
 ```sh
-make migrate type=fresh-seed-basic
+make migrate-fresh
 make run
 cd client && pnpm install && pnpm run dev
 ```

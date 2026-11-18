@@ -29,7 +29,7 @@ Both files have examples provided in their respected directories.
 `docker-compose.yaml` pulls the published images, `nootey/wealth-warden` and `nootey/wealth-warden-client`.
 Each release builds them for amd64 and arm64. `docker-compose.build.yaml` builds them from source instead.
 
-Each `make docker-*` command pulls the latest published images, so `make docker-up` and `make docker-arm-up` also update the app.
+Each `make docker-*` command pulls the latest published images, so `make docker-up` also updates the app.
 To build from source instead, add `build=1`, for example `make docker-up build=1`.
 
 ### Migrations
@@ -81,14 +81,16 @@ For a Raspberry Pi or another ARM board. The board runs no Traefik.
 The client serves the app on `WEB_CLIENT_PORT` (default `5000`), and Grafana runs on `GRAFANA_PORT` (default `3000`).
 Set both in `.env` if you need other ports.
 
+Add `arm=1` to each `make docker-*` command:
+
 ```sh
-make docker-arm-up
+make docker-up arm=1
 ```
 To restart or stop all services, use:
 
 ```sh
-make docker-arm-restart
-make docker-arm-down
+make docker-restart arm=1
+make docker-down arm=1
 ```
 
 ## Seed the database
@@ -110,15 +112,15 @@ To seed a database that already has the schema, run the `seed` subcommand:
 docker compose -f ./docker-compose.yaml run --rm migrate seed basic
 ```
 
-The Makefile wraps both flows. On an ARM board, use the `docker-arm-*` targets with the same arguments:
+The Makefile wraps both flows. On an ARM board, add `arm=1`:
 
 ```sh
-make docker-migrate type=fresh-seed-basic   # drop + migrate + seed
-make docker-seed type=basic                 # seed an existing schema
-make docker-seed type=bulk users=1000       # bulk seed with N users
+make docker-migrate-fresh                   # drop + migrate + basic seed
+make docker-migrate-fresh seed=full         # drop + migrate + full seed
+make docker-seed                            # basic seed on an existing schema
+make docker-seed-bulk users=1000            # bulk seed with N users
 
-make docker-arm-migrate type=fresh-seed-basic
-make docker-arm-seed type=basic
+make docker-migrate-fresh arm=1
 ```
 
 Seed credentials come from the `seed:` block in the config file (see `config/dev.example.yaml`).

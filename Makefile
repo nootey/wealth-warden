@@ -1,4 +1,4 @@
-.PHONY: default run migrate seed loadtest mock build test test-unit test-integration test-coverage check-test-names lint lint-fix docker-up docker-down docker-restart docker-migrate docker-seed docker-arm-up docker-arm-down docker-arm-restart docker-arm-migrate docker-arm-seed tidy pre-push observe observe-local
+.PHONY: default run migrate-up migrate-down migrate-status migrate-fresh seed seed-full seed-bulk seed-one loadtest mock build bench test test-unit test-integration test-coverage check-test-names lint lint-fix observe docker-up docker-down docker-restart docker-migrate-up docker-migrate-down docker-migrate-status docker-migrate-fresh docker-seed docker-seed-full docker-seed-bulk docker-seed-one tidy pre-push
 
 COMPOSE_OBS       := -f ./docker-compose.observability.yaml
 COMPOSE_OBS_LOCAL := -f ./docker-compose.observability.local.yaml
@@ -11,6 +11,12 @@ COMPOSE_ARM_OBS   := -f ./docker-compose.arm.observability.yaml
 BUILD              = $(if $(build),$(COMPOSE_BUILD))
 FETCH              = $(if $(build),--build,--pull always)
 
+# Docker targets run the server stack by default; pass arm=1 for an ARM board
+ARM                = $(if $(arm),$(COMPOSE_ARM))
+ARM_OBS            = $(if $(arm),$(COMPOSE_ARM_OBS))
+STACK              = $(COMPOSE_OBS) $(ARM_OBS) $(COMPOSE_MAIN) $(ARM)
+DOCKER_RUN         = docker compose $(COMPOSE_MAIN) $(ARM) $(BUILD) run --rm $(FETCH) migrate
+
 # Default target runs the app
 default: run
 
@@ -18,11 +24,30 @@ run:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_OBS_LOCAL) up -d
 	go run ./cmd app
 
-migrate:
-	go run ./cmd migrate $(type)
+migrate-up:
+	go run ./cmd migrate up
+
+migrate-down:
+	go run ./cmd migrate down
+
+migrate-status:
+	go run ./cmd migrate status
+
+# Drops the database, migrates and seeds; seed=full for dev data
+migrate-fresh:
+	go run ./cmd migrate fresh-seed-$(or $(seed),basic)
 
 seed:
-	go run ./cmd seed $(type) $(name) $(if $(users),--users $(users)) $(if $(lean),--lean)
+	go run ./cmd seed basic
+
+seed-full:
+	go run ./cmd seed full
+
+seed-bulk:
+	go run ./cmd seed bulk $(if $(users),--users $(users)) $(if $(lean),--lean)
+
+seed-one:
+	go run ./cmd seed individual $(name)
 
 # Runs a k6 script on throwaway Postgres + Redis; test=ledger|dashboard|stress, serve=1 only starts the server
 loadtest:
@@ -70,34 +95,37 @@ observe:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_OBS_LOCAL) up -d
 
 docker-up:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) $(BUILD) up -d $(FETCH)
+	docker compose $(STACK) $(BUILD) up -d $(FETCH)
 
 docker-down:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) down
+	docker compose $(STACK) down
 
 docker-restart:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) restart
+	docker compose $(STACK) restart
 
-docker-migrate:
-	docker compose $(COMPOSE_MAIN) $(BUILD) run --rm $(FETCH) migrate migrate $(or $(type),up)
+docker-migrate-up:
+	$(DOCKER_RUN) migrate up
+
+docker-migrate-down:
+	$(DOCKER_RUN) migrate down
+
+docker-migrate-status:
+	$(DOCKER_RUN) migrate status
+
+docker-migrate-fresh:
+	$(DOCKER_RUN) migrate fresh-seed-$(or $(seed),basic)
 
 docker-seed:
-	docker compose $(COMPOSE_MAIN) $(BUILD) run --rm $(FETCH) migrate seed $(type) $(name) $(if $(users),--users $(users)) $(if $(lean),--lean)
+	$(DOCKER_RUN) seed basic
 
-docker-arm-up:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_ARM_OBS) $(COMPOSE_MAIN) $(COMPOSE_ARM) $(BUILD) up -d $(FETCH)
+docker-seed-full:
+	$(DOCKER_RUN) seed full
 
-docker-arm-down:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_ARM_OBS) $(COMPOSE_MAIN) $(COMPOSE_ARM) down
+docker-seed-bulk:
+	$(DOCKER_RUN) seed bulk $(if $(users),--users $(users)) $(if $(lean),--lean)
 
-docker-arm-restart:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_ARM_OBS) $(COMPOSE_MAIN) $(COMPOSE_ARM) restart
-
-docker-arm-migrate:
-	docker compose $(COMPOSE_MAIN) $(COMPOSE_ARM) $(BUILD) run --rm $(FETCH) migrate migrate $(or $(type),up)
-
-docker-arm-seed:
-	docker compose $(COMPOSE_MAIN) $(COMPOSE_ARM) $(BUILD) run --rm $(FETCH) migrate seed $(type) $(name) $(if $(users),--users $(users)) $(if $(lean),--lean)
+docker-seed-one:
+	$(DOCKER_RUN) seed individual $(name)
 
 tidy:
 	go mod tidy
