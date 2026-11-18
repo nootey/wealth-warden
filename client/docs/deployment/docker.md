@@ -14,8 +14,8 @@ The app can be fully served with `docker-compose`.
 
 ### Deployment
 
-To spin up just the db component, you can use:
+To spin up just the client component, you can use:
 
 ```sh
-docker-compose -f ./docker-compose.yaml -p wealth-warden up client -d
+docker compose -f ./docker-compose.yaml up client -d
 ```

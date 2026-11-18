@@ -1,3 +1,5 @@
+name: wealth-warden
+
 services:
   traefik:
     image: traefik:latest
@@ -25,7 +27,8 @@ services:
       - wealth-warden
 
   db:
-    image: postgres:latest
+    # Pinned: a new major version keeps its data in a new folder and starts empty
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -56,7 +59,6 @@ services:
       - wealth-warden
 
   migrate:
-    profiles: ["migrate"]
     image: nootey/wealth-warden:latest
     depends_on:
       db:
@@ -85,6 +87,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       - POSTGRES_HOST=db
       - POSTGRES_USER=${POSTGRES_USER:-postgres}

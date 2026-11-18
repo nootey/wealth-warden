@@ -1,7 +1,7 @@
 # Self-hosting with Docker
 
 This guide will help you setup, update, and maintain your self-hosted application with Docker Compose. 
-Docker Compose is the most popular and recommended way to self-host the app.
+Docker Compose is the recommended way to self-host the app.
 
 ## Setup
 
@@ -9,7 +9,7 @@ Follow the guide below to get your app running.
 
 ### Install Docker
 
-- Install Docker Engine by following the official guide
+- Install Docker Engine by following the guide
 - Start the Docker service on your machine
 
 ### Configure your Docker Compose file and environment variables
@@ -24,7 +24,50 @@ If you're deploying with Traefik, you can also create a file in `.env`, to confi
 
 Both files have examples provided in their respected directories.
 
-### Run the app
+### Images
+
+`docker-compose.yaml` pulls the published images, `nootey/wealth-warden` and `nootey/wealth-warden-client`.
+Each release builds them for amd64 and arm64. `docker-compose.build.yaml` builds them from source instead.
+
+Each `make docker-*` command pulls the latest published images, so `make docker-up` also updates the app.
+To build from source instead, add `build=1`, for example `make docker-up build=1`.
+
+### Migrations
+
+The `migrate` service runs `migrate up` before the server starts.
+Each start applies new migrations, so the first start also creates the schema.
+
+## Run on a server
+
+Traefik gets a TLS certificate from Let's Encrypt.
+Your domain (`HOST` in `.env`) must point to the server, and ports 80 and 443 must be open.
+
+To start all services, including the observability stack, use:
+
+```sh
+make docker-up
+```
+
+The app is then available at `https://<HOST>`.
+
+To restart or stop all services, use:
+
+```sh
+make docker-restart
+make docker-down
+```
+
+Without make, the same stack is:
+
+```sh
+docker compose -f ./docker-compose.observability.yaml -f ./docker-compose.yaml up -d
+```
+
+To build from source instead, add the build overlay:
+
+```sh
+docker compose -f ./docker-compose.observability.yaml -f ./docker-compose.yaml -f ./docker-compose.build.yaml up -d --build
+```
 
 To spin up just the db component, you can use:
 
@@ -32,14 +75,25 @@ To spin up just the db component, you can use:
 docker compose -f ./docker-compose.yaml up db -d
 ```
 
-For the first time setup, you must run migrations!
+## Run on an ARM board
+
+For a Raspberry Pi or another ARM board. The board runs no Traefik.
+The client serves the app on `WEB_CLIENT_PORT` (default `5000`), and Grafana runs on `GRAFANA_PORT` (default `3000`).
+Set both in `.env` if you need other ports.
+
+Add `arm=1` to each `make docker-*` command:
 
 ```sh
-# Run migrations. Without an argument the migrate service runs `migrate up`.
-docker compose -f ./docker-compose.yaml run --rm migrate
+make docker-up arm=1
+```
+To restart or stop all services, use:
+
+```sh
+make docker-restart arm=1
+make docker-down arm=1
 ```
 
-#### Seed the database
+## Seed the database
 
 The seed data is generated in Go code. There are no SQL seed files. Both flows below use
 the `migrate` service, because that service holds the app binary.
@@ -58,28 +112,22 @@ To seed a database that already has the schema, run the `seed` subcommand:
 docker compose -f ./docker-compose.yaml run --rm migrate seed basic
 ```
 
-The Makefile wraps both flows:
+The Makefile wraps both flows. On an ARM board, add `arm=1`:
 
 ```sh
-make docker-migrate type=fresh-seed-basic   # drop + migrate + seed
-make docker-seed type=basic                 # seed an existing schema
-make docker-seed type=bulk users=1000       # bulk seed with N users
+make docker-migrate-fresh                   # drop + migrate + basic seed
+make docker-migrate-fresh seed=full         # drop + migrate + full seed
+make docker-seed                            # basic seed on an existing schema
+make docker-seed-bulk users=1000            # bulk seed with N users
+
+make docker-migrate-fresh arm=1
 ```
 
 Seed credentials come from the `seed:` block in the config file (see `config/dev.example.yaml`).
 
-To run the app, which will run all docker services including the observability stack, use:
+## Observability
 
-```sh
-docker compose -f ./docker-compose.observability.yaml -f ./docker-compose.yaml up -d
-```
-
-`docker-compose.yaml` only pulls published images. To build from source instead, add the build overlay:
-
-```sh
-docker compose -f ./docker-compose.yaml -f ./docker-compose.build.yaml up -d --build
-```
-
-The observability stack (Prometheus, Tempo, Grafana) is included by default. 
-Grafana is available at `https://grafana.<your-domain>`. 
+The observability stack (Prometheus, Tempo, Loki, Grafana) is included by default.
+On a server, Grafana is available at `https://grafana.<HOST>`.
+On an ARM board, Grafana is available at `http://<board-address>:<GRAFANA_PORT>`.
 Make sure to set `GRAFANA_PASSWORD` in your `.env` file before deploying publicly.

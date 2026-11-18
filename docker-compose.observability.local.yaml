@@ -2,6 +2,9 @@ services:
   prometheus:
     volumes:
       - ./config/docker/prometheus/prometheus.local.yml:/etc/prometheus/prometheus.yml:ro
+    # Docker on Linux does not resolve host.docker.internal without this
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "9090:9090"
 

@@ -1,4 +1,0 @@
-services:
-  grafana:
-    ports:
-      - "3000:3000"

@@ -1,3 +1,5 @@
+name: wealth-warden
+
 services:
   prometheus:
     image: prom/prometheus:latest
