@@ -1,14 +1,15 @@
-.PHONY: default run migrate seed loadtest mock build test test-unit test-integration test-coverage check-test-names lint lint-fix docker-up docker-down docker-migrate docker-seed docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push observe observe-local
+.PHONY: default run migrate seed loadtest mock build test test-unit test-integration test-coverage check-test-names lint lint-fix docker-up docker-down docker-restart docker-migrate docker-seed docker-arm-up docker-arm-down docker-arm-restart docker-arm-migrate docker-arm-seed tidy pre-push observe observe-local
 
 COMPOSE_OBS       := -f ./docker-compose.observability.yaml
 COMPOSE_OBS_LOCAL := -f ./docker-compose.observability.local.yaml
 COMPOSE_MAIN      := -f ./docker-compose.yaml
 COMPOSE_BUILD     := -f ./docker-compose.build.yaml
-COMPOSE_RPI       := -f ./docker-compose.rpi.yaml
-COMPOSE_RPI_OBS   := -f ./docker-compose.rpi.observability.yaml
+COMPOSE_ARM       := -f ./docker-compose.arm.yaml
+COMPOSE_ARM_OBS   := -f ./docker-compose.arm.observability.yaml
 
-# Pi targets pull published images by default; pass build=1 to build on the Pi instead
-RPI_BUILD          = $(if $(build),$(COMPOSE_BUILD))
+# Docker targets pull published images by default; pass build=1 to build from source instead
+BUILD              = $(if $(build),$(COMPOSE_BUILD))
+FETCH              = $(if $(build),--build,--pull always)
 
 # Default target runs the app
 default: run
@@ -69,31 +70,34 @@ observe:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_OBS_LOCAL) up -d
 
 docker-up:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden up -d --build
+	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) $(BUILD) up -d $(FETCH)
 
 docker-down:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden down
+	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) down
 
 docker-restart:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden restart
+	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) restart
 
 docker-migrate:
-	docker compose $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
+	docker compose $(COMPOSE_MAIN) $(BUILD) run --rm $(FETCH) migrate migrate $(or $(type),up)
 
 docker-seed:
-	docker compose $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate seed $(type) $(name) $(if $(users),--users $(users)) $(if $(lean),--lean)
+	docker compose $(COMPOSE_MAIN) $(BUILD) run --rm $(FETCH) migrate seed $(type) $(name) $(if $(users),--users $(users)) $(if $(lean),--lean)
 
-docker-rpi-up:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) $(RPI_BUILD) -p wealth-warden up -d $(if $(build),--build)
+docker-arm-up:
+	docker compose $(COMPOSE_OBS) $(COMPOSE_ARM_OBS) $(COMPOSE_MAIN) $(COMPOSE_ARM) $(BUILD) up -d $(FETCH)
 
-docker-rpi-down:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) -p wealth-warden down
+docker-arm-down:
+	docker compose $(COMPOSE_OBS) $(COMPOSE_ARM_OBS) $(COMPOSE_MAIN) $(COMPOSE_ARM) down
 
-docker-rpi-restart:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) -p wealth-warden restart
+docker-arm-restart:
+	docker compose $(COMPOSE_OBS) $(COMPOSE_ARM_OBS) $(COMPOSE_MAIN) $(COMPOSE_ARM) restart
 
-docker-rpi-migrate:
-	docker compose $(COMPOSE_MAIN) $(COMPOSE_RPI) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
+docker-arm-migrate:
+	docker compose $(COMPOSE_MAIN) $(COMPOSE_ARM) $(BUILD) run --rm $(FETCH) migrate migrate $(or $(type),up)
+
+docker-arm-seed:
+	docker compose $(COMPOSE_MAIN) $(COMPOSE_ARM) $(BUILD) run --rm $(FETCH) migrate seed $(type) $(name) $(if $(users),--users $(users)) $(if $(lean),--lean)
 
 tidy:
 	go mod tidy
