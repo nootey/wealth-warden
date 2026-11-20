@@ -88,6 +88,19 @@ func CalculateNextRun(current time.Time, frequency string, dayOfMonth int, loc *
 	}
 }
 
+func TemplateStateAt(tp *models.TransactionTemplate, at time.Time) models.TemplateState {
+	switch {
+	case tp.MaxRuns != nil && tp.RunCount >= *tp.MaxRuns:
+		return models.TemplateStateCompleted
+	case tp.EndDate != nil && at.After(*tp.EndDate):
+		return models.TemplateStateExpired
+	case tp.IsActive:
+		return models.TemplateStateActive
+	default:
+		return models.TemplateStatePaused
+	}
+}
+
 func CategorizeTransferDestination(accountType *models.AccountType) (isSavings, isInvestment, isDebt bool) {
 	if accountType == nil {
 		return false, false, false

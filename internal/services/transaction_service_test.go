@@ -1678,7 +1678,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 	s.Require().NoError(err)
 	s.Equal(userID, transfer.UserID)
 	s.True(transferAmount.Equal(transfer.Amount))
-	s.Equal("success", transfer.Status)
+	s.Equal(models.TransferStatusSuccess, transfer.Status)
 
 	// Verify two transactions were created (outflow and inflow)
 	var outflowTxn models.Transaction
@@ -3838,6 +3838,90 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
 		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
 	s.Equal(int64(0), txnCount, "no transaction should be created for a blocked execution")
+}
+
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_LastRunCompletesTemplate() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "One-off Template Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	nextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	txnType := models.TxnDirectionExpense
+	maxRuns := 1
+
+	template := models.TransactionTemplate{
+		Name:         "One-off fee",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(100),
+		Frequency:    "monthly",
+		DayOfMonth:   nextRun.Day(),
+		NextRunAt:    nextRun,
+		MaxRuns:      &maxRuns,
+		IsActive:     true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID))
+
+	fetched, err := svc.FetchTransactionTemplateByID(s.Ctx, userID, template.ID)
+	s.Require().NoError(err)
+	s.False(fetched.IsActive)
+	s.Equal(models.TemplateStateCompleted, fetched.State)
+
+	err = svc.ToggleTransactionTemplateActiveState(s.Ctx, userID, template.ID)
+	s.Require().Error(err)
+	s.Contains(err.Error(), "max runs reached")
+}
+
+func (s *TransactionServiceTestSuite) TestFetchTransactionTemplate_PastEndDateIsExpired() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Expired Template Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now().AddDate(-1, 0, 0),
+	})
+	s.Require().NoError(err)
+
+	nextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	endDate := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, -1), time.UTC)
+	txnType := models.TxnDirectionExpense
+
+	template := models.TransactionTemplate{
+		Name:         "Ended gym",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(40),
+		Frequency:    "monthly",
+		DayOfMonth:   nextRun.Day(),
+		NextRunAt:    nextRun,
+		EndDate:      &endDate,
+		IsActive:     true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+
+	fetched, err := svc.FetchTransactionTemplateByID(s.Ctx, userID, template.ID)
+	s.Require().NoError(err)
+	s.True(fetched.IsActive)
+	s.Equal(models.TemplateStateExpired, fetched.State)
 }
 
 func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEarly() {

@@ -1455,7 +1455,7 @@ func (s *AnalyticsService) GenerateCategoryReport(
 		UserID:   userID,
 		Name:     name,
 		Type:     "category",
-		Status:   "pending",
+		Status:   models.ReportStatusPending,
 		Metadata: metadata,
 	}
 	if err := s.repo.InsertReport(ctx, nil, record); err != nil {
@@ -1467,6 +1467,9 @@ func (s *AnalyticsService) GenerateCategoryReport(
 		UserID:   userID,
 		Params:   params,
 	}); err != nil {
+		if uErr := s.MarkReportFailed(ctx, record.ID, apperr.GenericMessage); uErr != nil {
+			return nil, uErr
+		}
 		return nil, err
 	}
 
@@ -1474,12 +1477,12 @@ func (s *AnalyticsService) GenerateCategoryReport(
 }
 
 func (s *AnalyticsService) MarkReportProcessing(ctx context.Context, reportID int64) error {
-	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{"status": "processing"})
+	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{"status": models.ReportStatusProcessing})
 }
 
 func (s *AnalyticsService) MarkReportCompleted(ctx context.Context, reportID int64, name, filePath string, fileSize int64, completedAt time.Time) error {
 	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{
-		"status":       "completed",
+		"status":       models.ReportStatusCompleted,
 		"name":         name,
 		"file_path":    filePath,
 		"file_size":    fileSize,
@@ -1489,7 +1492,7 @@ func (s *AnalyticsService) MarkReportCompleted(ctx context.Context, reportID int
 
 func (s *AnalyticsService) MarkReportFailed(ctx context.Context, reportID int64, reason string) error {
 	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{
-		"status": "failed",
+		"status": models.ReportStatusFailed,
 		"error":  reason,
 	})
 }
@@ -1511,7 +1514,7 @@ func (s *AnalyticsService) DownloadReport(ctx context.Context, id, userID int64)
 		return nil, "", err
 	}
 
-	if report.Status != "completed" || report.FilePath == nil {
+	if report.Status != models.ReportStatusCompleted || report.FilePath == nil {
 		return nil, "", apperr.New(apperr.Conflict, "report is not ready for download")
 	}
 

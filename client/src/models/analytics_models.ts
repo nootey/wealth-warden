@@ -172,12 +172,14 @@ export interface CategoryFlow {
   percentage: string;
 }
 
+export type ReportStatus = "pending" | "processing" | "completed" | "failed";
+
 export interface Report {
   id: number;
   user_id: number;
   name: string;
   type: string;
-  status: string;
+  status: ReportStatus;
   metadata?: unknown;
   error?: string | null;
   created_at: string;

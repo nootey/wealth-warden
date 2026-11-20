@@ -346,12 +346,21 @@ type CategoryReport struct {
 	GeneratedAt time.Time            `json:"generated_at"`
 }
 
+type ReportStatus string
+
+const (
+	ReportStatusPending    ReportStatus = "pending"
+	ReportStatusProcessing ReportStatus = "processing"
+	ReportStatusCompleted  ReportStatus = "completed"
+	ReportStatusFailed     ReportStatus = "failed"
+)
+
 type Report struct {
 	ID          int64           `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID      int64           `gorm:"not null;index" json:"user_id"`
 	Name        string          `gorm:"size:255;not null" json:"name"`
 	Type        string          `gorm:"size:128;not null" json:"type"`
-	Status      string          `gorm:"not null;default:'pending'" json:"status"`
+	Status      ReportStatus    `gorm:"not null;default:'pending'" json:"status"`
 	Metadata    json.RawMessage `gorm:"type:jsonb" json:"metadata,omitempty"`
 	Error       *string         `gorm:"type:text" json:"error,omitempty"`
 	FilePath    *string         `gorm:"type:text" json:"file_path,omitempty"`

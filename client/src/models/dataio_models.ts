@@ -39,12 +39,16 @@ export type CustomImportValidationResponse = {
   categories: string[];
 };
 
+export type ImportStatus = "pending" | "success" | "failed";
+
+export type ExportStatus = "pending" | "success" | "failed";
+
 export type Import = {
   id?: number;
   user_id: number;
   account_id: number;
   name: string;
-  status: string;
+  status: ImportStatus;
   error?: string | null;
   type: string;
   sub_type: string;
@@ -60,7 +64,7 @@ export type Export = {
   user_id: number;
   account_id: number;
   name: string;
-  status: string;
+  status: ExportStatus;
   export_type: string;
   currency: string;
   started_at: Date;

@@ -21,6 +21,7 @@ import ValidationError from "../../components/validation/ValidationError.vue";
 import dateHelper from "../../../utils/date_helper.ts";
 import type { User } from "../../../models/user_models.ts";
 import type { SessionInfo } from "../../../models/auth_models.ts";
+import type { WsStatus } from "../../../models/ws_models.ts";
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
@@ -32,6 +33,16 @@ const confirm = useConfirm();
 
 const isAdmin = hasPermission("access_backoffice");
 const endpoint = wsStore.endpoint();
+
+const wsStatusTag: Record<
+  WsStatus,
+  { label: string; severity: "success" | "warn" | "danger" }
+> = {
+  connected: { label: "Connected", severity: "success" },
+  connecting: { label: "Connecting", severity: "warn" },
+  reconnecting: { label: "Reconnecting", severity: "warn" },
+  offline: { label: "Disconnected", severity: "danger" },
+};
 
 const currentUser = ref<User>();
 
@@ -340,8 +351,8 @@ async function updateSettings() {
               >Status</span
             >
             <Tag
-              :severity="wsStore.connected ? 'success' : 'danger'"
-              :value="wsStore.connected ? 'Connected' : 'Disconnected'"
+              :severity="wsStatusTag[wsStore.status].severity"
+              :value="wsStatusTag[wsStore.status].label"
             />
           </div>
 

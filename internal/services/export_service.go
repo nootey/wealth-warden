@@ -284,7 +284,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		Name:       "Export " + localTime.Format("2006-01-02 15:04:05"),
 		UserID:     userID,
 		ExportType: "custom",
-		Status:     "pending",
+		Status:     models.ExportStatusPending,
 		Currency:   settings.DefaultCurrency,
 		StartedAt:  &now,
 	}
@@ -294,7 +294,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	}
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ExportArgs{ExportID: export.ID, UserID: userID}); err != nil {
-		if uErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error()); uErr != nil {
+		if uErr := s.updateExportStatus(ctx, export.ID, models.ExportStatusFailed, err.Error()); uErr != nil {
 			return nil, uErr
 		}
 		return nil, err
@@ -306,7 +306,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 // failExport records the failure on the row. A recorded failure is a finished
 // run, so it returns nil; only an unrecorded failure is worth a retry.
 func (s *ExportService) failExport(ctx context.Context, exportID int64, cause error) error {
-	if err := s.updateExportStatus(ctx, exportID, "failed", cause.Error()); err != nil {
+	if err := s.updateExportStatus(ctx, exportID, models.ExportStatusFailed, cause.Error()); err != nil {
 		return err
 	}
 	return nil
@@ -418,7 +418,7 @@ func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) e
 	fileSize := int64(len(zipData))
 
 	updates := map[string]interface{}{
-		"status":       "success",
+		"status":       models.ExportStatusSuccess,
 		"file_path":    filePath,
 		"file_size":    fileSize,
 		"completed_at": completedAt,
@@ -468,7 +468,7 @@ func (s *ExportService) saveExportFile(userID int64, exportName string, data []b
 	return filePath, nil
 }
 
-func (s *ExportService) updateExportStatus(ctx context.Context, exportID int64, status, errorMsg string) error {
+func (s *ExportService) updateExportStatus(ctx context.Context, exportID int64, status models.ExportStatus, errorMsg string) error {
 	update := map[string]interface{}{
 		"status": status,
 	}
@@ -477,7 +477,7 @@ func (s *ExportService) updateExportStatus(ctx context.Context, exportID int64, 
 		update["error"] = errorMsg
 	}
 
-	if status == "failed" {
+	if status == models.ExportStatusFailed {
 		now := time.Now().UTC()
 		update["completed_at"] = now
 	}
@@ -491,7 +491,7 @@ func (s *ExportService) DownloadExport(ctx context.Context, id, userID int64) ([
 		return nil, err
 	}
 
-	if export.Status != "success" {
+	if export.Status != models.ExportStatusSuccess {
 		return nil, ErrExportNotReady
 	}
 

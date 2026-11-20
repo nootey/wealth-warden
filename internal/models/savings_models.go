@@ -15,6 +15,16 @@ const (
 	SavingGoalStatusArchived  SavingGoalStatus = "archived"
 )
 
+type SavingGoalTrackStatus string
+
+const (
+	SavingGoalTrackOnTrack   SavingGoalTrackStatus = "on_track"
+	SavingGoalTrackLate      SavingGoalTrackStatus = "late"
+	SavingGoalTrackEarly     SavingGoalTrackStatus = "early"
+	SavingGoalTrackCompleted SavingGoalTrackStatus = "completed"
+	SavingGoalTrackNoTarget  SavingGoalTrackStatus = "no_target"
+)
+
 type SavingContributionSource string
 
 const (
@@ -64,10 +74,10 @@ var SavingContributionSort = SortSpec[SavingContribution]{
 
 type SavingGoalWithProgress struct {
 	SavingGoal
-	ProgressPercent decimal.Decimal  `json:"progress_percent"`
-	TrackStatus     string           `json:"track_status"` // on_track, late, early, completed, no_target
-	MonthsRemaining *int             `json:"months_remaining,omitempty"`
-	MonthlyNeeded   *decimal.Decimal `json:"monthly_needed,omitempty"`
+	ProgressPercent decimal.Decimal       `json:"progress_percent"`
+	TrackStatus     SavingGoalTrackStatus `json:"track_status"`
+	MonthsRemaining *int                  `json:"months_remaining,omitempty"`
+	MonthlyNeeded   *decimal.Decimal      `json:"monthly_needed,omitempty"`
 }
 
 type SavingGoalReq struct {
@@ -85,7 +95,7 @@ type SavingGoalUpdateReq struct {
 	Name              string           `json:"name" validate:"required,min=1,max=100"`
 	TargetAmount      decimal.Decimal  `json:"target_amount" validate:"required"`
 	TargetDate        *string          `json:"target_date,omitempty"`
-	Status            SavingGoalStatus `json:"status" validate:"required"`
+	Status            SavingGoalStatus `json:"status" validate:"required,oneof=active paused completed archived"`
 	Priority          int              `json:"priority"`
 	MonthlyAllocation *decimal.Decimal `json:"monthly_allocation,omitempty"`
 	FundDayOfMonth    *int             `json:"fund_day_of_month,omitempty"`

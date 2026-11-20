@@ -14,6 +14,8 @@ type (
 	TransactionDirection  string
 	BulkTransactionAction string
 	CategoryNecessity     string
+	TransferStatus        string
+	TemplateState         string
 )
 
 const (
@@ -33,7 +35,18 @@ const (
 
 	CategoryNecessityNeed CategoryNecessity = "need"
 	CategoryNecessityWant CategoryNecessity = "want"
+
+	TransferStatusSuccess TransferStatus = "success"
+
+	TemplateStateActive    TemplateState = "active"
+	TemplateStatePaused    TemplateState = "paused"
+	TemplateStateCompleted TemplateState = "completed"
+	TemplateStateExpired   TemplateState = "expired"
 )
+
+func (s TemplateState) IsFinished() bool {
+	return s == TemplateStateCompleted || s == TemplateStateExpired
+}
 
 func (d TransactionDirection) IsValid() bool {
 	return d == TxnDirectionIncome || d == TxnDirectionExpense
@@ -149,7 +162,7 @@ type Transfer struct {
 	ImportID             *int64          `json:"import_id,omitempty"`
 	Amount               decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Currency             string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
-	Status               string          `gorm:"not null" json:"status"`
+	Status               TransferStatus  `gorm:"not null" json:"status"`
 	Notes                *string         `gorm:"type:text" json:"notes"`
 	IdempotencyKey       *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
 	CreatedAt            time.Time       `json:"created_at"`
@@ -179,6 +192,7 @@ type TransactionTemplate struct {
 	EndDate      *time.Time            `json:"end_date"`
 	MaxRuns      *int                  `json:"max_runs"`
 	IsActive     bool                  `gorm:"not null;default:true" json:"is_active"`
+	State        TemplateState         `gorm:"-" json:"state"`
 	Account      Account               `json:"account"`
 	ToAccount    *Account              `gorm:"foreignKey:ToAccountID" json:"to_account,omitempty"`
 	Category     *Category             `json:"category,omitempty"`

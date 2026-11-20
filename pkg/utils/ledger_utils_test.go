@@ -203,6 +203,34 @@ func TestCalculateNextRun(t *testing.T) {
 	}
 }
 
+func TestTemplateStateAt(t *testing.T) {
+	now := time.Date(2026, time.March, 10, 0, 0, 0, 0, time.UTC)
+	yesterday := now.AddDate(0, 0, -1)
+	tomorrow := now.AddDate(0, 0, 1)
+	two, three := 2, 3
+
+	tests := []struct {
+		name string
+		tp   models.TransactionTemplate
+		want models.TemplateState
+	}{
+		{"active", models.TransactionTemplate{IsActive: true}, models.TemplateStateActive},
+		{"paused", models.TransactionTemplate{IsActive: false}, models.TemplateStatePaused},
+		{"runs left", models.TransactionTemplate{IsActive: true, MaxRuns: &three, RunCount: 2}, models.TemplateStateActive},
+		{"max runs reached", models.TransactionTemplate{IsActive: false, MaxRuns: &two, RunCount: 2}, models.TemplateStateCompleted},
+		{"end date ahead", models.TransactionTemplate{IsActive: true, EndDate: &tomorrow}, models.TemplateStateActive},
+		{"end date today", models.TransactionTemplate{IsActive: true, EndDate: &now}, models.TemplateStateActive},
+		{"end date passed while active", models.TransactionTemplate{IsActive: true, EndDate: &yesterday}, models.TemplateStateExpired},
+		{"max runs wins over end date", models.TransactionTemplate{MaxRuns: &two, RunCount: 2, EndDate: &yesterday}, models.TemplateStateCompleted},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, utils.TemplateStateAt(&tc.tp, now))
+		})
+	}
+}
+
 func TestTransfersWithinNetWorth_DropsExcludedDestinations(t *testing.T) {
 	transfer := func(id int64, includeInNetWorth bool) models.Transfer {
 		return models.Transfer{

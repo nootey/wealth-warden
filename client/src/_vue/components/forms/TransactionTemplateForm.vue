@@ -5,6 +5,7 @@ import { useTransactionStore } from "../../../services/stores/transaction_store.
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type {
   Category,
+  TemplateState,
   TransactionTemplate,
 } from "../../../models/transaction_models.ts";
 import { maxValue, minValue, required } from "@regle/rules";
@@ -79,6 +80,14 @@ const isAccountRestricted = computed<boolean>(() => {
     !!acc && typeof acc === "object" && (!!acc.closed_at || !acc.is_active)
   );
 });
+
+const finishedReasons: Partial<Record<TemplateState, string>> = {
+  completed: "Completed: max runs reached",
+  expired: "Expired: end date passed",
+};
+const finishedReason = computed<string | undefined>(() =>
+  record.value.state ? finishedReasons[record.value.state] : undefined,
+);
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -332,7 +341,8 @@ async function loadRecord(id: number) {
       to_account: data.to_account ?? initData().to_account,
     };
 
-    if (!record.value.is_active) isReadOnly.value = true;
+    if (!record.value.is_active || finishedReason.value)
+      isReadOnly.value = true;
 
     if (data.template_type !== "transfer") {
       selectedParentCategory.value =
@@ -610,11 +620,13 @@ async function startOperation() {
       <div class="flex flex-col gap-1 flex-1">
         <small>Active</small>
         <div class="flex items-center" style="height: 100%">
-          <ToggleSwitch
-            v-if="hasPermission('manage_data')"
-            :model-value="record.is_active"
-            @update:model-value="toggleActive"
-          />
+          <span v-if="hasPermission('manage_data')" v-tooltip="finishedReason">
+            <ToggleSwitch
+              :model-value="record.is_active"
+              :disabled="!!finishedReason"
+              @update:model-value="toggleActive"
+            />
+          </span>
           <i
             v-else
             v-tooltip="'No action available'"
