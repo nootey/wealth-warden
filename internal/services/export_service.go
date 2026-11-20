@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +31,7 @@ type ExportServiceInterface interface {
 }
 
 type ExportService struct {
+	logger        *zap.Logger
 	repo          repositories.ExportRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
@@ -39,6 +42,7 @@ type ExportService struct {
 }
 
 func NewExportService(
+	logger *zap.Logger,
 	repo *repositories.ExportRepository,
 	txnRepo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
@@ -48,6 +52,7 @@ func NewExportService(
 	jobDispatcher jobqueue.Dispatcher,
 ) *ExportService {
 	return &ExportService{
+		logger:        logger,
 		repo:          repo,
 		txnRepo:       txnRepo,
 		accRepo:       accRepo,
@@ -294,7 +299,8 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	}
 
 	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ExportArgs{ExportID: export.ID, UserID: userID}); err != nil {
-		if uErr := s.updateExportStatus(ctx, export.ID, models.ExportStatusFailed, err.Error()); uErr != nil {
+		_, msg := apperr.Resolve(err)
+		if uErr := s.updateExportStatus(ctx, export.ID, models.ExportStatusFailed, msg); uErr != nil {
 			return nil, uErr
 		}
 		return nil, err
@@ -305,8 +311,16 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 
 // failExport records the failure on the row. A recorded failure is a finished
 // run, so it returns nil; only an unrecorded failure is worth a retry.
-func (s *ExportService) failExport(ctx context.Context, exportID int64, cause error) error {
-	if err := s.updateExportStatus(ctx, exportID, models.ExportStatusFailed, cause.Error()); err != nil {
+func (s *ExportService) failExport(ctx context.Context, userID, exportID int64, cause error) error {
+	status, msg := apperr.Resolve(cause)
+
+	log := s.logger.Warn
+	if status >= http.StatusInternalServerError {
+		log = s.logger.Error
+	}
+	log("export failed", zap.Int64("user_id", userID), zap.Int64("export_id", exportID), zap.Error(cause))
+
+	if err := s.updateExportStatus(ctx, exportID, models.ExportStatusFailed, msg); err != nil {
 		return err
 	}
 	return nil
@@ -333,55 +347,55 @@ func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) e
 	accs, err := s.accRepo.FindAllAccountsWithLatestBalance(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	categories, err := s.txnRepo.FindAllCategories(ctx, tx, userID, false)
 	if err != nil {
 		tx.Rollback()
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	txns, err := s.txnRepo.FindAllTransactionsForUser(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	transfers, err := s.txnRepo.FindAllTransfersForUser(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	rules, err := s.rulesRepo.FindRules(ctx, tx, userID, false)
 	if err != nil {
 		tx.Rollback()
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	accJSON, err := s.buildAccountExportJSON(accs)
 	if err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	catJSON, err := s.buildCategoryExportJSON(categories)
 	if err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	txnsJSON, err := s.buildTxnAndTransfersExportJSON(txns, transfers)
 	if err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	rulesJSON, err := s.buildRuleExportJSON(rules, categories)
 	if err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	var buf bytes.Buffer
@@ -397,21 +411,21 @@ func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) e
 	for name, data := range files {
 		f, err := zipWriter.Create(name)
 		if err != nil {
-			return s.failExport(ctx, export.ID, err)
+			return s.failExport(ctx, userID, export.ID, err)
 		}
 		if _, err := f.Write(data); err != nil {
-			return s.failExport(ctx, export.ID, err)
+			return s.failExport(ctx, userID, export.ID, err)
 		}
 	}
 
 	if err := zipWriter.Close(); err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	zipData := buf.Bytes()
 	filePath, err := s.saveExportFile(userID, export.Name, zipData)
 	if err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	completedAt := time.Now().UTC()
@@ -425,7 +439,7 @@ func (s *ExportService) RunExport(ctx context.Context, exportID, userID int64) e
 	}
 
 	if err := s.repo.UpdateExport(ctx, nil, export.ID, updates); err != nil {
-		return s.failExport(ctx, export.ID, err)
+		return s.failExport(ctx, userID, export.ID, err)
 	}
 
 	changes := utils.InitChanges()
