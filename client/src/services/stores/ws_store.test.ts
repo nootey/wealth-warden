@@ -133,6 +133,17 @@ describe("wsStore", () => {
       socket().fireOpen();
       expect(store.connected).toBe(true);
     });
+
+    it("moves from offline to connecting to connected", () => {
+      const store = useWsStore();
+      expect(store.status).toBe("offline");
+
+      store.connect();
+      expect(store.status).toBe("connecting");
+
+      socket().fireOpen();
+      expect(store.status).toBe("connected");
+    });
   });
 
   describe("dispatch", () => {
@@ -270,6 +281,27 @@ describe("wsStore", () => {
 
       expect(setTimeoutSpy).toHaveBeenCalledTimes(10);
       expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("reports reconnecting while it retries and offline once it gives up", () => {
+      const store = useWsStore();
+      store.connect();
+      socket().fireOpen();
+
+      socket().fireClose();
+      expect(store.status).toBe("reconnecting");
+
+      vi.advanceTimersByTime(30000);
+      expect(store.status).toBe("reconnecting");
+
+      for (let i = 0; i < 9; i++) {
+        socket().fireClose();
+        vi.advanceTimersByTime(30000);
+      }
+      expect(store.status).toBe("reconnecting");
+
+      socket().fireClose();
+      expect(store.status).toBe("offline");
     });
 
     it("resets the backoff once a socket opens successfully", () => {
@@ -459,6 +491,7 @@ describe("wsStore", () => {
 
       store.disconnect();
       expect(store.connected).toBe(false);
+      expect(store.status).toBe("offline");
 
       store.reconnect();
       socket().fireOpen();

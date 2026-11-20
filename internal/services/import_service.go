@@ -207,7 +207,7 @@ func (s *ImportService) markImportFailed(ctx context.Context, userID, importID i
 	}, extra...)
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
-		"status":       "failed",
+		"status":       models.ImportStatusFailed,
 		"completed_at": nil,
 		"error":        msg,
 	}); err != nil {
@@ -697,8 +697,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		UserID:    userID,
 		Type:      source,
 		SubType:   "transactions",
-		Status:    "pending",
-		Step:      "cash",
+		Status:    models.ImportStatusPending,
 		Currency:  settings.DefaultCurrency,
 		StartedAt: &started,
 	})
@@ -970,8 +969,7 @@ func (s *ImportService) RunImportTransactions(ctx context.Context, userID, impor
 	}
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
-		"status":       "success",
-		"step":         "investments",
+		"status":       models.ImportStatusSuccess,
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {
@@ -1037,8 +1035,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 		UserID:    userID,
 		Type:      "custom",
 		SubType:   "accounts",
-		Status:    "pending",
-		Step:      "accounts",
+		Status:    models.ImportStatusPending,
 		Currency:  settings.DefaultCurrency,
 		StartedAt: &started,
 	})
@@ -1196,8 +1193,7 @@ func (s *ImportService) RunImportAccounts(ctx context.Context, userID, importID 
 	}
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
-		"status":       "success",
-		"step":         "end",
+		"status":       models.ImportStatusSuccess,
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {
@@ -1247,8 +1243,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 		UserID:    userID,
 		Type:      "custom",
 		SubType:   "categories",
-		Status:    "pending",
-		Step:      "categories",
+		Status:    models.ImportStatusPending,
 		Currency:  catSettings.DefaultCurrency,
 		StartedAt: &started,
 	})
@@ -1380,8 +1375,7 @@ func (s *ImportService) RunImportCategories(ctx context.Context, userID, importI
 	}
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
-		"status":       "success",
-		"step":         "end",
+		"status":       models.ImportStatusSuccess,
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {
@@ -1540,8 +1534,7 @@ func (s *ImportService) ImportRules(ctx context.Context, userID int64, payload m
 		UserID:    userID,
 		Type:      "custom",
 		SubType:   "rules",
-		Status:    "pending",
-		Step:      "rules",
+		Status:    models.ImportStatusPending,
 		Currency:  ruleSettings.DefaultCurrency,
 		StartedAt: &started,
 	})
@@ -1642,8 +1635,7 @@ func (s *ImportService) RunImportRules(ctx context.Context, userID, importID int
 	}
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
-		"status":       "success",
-		"step":         "end",
+		"status":       models.ImportStatusSuccess,
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {
@@ -1888,7 +1880,7 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 			TransactionOutflowID: expense.ID,
 			Amount:               amt,
 			Currency:             checkingAcc.Currency,
-			Status:               "success",
+			Status:               models.TransferStatusSuccess,
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
 		}
@@ -1939,8 +1931,7 @@ func (s *ImportService) RunTransferInvestments(ctx context.Context, userID, impo
 	}
 
 	if err := s.repo.UpdateImport(ctx, tx, payload.ImportID, map[string]interface{}{
-		"status":                  "success",
-		"step":                    "end",
+		"status":                  models.ImportStatusSuccess,
 		"investments_transferred": true,
 		"error":                   "",
 	}); err != nil {
@@ -2207,7 +2198,7 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 			TransactionOutflowID: expense.ID,
 			Amount:               amt,
 			Currency:             fromAcc.Currency,
-			Status:               "success",
+			Status:               models.TransferStatusSuccess,
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
 		}
@@ -2258,8 +2249,7 @@ func (s *ImportService) RunTransferSavings(ctx context.Context, userID, importID
 	}
 
 	if err := s.repo.UpdateImport(ctx, tx, payload.ImportID, map[string]interface{}{
-		"status":              "success",
-		"step":                "end",
+		"status":              models.ImportStatusSuccess,
 		"savings_transferred": true,
 		"error":               "",
 	}); err != nil {
@@ -2526,7 +2516,7 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 			TransactionOutflowID: expense.ID,
 			Amount:               amt,
 			Currency:             fromAcc.Currency,
-			Status:               "success",
+			Status:               models.TransferStatusSuccess,
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
 		}
@@ -2577,8 +2567,7 @@ func (s *ImportService) RunTransferRepayments(ctx context.Context, userID, impor
 	}
 
 	if err := s.repo.UpdateImport(ctx, tx, payload.ImportID, map[string]interface{}{
-		"status":                 "success",
-		"step":                   "end",
+		"status":                 models.ImportStatusSuccess,
 		"repayments_transferred": true,
 		"error":                  "",
 	}); err != nil {
@@ -2643,8 +2632,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		UserID:    userID,
 		Type:      "custom",
 		SubType:   "trades",
-		Status:    "pending",
-		Step:      "investments",
+		Status:    models.ImportStatusPending,
 		Currency:  settings.DefaultCurrency,
 		StartedAt: &started,
 	})
@@ -3015,8 +3003,7 @@ func (s *ImportService) RunTransferTrades(ctx context.Context, userID, importID 
 	}
 
 	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
-		"status":       "success",
-		"step":         "completed",
+		"status":       models.ImportStatusSuccess,
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {

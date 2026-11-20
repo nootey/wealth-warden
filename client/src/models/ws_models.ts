@@ -25,3 +25,5 @@ export interface UserJobPayload {
 }
 
 export type WsHandler = (payload: unknown) => void;
+
+export type WsStatus = "offline" | "connecting" | "connected" | "reconnecting";

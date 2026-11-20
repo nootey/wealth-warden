@@ -6,20 +6,28 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type ExportStatus string
+
+const (
+	ExportStatusPending ExportStatus = "pending"
+	ExportStatusSuccess ExportStatus = "success"
+	ExportStatusFailed  ExportStatus = "failed"
+)
+
 type Export struct {
-	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name        string     `gorm:"size:255;not null" json:"name"`
-	UserID      int64      `gorm:"not null;index" json:"user_id"`
-	ExportType  string     `gorm:"size:128;not null" json:"export_type"`
-	Status      string     `gorm:"not null;default:'pending'" json:"status"`
-	Currency    string     `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
-	FilePath    *string    `gorm:"type:text" json:"file_path,omitempty"`
-	FileSize    *int64     `json:"file_size,omitempty"`
-	Error       *string    `gorm:"type:text" json:"error,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	StartedAt   *time.Time `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at"`
+	ID          int64        `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name        string       `gorm:"size:255;not null" json:"name"`
+	UserID      int64        `gorm:"not null;index" json:"user_id"`
+	ExportType  string       `gorm:"size:128;not null" json:"export_type"`
+	Status      ExportStatus `gorm:"not null;default:'pending'" json:"status"`
+	Currency    string       `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
+	FilePath    *string      `gorm:"type:text" json:"file_path,omitempty"`
+	FileSize    *int64       `json:"file_size,omitempty"`
+	Error       *string      `gorm:"type:text" json:"error,omitempty"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+	StartedAt   *time.Time   `json:"started_at"`
+	CompletedAt *time.Time   `json:"completed_at"`
 }
 
 type AccountExport struct {

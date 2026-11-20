@@ -670,26 +670,26 @@ func computeProgress(g models.SavingGoal) models.SavingGoalWithProgress {
 	wp := models.SavingGoalWithProgress{SavingGoal: g}
 
 	if g.TargetAmount.IsZero() {
-		wp.TrackStatus = "no_target"
+		wp.TrackStatus = models.SavingGoalTrackNoTarget
 		return wp
 	}
 
 	wp.ProgressPercent = g.CurrentAmount.Div(g.TargetAmount).Mul(decimal.NewFromInt(100))
 
 	if g.Status == models.SavingGoalStatusCompleted || g.CurrentAmount.GreaterThanOrEqual(g.TargetAmount) {
-		wp.TrackStatus = "completed"
+		wp.TrackStatus = models.SavingGoalTrackCompleted
 		return wp
 	}
 
 	if g.TargetDate == nil {
-		wp.TrackStatus = "no_target"
+		wp.TrackStatus = models.SavingGoalTrackNoTarget
 		return wp
 	}
 
 	now := time.Now().UTC()
 	totalDays := g.TargetDate.Sub(now).Hours() / 24
 	if totalDays <= 0 {
-		wp.TrackStatus = "late"
+		wp.TrackStatus = models.SavingGoalTrackLate
 		return wp
 	}
 
@@ -707,7 +707,7 @@ func computeProgress(g models.SavingGoal) models.SavingGoalWithProgress {
 	createdDays := now.Sub(g.CreatedAt).Hours() / 24
 	totalSpan := g.TargetDate.Sub(g.CreatedAt).Hours() / 24
 	if totalSpan <= 0 {
-		wp.TrackStatus = "no_target"
+		wp.TrackStatus = models.SavingGoalTrackNoTarget
 		return wp
 	}
 
@@ -716,11 +716,11 @@ func computeProgress(g models.SavingGoal) models.SavingGoalWithProgress {
 
 	switch {
 	case wp.ProgressPercent.GreaterThan(expectedPercent):
-		wp.TrackStatus = "early"
+		wp.TrackStatus = models.SavingGoalTrackEarly
 	case wp.ProgressPercent.GreaterThanOrEqual(threshold):
-		wp.TrackStatus = "on_track"
+		wp.TrackStatus = models.SavingGoalTrackOnTrack
 	default:
-		wp.TrackStatus = "late"
+		wp.TrackStatus = models.SavingGoalTrackLate
 	}
 
 	return wp

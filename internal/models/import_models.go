@@ -10,28 +10,35 @@ const (
 	ImportTypeBank   = "bank"
 )
 
+type ImportStatus string
+
+const (
+	ImportStatusPending ImportStatus = "pending"
+	ImportStatusSuccess ImportStatus = "success"
+	ImportStatusFailed  ImportStatus = "failed"
+)
+
 type BankStatementFile struct {
 	Name   string
 	Reader io.Reader
 }
 
 type Import struct {
-	ID                     int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name                   string     `gorm:"size:128;not null" json:"name"`
-	UserID                 int64      `gorm:"not null" json:"user_id"`
-	Type                   string     `gorm:"not null" json:"type"`
-	SubType                string     `gorm:"not null" json:"sub_type"`
-	Status                 string     `gorm:"not null" json:"status"`
-	Error                  *string    `gorm:"column:error" json:"error"`
-	Currency               string     `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
-	Step                   string     `json:"step"`
-	InvestmentsTransferred bool       `json:"investments_transferred"`
-	SavingsTransferred     bool       `json:"savings_transferred"`
-	RepaymentsTransferred  bool       `json:"repayments_transferred"`
-	CreatedAt              time.Time  `json:"created_at"`
-	UpdatedAt              time.Time  `json:"updated_at"`
-	StartedAt              *time.Time `json:"started_at"`
-	CompletedAt            *time.Time `json:"completed_at"`
+	ID                     int64        `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name                   string       `gorm:"size:128;not null" json:"name"`
+	UserID                 int64        `gorm:"not null" json:"user_id"`
+	Type                   string       `gorm:"not null" json:"type"`
+	SubType                string       `gorm:"not null" json:"sub_type"`
+	Status                 ImportStatus `gorm:"not null" json:"status"`
+	Error                  *string      `gorm:"column:error" json:"error"`
+	Currency               string       `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
+	InvestmentsTransferred bool         `json:"investments_transferred"`
+	SavingsTransferred     bool         `json:"savings_transferred"`
+	RepaymentsTransferred  bool         `json:"repayments_transferred"`
+	CreatedAt              time.Time    `json:"created_at"`
+	UpdatedAt              time.Time    `json:"updated_at"`
+	StartedAt              *time.Time   `json:"started_at"`
+	CompletedAt            *time.Time   `json:"completed_at"`
 }
 
 type AccImportPayload struct {

@@ -1,11 +1,12 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useAuthStore } from "./auth_store.ts";
 import { useToastStore } from "./toast_store.ts";
 import type {
   WsEvent,
   WsEventType,
   WsHandler,
+  WsStatus,
 } from "../../models/ws_models.ts";
 
 const BASE_BACKOFF_MS = 1000;
@@ -16,7 +17,8 @@ const MAX_ATTEMPTS = 10;
 const SESSION_REVOKED_CODE = 4001;
 
 export const useWsStore = defineStore("ws", () => {
-  const connected = ref(false);
+  const status = ref<WsStatus>("offline");
+  const connected = computed(() => status.value === "connected");
   const attempts = ref(0);
 
   const handlers = new Map<WsEventType, Set<WsHandler>>();
@@ -63,6 +65,7 @@ export const useWsStore = defineStore("ws", () => {
     );
     const jittered = backoff * (0.5 + Math.random() * 0.5);
     attempts.value += 1;
+    status.value = "reconnecting";
 
     reconnectTimer = window.setTimeout(connect, jittered);
   };
@@ -71,9 +74,10 @@ export const useWsStore = defineStore("ws", () => {
     if (socket) return;
 
     socket = new WebSocket(endpoint());
+    if (status.value !== "reconnecting") status.value = "connecting";
 
     socket.onopen = () => {
-      connected.value = true;
+      status.value = "connected";
       attempts.value = 0;
       if (announce) {
         announce = false;
@@ -86,7 +90,7 @@ export const useWsStore = defineStore("ws", () => {
     socket.onmessage = (message: MessageEvent<string>) =>
       dispatch(message.data);
     socket.onclose = (event: CloseEvent) => {
-      connected.value = false;
+      status.value = "offline";
       socket = null;
       if (event.code === SESSION_REVOKED_CODE) {
         useToastStore().createWarnToast(
@@ -122,7 +126,7 @@ export const useWsStore = defineStore("ws", () => {
       socket.close();
       socket = null;
     }
-    connected.value = false;
+    status.value = "offline";
     attempts.value = 0;
 
     if (notify) {
@@ -142,6 +146,7 @@ export const useWsStore = defineStore("ws", () => {
   };
 
   return {
+    status,
     connected,
     attempts,
     endpoint,

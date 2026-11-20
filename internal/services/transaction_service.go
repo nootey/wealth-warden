@@ -581,7 +581,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		TransactionOutflowID: outflow.ID,
 		Amount:               req.Amount,
 		Currency:             fromAcc.Currency,
-		Status:               "success",
+		Status:               models.TransferStatusSuccess,
 		Notes:                req.Notes,
 		CreatedAt:            t,
 		IdempotencyKey:       req.IdempotencyKey,
@@ -2620,6 +2620,10 @@ func (s *TransactionService) FetchTransactionTemplatesPaginated(ctx context.Cont
 	}
 
 	records, paginator := utils.Paginate(records, ks, models.TransactionTemplateSort, totalRecords)
+	now := time.Now().UTC()
+	for i := range records {
+		records[i].State = utils.TemplateStateAt(&records[i], now)
+	}
 	return records, paginator, nil
 }
 
@@ -2631,6 +2635,7 @@ func (s *TransactionService) FetchTransactionTemplateByID(ctx context.Context, u
 		}
 		return nil, err
 	}
+	record.State = utils.TemplateStateAt(&record, time.Now().UTC())
 
 	return &record, nil
 }
@@ -2863,13 +2868,11 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 		return 0, fmt.Errorf("can't find transaction template with given id %w", err)
 	}
 
-	// Prevent updates if template has completed its runs
-	if exTp.MaxRuns != nil && exTp.RunCount >= *exTp.MaxRuns {
+	switch utils.TemplateStateAt(&exTp, time.Now().UTC()) {
+	case models.TemplateStateCompleted:
 		tx.Rollback()
 		return 0, apperr.New(apperr.Conflict, "cannot update completed template (max runs reached)")
-	}
-
-	if exTp.EndDate != nil && time.Now().UTC().After(*exTp.EndDate) {
+	case models.TemplateStateExpired:
 		tx.Rollback()
 		return 0, apperr.New(apperr.Conflict, "cannot update expired template (end date passed)")
 	}
@@ -3008,14 +3011,12 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 		return fmt.Errorf("can't find transaction template with given id %w", err)
 	}
 
-	// Prevent enabling if template has completed its runs
 	if !exTp.IsActive {
-		if exTp.MaxRuns != nil && exTp.RunCount >= *exTp.MaxRuns {
+		switch utils.TemplateStateAt(&exTp, time.Now().UTC()) {
+		case models.TemplateStateCompleted:
 			tx.Rollback()
 			return apperr.New(apperr.Conflict, "cannot enable completed template (max runs reached)")
-		}
-
-		if exTp.EndDate != nil && time.Now().UTC().After(*exTp.EndDate) {
+		case models.TemplateStateExpired:
 			tx.Rollback()
 			return apperr.New(apperr.Conflict, "cannot enable expired template (end date passed)")
 		}
@@ -3616,7 +3617,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			TransactionOutflowID: outflow.ID,
 			Amount:               currentTemplate.Amount,
 			Currency:             srcAcc.Currency,
-			Status:               "success",
+			Status:               models.TransferStatusSuccess,
 			Notes:                &desc,
 			CreatedAt:            txDate,
 		}
@@ -3686,18 +3687,9 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		"next_run_at": nextRun,
 	}
 
-	// Check if we should deactivate
-	shouldDeactivate := true
-	switch {
-	case currentTemplate.MaxRuns != nil && currentTemplate.RunCount+1 >= *currentTemplate.MaxRuns:
-		// Max runs reached
-	case currentTemplate.EndDate != nil && nextRun.After(*currentTemplate.EndDate):
-		// End date passed
-	default:
-		shouldDeactivate = false
-	}
-
-	if shouldDeactivate {
+	afterRun := currentTemplate
+	afterRun.RunCount++
+	if utils.TemplateStateAt(&afterRun, nextRun).IsFinished() {
 		updates["is_active"] = false
 	}
 

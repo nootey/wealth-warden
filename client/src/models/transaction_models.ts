@@ -119,6 +119,8 @@ export interface TemplateSummary {
   projected_net: string;
 }
 
+export type TemplateState = "active" | "paused" | "completed" | "expired";
+
 export interface TransactionTemplate {
   id: number | null;
   name: string;
@@ -136,6 +138,7 @@ export interface TransactionTemplate {
   end_date?: Date | null;
   max_runs?: number | null;
   is_active: boolean;
+  state?: TemplateState;
   category: Category | null;
   account: Account;
   to_account?: Account | null;

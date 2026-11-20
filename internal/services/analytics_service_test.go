@@ -3,9 +3,15 @@
 package services_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
+	"wealth-warden/internal/apperr"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 	"wealth-warden/pkg/utils"
 
@@ -19,6 +25,12 @@ type AnalyticsServiceTestSuite struct {
 
 func TestIntegrationAnalyticsServiceSuite(t *testing.T) {
 	suite.Run(t, new(AnalyticsServiceTestSuite))
+}
+
+type failingDispatcher struct{}
+
+func (failingDispatcher) Dispatch(context.Context, jobqueue.Job) error {
+	return errors.New("queue unavailable")
 }
 
 // closedAccount creates and immediately closes an empty account, returning its id.
@@ -83,9 +95,31 @@ func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_CreatesReportWith
 	report, err := svc.GenerateCategoryReport(s.Ctx, 1, params)
 	s.Require().NoError(err)
 	s.Require().NotNil(report)
-	s.Equal("pending", report.Status)
+	s.Equal(models.ReportStatusPending, report.Status)
 	s.Equal("category", report.Type)
 	s.Positive(report.ID)
+}
+
+func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_FailedDispatchMarksReportFailed() {
+	svc := services.NewAnalyticsService(
+		repositories.NewAnalyticsRepository(s.TC.DB),
+		repositories.NewAccountRepository(s.TC.DB),
+		repositories.NewTransactionRepository(s.TC.DB),
+		repositories.NewSettingsRepository(s.TC.DB),
+		failingDispatcher{},
+	)
+
+	_, err := svc.GenerateCategoryReport(s.Ctx, 1, models.CategoryReportParams{
+		InflowCategoryIDs: []int64{1},
+		Years:             []int{2024},
+	})
+	s.Require().Error(err)
+
+	var report models.Report
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("user_id = ?", 1).Order("id DESC").First(&report).Error)
+	s.Equal(models.ReportStatusFailed, report.Status)
+	s.Require().NotNil(report.Error)
+	s.Equal(apperr.GenericMessage, *report.Error)
 }
 
 func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_DescriptionDoesNotOverrideName() {

@@ -110,7 +110,7 @@ func (s *ImportServiceSuite) TestFailedRuleImportStoresClientFacingError() {
 
 	var imp models.Import
 	s.Require().NoError(s.TC.DB.Where("id = ?", impID).First(&imp).Error)
-	s.Equal("failed", imp.Status)
+	s.Equal(models.ImportStatusFailed, imp.Status)
 	s.Require().NotNil(imp.Error)
 	s.Equal(`The category "no such category" from the rule "missing category rule" was not found`, *imp.Error)
 }
@@ -141,7 +141,7 @@ func (s *ImportServiceSuite) TestFailedTxnImportStoresClientFacingError() {
 
 	var imp models.Import
 	s.Require().NoError(s.TC.DB.Where("id = ?", impID).First(&imp).Error)
-	s.Equal("failed", imp.Status)
+	s.Equal(models.ImportStatusFailed, imp.Status)
 	s.Require().NotNil(imp.Error)
 	s.Equal("The selected category does not exist", *imp.Error)
 }
