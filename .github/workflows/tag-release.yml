@@ -12,7 +12,7 @@ jobs:
       github.event.pull_request.merged == true &&
       (contains(github.event.pull_request.labels.*.name, 'release:major') ||
        contains(github.event.pull_request.labels.*.name, 'release:minor') ||
-       contains(github.event.pull_request.labels.*.name, 'release:patch'))
+       contains(github.event.pull_request.labels.*.name, 'release:fix'))
 
     runs-on: ubuntu-latest
     permissions:
@@ -67,9 +67,6 @@ jobs:
           git push origin ${{ steps.bump.outputs.new_version }}
 
       - name: Create GitHub Release
-        if: |
-          contains(github.event.pull_request.labels.*.name, 'release:major') ||
-          contains(github.event.pull_request.labels.*.name, 'release:minor')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.bump.outputs.new_version }}
