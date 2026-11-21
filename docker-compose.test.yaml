@@ -1,6 +1,6 @@
 services:
   postgres-test:
-    image: postgres:18
+    image: postgres:19
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
