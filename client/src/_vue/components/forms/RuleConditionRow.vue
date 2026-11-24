@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
@@ -92,7 +93,7 @@ function onFieldChange(): void {
       <ValidationError :is-required="true" :message="errors.value">
         <label>Value</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-if="model.field === 'amount'"
         v-model="amountNumber"
         size="small"

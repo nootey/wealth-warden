@@ -33,6 +33,7 @@ import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AvailableBalance from "../base/AvailableBalance.vue";
+import AmountInput from "../base/AmountInput.vue";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
@@ -614,7 +615,7 @@ async function deleteRecord(id: number, tx_type: string) {
           <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
             <label>Amount</label>
           </ValidationError>
-          <InputNumber
+          <AmountInput
             v-model="amountNumber"
             :readonly="isFormReadOnly"
             :disabled="isFormReadOnly"

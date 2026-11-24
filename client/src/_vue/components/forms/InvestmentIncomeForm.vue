@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { required, requiredIf } from "@regle/rules";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import BaseForm from "../base/BaseForm.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useInvestmentStore } from "../../../services/stores/investment_store.ts";
@@ -157,7 +158,7 @@ async function submit(): Promise<void> {
         <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
           <label>Amount received</label>
         </ValidationError>
-        <InputNumber
+        <AmountInput
           v-model="amountNumber"
           size="small"
           locale="de-DE"
@@ -189,7 +190,7 @@ async function submit(): Promise<void> {
         >
           <label>Tax withheld</label>
         </ValidationError>
-        <InputNumber
+        <AmountInput
           v-model="taxNumber"
           size="small"
           locale="de-DE"
