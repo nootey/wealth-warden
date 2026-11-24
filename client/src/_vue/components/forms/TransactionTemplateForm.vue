@@ -17,6 +17,7 @@ import {
 } from "../../../validators/currency.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
 import dayjs from "dayjs";
@@ -704,7 +705,7 @@ async function startOperation() {
           <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
             <label>Amount</label>
           </ValidationError>
-          <InputNumber
+          <AmountInput
             v-model="amountNumber"
             :readonly="isReadOnly"
             :disabled="isReadOnly"

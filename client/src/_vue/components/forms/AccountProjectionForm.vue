@@ -4,6 +4,7 @@ import ShowLoading from "../base/ShowLoading.vue";
 import BaseForm from "../base/BaseForm.vue";
 import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { maxValue, minValue, required } from "@regle/rules";
 import {
@@ -340,7 +341,7 @@ async function revertProjection() {
           >
             <label>Expected balance</label>
           </ValidationError>
-          <InputNumber
+          <AmountInput
             v-model="expectedBalanceNumber"
             size="small"
             mode="currency"

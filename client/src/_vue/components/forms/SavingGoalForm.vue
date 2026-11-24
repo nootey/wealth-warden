@@ -9,6 +9,7 @@ import { nameMaxLength } from "../../../validators/name.ts";
 import { decimalMin, decimalValid } from "../../../validators/currency.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -357,7 +358,7 @@ function confirmDelete() {
       >
         <label>Target amount</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-model="targetAmountNumber"
         size="small"
         mode="currency"
@@ -374,7 +375,7 @@ function confirmDelete() {
       >
         <label>Initial amount</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-model="initialAmountNumber"
         size="small"
         mode="currency"
@@ -423,7 +424,7 @@ function confirmDelete() {
       >
         <label>Monthly allocation</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-model="monthlyAllocationNumber"
         size="small"
         mode="currency"

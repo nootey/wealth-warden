@@ -4,6 +4,7 @@ import { required } from "@regle/rules";
 import { decimalNonZero, decimalValid } from "../../../validators/currency.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import BaseForm from "../base/BaseForm.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
@@ -103,7 +104,7 @@ async function manageRecord() {
       <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
         <label>Amount</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-model="amountNumber"
         size="small"
         mode="currency"

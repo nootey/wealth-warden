@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ValidationError from "../../components/validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import { required } from "@regle/rules";
 import { nameMaxLength } from "../../../validators/name.ts";
 import {
@@ -504,7 +505,7 @@ async function manageRecord() {
       >
         <label>{{ balanceLabel }}</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-model="balanceNumber"
         :readonly="readOnly || startsAtZero"
         :disabled="readOnly || startsAtZero"
@@ -550,7 +551,7 @@ async function manageRecord() {
       >
         <label>Credit limit</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-model="creditLimitNumber"
         :readonly="readOnly"
         :disabled="readOnly"

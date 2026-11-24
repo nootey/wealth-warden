@@ -15,6 +15,7 @@ import {
 } from "../../../validators/currency.ts";
 import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import { useInvestmentStore } from "../../../services/stores/investment_store.ts";
@@ -647,7 +648,7 @@ async function deleteRecord(id: number) {
             >
               <label>Price per unit</label>
             </ValidationError>
-            <InputNumber
+            <AmountInput
               v-model="pricePerUnitNumber"
               size="small"
               mode="currency"
@@ -665,7 +666,7 @@ async function deleteRecord(id: number) {
             <ValidationError :is-required="false" :message="r$.fee.$errors[0]">
               <label>Fee</label>
             </ValidationError>
-            <InputNumber
+            <AmountInput
               v-model="feeNumber"
               size="small"
               :mode="

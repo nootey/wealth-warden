@@ -17,6 +17,7 @@ import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
 import searchHelper from "../../../utils/search_helper.ts";
 import AvailableBalance from "../base/AvailableBalance.vue";
+import AmountInput from "../base/AmountInput.vue";
 
 const props = defineProps<{
   accounts: Account[];
@@ -173,7 +174,7 @@ defineExpose({ r$, localTransfer });
         <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
           <label>Amount</label>
         </ValidationError>
-        <InputNumber
+        <AmountInput
           v-model="amountNumber"
           size="small"
           mode="currency"

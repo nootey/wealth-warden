@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import ValidationError from "../validation/ValidationError.vue";
+import AmountInput from "../base/AmountInput.vue";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import searchHelper from "../../../utils/search_helper.ts";
@@ -71,7 +72,7 @@ const searchCategory = (event: { query: string }) => {
       <ValidationError :is-required="true" :message="errors.amount">
         <label>Amount</label>
       </ValidationError>
-      <InputNumber
+      <AmountInput
         v-model="amountNumber"
         size="small"
         fluid
