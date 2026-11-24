@@ -103,7 +103,7 @@ echo "Done. '$POSTGRES_DB' restored successfully."
 # --- Migrate ---
 echo ""
 echo "Running migrations..."
-make -C "$ROOT_DIR" migrate type=up
+make -C "$ROOT_DIR" migrate-up
 
 # --- Start app ---
 echo ""
