@@ -76,7 +76,7 @@ if [ "$WORKERS" -lt 1 ]; then WORKERS=1; fi
 GO_MEM_CAP=()
 if [ "$RUN_GO" -eq 1 ]; then
     MEM_CAP_MB=$(( $(awk '/^MemTotal:/ {print $2}' /proc/meminfo) / 1024 / (2 * JOBS) ))
-    MEM_CAP=(systemd-run --user --scope --quiet -p "MemoryMax=${MEM_CAP_MB}M" -p MemorySwapMax=0)
+    MEM_CAP=(systemd-run --user --scope --quiet -p "MemoryMax=${MEM_CAP_MB}M" -p MemorySwapMax=0 -p OOMPolicy=continue)
     if command -v systemd-run &>/dev/null && "${MEM_CAP[@]}" true &>/dev/null; then
         GO_MEM_CAP=("${MEM_CAP[@]}")
     else
@@ -158,8 +158,10 @@ run_go_pkg() {
     (cd "$WORK_DIR/src" && TMPDIR="$WORK_DIR/tmp" "${GO_MEM_CAP[@]}" gremlins unleash --workers "$WORKERS" "${GO_TAGS[@]}" "./$pkg") >"$log" 2>&1 || status=$?
     if [ "$status" -ne 0 ]; then
         result="FAILED (exit $status), see log"
-    elif ! result="$(go_summary "$log")"; then
+    elif grep -q "No results to report" "$log"; then
         result="no mutants"
+    elif ! result="$(go_summary "$log")"; then
+        result="STOPPED, see log"
     fi
     record go "$pkg" "$result" $(( SECONDS - start ))
 }

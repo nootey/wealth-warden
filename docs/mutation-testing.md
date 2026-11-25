@@ -53,3 +53,5 @@ The score is the share of tested changes that the tests caught. It ignores code 
 Not every survivor is a bug. Some changes do not change the behavior, for example a changed error message that no test reads. Use the survivors as a list of places to look, not as a target to reach 100%.
 
 A `TIMED OUT` result can come from a heavy machine. Run that package again with fewer `jobs`.
+
+A `STOPPED` result means Gremlins quit before the end and wrote no summary. The log shows how far it got.
