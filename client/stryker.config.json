@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "testRunner": "vitest",
+  "vitest": { "pool": "forks" },
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text"],
+  "clearTextReporter": {
+    "allowColor": false,
+    "allowEmojis": false,
+    "reportTests": false
+  },
+  "ignorePatterns": ["dist"]
+}
