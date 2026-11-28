@@ -93,6 +93,20 @@ make docker-restart arm=1
 make docker-down arm=1
 ```
 
+## Run behind your own reverse proxy
+
+For a host that already runs a reverse proxy, such as Caddy, on a Docker network. The app then publishes no host ports and runs no Traefik.
+The client and Grafana join the network set in `PROXY_NETWORK`, and the proxy reaches them by container name.
+
+Set `PROXY_NETWORK` in `.env` to the name of the proxy's network. The network must already exist.
+Then add `proxy=1` to the up, down and restart commands. It works with or without `arm=1`:
+
+```sh
+make docker-up arm=1 proxy=1
+```
+
+Point the proxy at `wealth-warden-client-1:80` for the app and `wealth-warden-grafana-1:3000` for Grafana.
+
 ## Seed the database
 
 The seed data is generated in Go code. There are no SQL seed files. Both flows below use
