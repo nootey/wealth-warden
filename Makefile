@@ -1,4 +1,4 @@
-.PHONY: default run migrate-up migrate-down migrate-status migrate-fresh seed seed-full seed-bulk seed-one loadtest mock build bench test test-unit test-integration test-coverage check-test-names lint lint-fix observe docker-up docker-down docker-restart docker-migrate-up docker-migrate-down docker-migrate-status docker-migrate-fresh docker-seed docker-seed-full docker-seed-bulk docker-seed-one tidy pre-push
+.PHONY: default run migrate-up migrate-down migrate-status migrate-fresh seed seed-full seed-bulk seed-one loadtest mock build bench test test-unit test-integration test-coverage test-mutation check-test-names lint lint-fix observe docker-up docker-down docker-restart docker-migrate-up docker-migrate-down docker-migrate-status docker-migrate-fresh docker-seed docker-seed-full docker-seed-bulk docker-seed-one tidy pre-push
 
 COMPOSE_OBS       := -f ./docker-compose.observability.yaml
 COMPOSE_OBS_LOCAL := -f ./docker-compose.observability.local.yaml
@@ -82,6 +82,10 @@ test-coverage:
 	go test -race -tags integration -coverpkg=./... -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
+
+# Mutation tests per package, logs in logs/mutation; target=go|client, jobs=N, integration=1, only="utils ..."
+test-mutation:
+	./scripts/mutation-test.sh $(if $(target),--target $(target)) $(if $(jobs),--jobs $(jobs)) $(if $(integration),--integration) $(only)
 
 lint:
 	gofmt -l -e . | grep . && exit 1 || true
