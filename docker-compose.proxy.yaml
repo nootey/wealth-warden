@@ -1,0 +1,18 @@
+# Proxy overlay: serve the client through an external reverse proxy (Caddy, Traefik, ...)
+# instead of a host port. Layer it last, after the ARM overlay if you use one.
+# The proxy reaches the client by container name on the network set in PROXY_NETWORK.
+services:
+  # An overlay cannot delete a service, so Traefik is moved behind a profile instead.
+  traefik:
+    profiles: ["traefik"]
+
+  client:
+    ports: !reset []
+    networks:
+      - wealth-warden
+      - proxy
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:?set PROXY_NETWORK in .env}
+    external: true

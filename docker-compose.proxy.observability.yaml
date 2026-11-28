@@ -1,0 +1,13 @@
+# Proxy overlay for the observability stack. The external reverse proxy reaches Grafana
+# by container name on the network set in PROXY_NETWORK, so Grafana gets no host port.
+services:
+  grafana:
+    ports: !reset []
+    networks:
+      - wealth-warden
+      - proxy
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:?set PROXY_NETWORK in .env}
+    external: true

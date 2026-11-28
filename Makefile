@@ -6,6 +6,8 @@ COMPOSE_MAIN      := -f ./docker-compose.yaml
 COMPOSE_BUILD     := -f ./docker-compose.build.yaml
 COMPOSE_ARM       := -f ./docker-compose.arm.yaml
 COMPOSE_ARM_OBS   := -f ./docker-compose.arm.observability.yaml
+COMPOSE_PROXY     := -f ./docker-compose.proxy.yaml
+COMPOSE_PROXY_OBS := -f ./docker-compose.proxy.observability.yaml
 
 # Docker targets pull published images by default; pass build=1 to build from source instead
 BUILD              = $(if $(build),$(COMPOSE_BUILD))
@@ -14,7 +16,11 @@ FETCH              = $(if $(build),--build,--pull always)
 # Docker targets run the server stack by default; pass arm=1 for an ARM board
 ARM                = $(if $(arm),$(COMPOSE_ARM))
 ARM_OBS            = $(if $(arm),$(COMPOSE_ARM_OBS))
-STACK              = $(COMPOSE_OBS) $(ARM_OBS) $(COMPOSE_MAIN) $(ARM)
+
+# Pass proxy=1 to serve through an external reverse proxy on PROXY_NETWORK instead of host ports
+PROXY              = $(if $(proxy),$(COMPOSE_PROXY))
+PROXY_OBS          = $(if $(proxy),$(COMPOSE_PROXY_OBS))
+STACK              = $(COMPOSE_OBS) $(ARM_OBS) $(PROXY_OBS) $(COMPOSE_MAIN) $(ARM) $(PROXY)
 DOCKER_RUN         = docker compose $(COMPOSE_MAIN) $(ARM) $(BUILD) run --rm $(FETCH) migrate
 
 # Default target runs the app
