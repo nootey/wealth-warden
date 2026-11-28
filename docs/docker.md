@@ -99,11 +99,13 @@ For a host that already runs a reverse proxy, such as Caddy, on a Docker network
 The client and Grafana join the network set in `PROXY_NETWORK`, and the proxy reaches them by container name.
 
 Set `PROXY_NETWORK` in `.env` to the name of the proxy's network. The network must already exist.
-Then add `proxy=1` to the up, down and restart commands. It works with or without `arm=1`:
+A value there turns on proxy mode for the up, down and restart commands, with or without `arm=1`:
 
 ```sh
-make docker-up arm=1 proxy=1
+make docker-up arm=1
 ```
+
+`proxy=1` also turns it on. To turn it off, clear `PROXY_NETWORK` in `.env`.
 
 Point the proxy at `wealth-warden-client-1:80` for the app and `wealth-warden-grafana-1:3000` for Grafana.
 
