@@ -47,6 +47,9 @@ const settingsStore = useSettingsStore();
 const sharedDirection = defineModel<boolean>("sharedDirection", {
   default: true,
 });
+const sharedCategory = defineModel<boolean>("sharedCategory", {
+  default: false,
+});
 const sharedDescription = defineModel<boolean>("sharedDescription", {
   default: false,
 });
@@ -58,6 +61,7 @@ const userSettings = ref<UserSettings>();
 type BulkFormData = {
   account: Account | null;
   txn_date: Date;
+  category: Category | null;
   description: string | null;
   rows: BulkTransactionRow[];
 };
@@ -75,12 +79,14 @@ const selectedParentCategory = ref<Category | null>(
 const record = ref<BulkFormData>({
   account: null,
   txn_date: dayjs().toDate(),
+  category: null,
   description: null,
   rows: [newRow()],
 });
 
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const filteredAccounts = ref<Account[]>([]);
+const filteredCategories = ref<Category[]>([]);
 
 const categoriesByDirection = computed<Record<string, Category[]>>(() =>
   Object.fromEntries(
@@ -121,6 +127,7 @@ const todayInUserTimezone = computed(() => {
 const rules = {
   account: { name: { required } },
   txn_date: { required },
+  category: { name: {} },
   description: {},
   rows: {
     $each: {
@@ -181,6 +188,9 @@ function removeRow(index: number) {
 function syncRowDirections() {
   const direction = selectedParentCategory.value?.classification;
   if (!direction) return;
+  if (record.value.category?.parent_id !== selectedParentCategory.value?.id) {
+    record.value.category = null;
+  }
   record.value.rows.forEach((row) => {
     if (row.direction === direction) return;
     row.direction = direction;
@@ -190,6 +200,7 @@ function syncRowDirections() {
 
 watch(sharedDirection, (on) => {
   if (on) syncRowDirections();
+  else sharedCategory.value = false;
 });
 
 const searchAccount = (event: { query: string }) => {
@@ -197,6 +208,17 @@ const searchAccount = (event: { query: string }) => {
     accounts.value,
     event.query,
     (acc) => [acc.name],
+    { sort: true },
+  );
+};
+
+const searchCategory = (event: { query: string }) => {
+  filteredCategories.value = searchHelper.filterByQuery(
+    categoriesByDirection.value[
+      selectedParentCategory.value?.classification ?? ""
+    ] ?? [],
+    event.query,
+    (c) => [c.display_name, c.name],
     { sort: true },
   );
 };
@@ -220,7 +242,9 @@ async function manageRecord() {
       rows: record.value.rows.map((row) => ({
         direction: row.direction,
         amount: row.amount!,
-        category_id: row.category?.id,
+        category_id: sharedCategory.value
+          ? record.value.category?.id
+          : row.category?.id,
         description: sharedDescription.value
           ? record.value.description
           : row.description,
@@ -307,18 +331,41 @@ async function manageRecord() {
       </div>
     </div>
 
-    <div v-if="sharedDescription" class="flex flex-col gap-1 w-full">
-      <ValidationError
-        :is-required="false"
-        :message="r$.description.$errors[0]"
-      >
-        <label>Description</label>
-      </ValidationError>
-      <InputText
-        v-model="record.description"
-        size="small"
-        placeholder="Describe transactions"
-      />
+    <div
+      v-if="sharedCategory || sharedDescription"
+      class="flex flex-col sm:flex-row w-full gap-4"
+    >
+      <div v-if="sharedCategory" class="flex flex-col flex-1 gap-1 min-w-0">
+        <ValidationError
+          :is-required="false"
+          :message="r$.category.name.$errors[0]"
+        >
+          <label>Category</label>
+        </ValidationError>
+        <AutoComplete
+          v-model="record.category"
+          size="small"
+          :suggestions="filteredCategories"
+          option-label="display_name"
+          overlay-class="w-0"
+          placeholder="Select category"
+          dropdown
+          @complete="searchCategory"
+        />
+      </div>
+      <div v-if="sharedDescription" class="flex flex-col flex-1 gap-1 min-w-0">
+        <ValidationError
+          :is-required="false"
+          :message="r$.description.$errors[0]"
+        >
+          <label>Description</label>
+        </ValidationError>
+        <InputText
+          v-model="record.description"
+          size="small"
+          placeholder="Describe transactions"
+        />
+      </div>
     </div>
 
     <div class="flex flex-col gap-3">
@@ -335,6 +382,7 @@ async function manageRecord() {
           description: r$.rows.$each[i]?.description.$errors[0],
         }"
         :show-direction="!sharedDirection"
+        :show-category="!sharedCategory"
         :show-description="!sharedDescription"
         :removable="record.rows.length > 1"
         @remove="removeRow(i)"

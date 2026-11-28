@@ -23,6 +23,7 @@ const props = defineProps<{
     description?: string;
   };
   showDirection: boolean;
+  showCategory: boolean;
   showDescription: boolean;
   removable: boolean;
 }>();
@@ -82,7 +83,7 @@ const searchCategory = (event: { query: string }) => {
         :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
       />
     </div>
-    <div class="flex flex-col flex-1 gap-1 min-w-0">
+    <div v-if="showCategory" class="flex flex-col flex-1 gap-1 min-w-0">
       <ValidationError :is-required="false" :message="errors.category">
         <label>Category</label>
       </ValidationError>

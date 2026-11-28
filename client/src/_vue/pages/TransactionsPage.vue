@@ -39,6 +39,7 @@ const createModal = ref(false);
 const bulkMode = ref(false);
 const bulkSharedDescription = ref(false);
 const bulkSharedDirection = ref(true);
+const bulkSharedCategory = ref(false);
 const updateModal = ref(false);
 const templateModal = ref(false);
 const updateTransactionID = ref(null);
@@ -226,6 +227,21 @@ async function handleEmit(emitType: any) {
         </div>
         <div class="flex items-center gap-2">
           <Checkbox
+            v-model="bulkSharedCategory"
+            input-id="bulk-shared-category"
+            binary
+            :disabled="!bulkSharedDirection"
+          />
+          <label
+            for="bulk-shared-category"
+            class="cursor-pointer"
+            style="color: var(--text-secondary)"
+          >
+            Same category
+          </label>
+        </div>
+        <div class="flex items-center gap-2">
+          <Checkbox
             v-model="bulkSharedDescription"
             input-id="bulk-shared-description"
             binary
@@ -243,6 +259,7 @@ async function handleEmit(emitType: any) {
     <TransactionBulkForm
       v-if="bulkMode"
       v-model:shared-direction="bulkSharedDirection"
+      v-model:shared-category="bulkSharedCategory"
       v-model:shared-description="bulkSharedDescription"
       @complete-tx-operation="handleEmit('completeTxOperation')"
     />
