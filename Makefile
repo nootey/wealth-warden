@@ -17,9 +17,10 @@ FETCH              = $(if $(build),--build,--pull always)
 ARM                = $(if $(arm),$(COMPOSE_ARM))
 ARM_OBS            = $(if $(arm),$(COMPOSE_ARM_OBS))
 
-# Pass proxy=1 to serve through an external reverse proxy on PROXY_NETWORK instead of host ports
-PROXY              = $(if $(proxy),$(COMPOSE_PROXY))
-PROXY_OBS          = $(if $(proxy),$(COMPOSE_PROXY_OBS))
+# Proxy mode (no host ports, joins PROXY_NETWORK) turns on when .env sets PROXY_NETWORK, or with proxy=1
+PROXY_ENV         := $(shell grep -s '^PROXY_NETWORK=[^[:space:]]' .env)
+PROXY              = $(if $(or $(proxy),$(PROXY_ENV)),$(COMPOSE_PROXY))
+PROXY_OBS          = $(if $(or $(proxy),$(PROXY_ENV)),$(COMPOSE_PROXY_OBS))
 STACK              = $(COMPOSE_OBS) $(ARM_OBS) $(PROXY_OBS) $(COMPOSE_MAIN) $(ARM) $(PROXY)
 DOCKER_RUN         = docker compose $(COMPOSE_MAIN) $(ARM) $(BUILD) run --rm $(FETCH) migrate
 
